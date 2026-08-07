@@ -2,7 +2,8 @@
 
 Standalone repository for the OPTIMUS Shipping Portal rebuild.
 
-**Repository:** https://github.com/jdflores22/optimus-v2
+**Repository:** https://github.com/jdflores22/optimus-v2  
+**Local path:** `c:\xampp\htdocs\optimus-v2`
 
 OPTIMUS Shipping Portal rebuilt on:
 
