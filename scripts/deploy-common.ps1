@@ -31,6 +31,20 @@ function Get-DeployConfig {
         $config.GitHubRepo = 'jdflores22/optimus-v2'
     }
 
+    $pwd = [string]$config.SshPassword
+    if ($pwd -match '^(YOUR_SSH_PASSWORD|CHANGE_ME|)$') {
+        throw @"
+Hostinger SSH password is not set.
+
+Edit deploy-config.ps1 and set SshPassword to your Hostinger SSH password
+(hPanel -> Advanced -> SSH Access — not your MySQL password).
+
+Or run once with:
+  `$env:HOSTINGER_SSH_PASSWORD = 'your-password'
+  .\deploy.ps1 -SkipGitPush -UsePassword
+"@
+    }
+
     return $config
 }
 
