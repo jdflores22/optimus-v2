@@ -59,7 +59,30 @@ Use the MySQL user with **Access host: Any Host**:
 - User: `u910121167_61mLrRkFt_OV2`
 - Do **not** use `u910121167_61mLrRkFt_optimusv2` (localhost only)
 
-Whitelist Railway outbound IP in **hPanel → Databases → Remote MySQL** (or enable static outbound IP on Railway).
+### Remote MySQL whitelist (required for Railway)
+
+Railway runs outside Hostinger. You must allow remote connections:
+
+1. **hPanel → Databases → Remote MySQL**
+2. Add host **`%`** (any IP — simplest) **or** Railway **Static Outbound IP**
+   - Railway → your service → **Settings → Networking → Static Outbound IP** (enable, then copy the IPv4 address)
+3. Save, wait ~2 minutes, then **Redeploy** on Railway
+
+Without this step, `/health` stays **Unhealthy** and the pre-deploy migration will fail.
+
+---
+
+## Automatic database migrations
+
+Every Railway deploy runs migrations **before** the new version goes live (`preDeployCommand` in `railway.toml`):
+
+1. **Pre-deploy** — `dotnet Optimus.Api.dll --migrate-only` (creates/updates tables + seed)
+2. **Deploy** — API starts; `/health/live` must respond
+3. **Verify** — `/health` should return **Healthy** when MySQL is reachable
+
+If pre-deploy fails, the deployment **stops** (no broken release). Check **Deploy logs → Pre-deploy** for the MySQL error.
+
+New EF migrations in code are applied automatically on the next GitHub push to `main`.
 
 ---
 
@@ -108,7 +131,7 @@ curl -X POST "https://YOUR-RAILWAY-DOMAIN.up.railway.app/api/auth/login" `
   -d '{"email":"admin@optimus.local","password":"Admin123!"}'
 ```
 
-On first start, EF migrations run automatically. Change the default admin password after go-live.
+On first deploy, EF migrations run in the **pre-deploy** step. Change the default admin password after go-live.
 
 ---
 
@@ -117,7 +140,9 @@ On first start, EF migrations run automatically. Change the default admin passwo
 | Issue | Fix |
 |-------|-----|
 | Healthcheck failure | App uses `/health/live` for Railway; check Deploy logs for MySQL errors |
-| **No tables / migration skipped** | `/health` returns Unhealthy = Railway cannot reach MySQL. Set `MYSQL_HOST=h5g5-db.hstgr.io`, whitelist Railway IP in Hostinger Remote MySQL, redeploy. Or run `.\scripts\migrate-hostinger.ps1` from your PC |
+| **Pre-deploy / migration failed** | Deploy logs → **Pre-deploy**. Usually wrong `MYSQL_*` vars or Hostinger Remote MySQL not whitelisted |
+| **No tables / migration skipped** | `/health` returns Unhealthy = Railway cannot reach MySQL. Set `MYSQL_HOST=h5g5-db.hstgr.io`, whitelist `%` or Railway IP in Hostinger Remote MySQL, redeploy. Or run `.\scripts\migrate-hostinger.ps1` from your PC |
+| `/health` Unhealthy | MySQL unreachable from Railway — fix Remote MySQL + verify `MYSQL_USER` is the **Any Host** user |
 | MySQL connection failed | Check `MYSQL_HOST`, remote user (Any Host), Railway IP whitelist |
 | CORS error | Match exact frontend URL in `Cors__Origins__0` |
 | Upload 404 after redeploy | Attach volume at `/app/uploads` |

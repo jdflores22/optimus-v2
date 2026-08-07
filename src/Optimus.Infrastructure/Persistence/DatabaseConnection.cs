@@ -65,6 +65,15 @@ public static class DatabaseConnection
         var sslMode = sslRequired ? "Preferred" : "Preferred";
 
         return
-            $"Server={host};Port={portValue};Database={database};User={user};Password={password};CharSet=utf8mb4;SslMode={sslMode};";
+            $"Server={host};Port={portValue};Database={database};User={user};Password={password};CharSet=utf8mb4;SslMode={sslMode};AllowPublicKeyRetrieval=True;Connection Timeout=30;";
+    }
+
+    public static string DescribeForLogs(IConfiguration config)
+    {
+        var host = config["MYSQL_HOST"] ?? Environment.GetEnvironmentVariable("MYSQL_HOST") ?? "(not set)";
+        var port = config["MYSQL_PORT"] ?? Environment.GetEnvironmentVariable("MYSQL_PORT") ?? "3306";
+        var database = config["MYSQL_DATABASE"] ?? Environment.GetEnvironmentVariable("MYSQL_DATABASE") ?? "(not set)";
+        var user = config["MYSQL_USER"] ?? Environment.GetEnvironmentVariable("MYSQL_USER") ?? "(not set)";
+        return $"host={host};port={port};database={database};user={user}";
     }
 }

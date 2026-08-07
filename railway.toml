@@ -6,6 +6,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "docker/Dockerfile.api"
 
 [deploy]
+preDeployCommand = "/app/railway-predeploy.sh"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 healthcheckPath = "/health/live"

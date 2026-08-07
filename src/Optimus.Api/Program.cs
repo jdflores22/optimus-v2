@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using Optimus.Application;
 using Optimus.Infrastructure;
+using Optimus.Infrastructure.Persistence;
 using Optimus.Infrastructure.Persistence.Seed;
 using Optimus.Infrastructure.Storage;
 using Optimus.Api;
@@ -139,34 +140,20 @@ try
 
     if (args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase))
     {
+        Log.Information("MySQL target: {DbTarget}", DatabaseConnection.DescribeForLogs(app.Configuration));
         Log.Information("Running database migrations and seed (migrate-only)...");
         await DbSeeder.SeedAsync(app.Services);
         Log.Information("Database migrations and seed completed.");
         return;
     }
 
-    app.Lifetime.ApplicationStarted.Register(() =>
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                Log.Information("Running database migrations and seed...");
-                await DbSeeder.SeedAsync(app.Services);
-                Log.Information("Database migrations and seed completed.");
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Database migration/seed failed after startup");
-            }
-        });
-    });
-
+    Log.Information("MySQL target: {DbTarget}", DatabaseConnection.DescribeForLogs(app.Configuration));
     app.Run();
 }
 catch (Exception ex)
 {
     Log.Fatal(ex, "Optimus V2 API terminated unexpectedly");
+    Environment.ExitCode = 1;
 }
 finally
 {
