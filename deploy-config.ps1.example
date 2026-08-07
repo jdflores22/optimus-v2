@@ -1,0 +1,16 @@
+# Copy to deploy-config.ps1 and fill in (not committed to git).
+@{
+    SshHost     = '82.25.100.95'
+    SshPort     = 65002
+    SshUser     = 'u910121167_61mLrRkFt'
+    SshKey      = Join-Path $env:USERPROFILE '.ssh\hostinger_optimus'
+    SshPassword = ''
+    # Run: ssh -p 65002 u910121167_61mLrRkFt@82.25.100.95 "pwd"
+    RemotePath  = '/home/u910121167/domains/indigo-buffalo-715579.hostingersite.com/public_html'
+    AppUrl      = 'https://indigo-buffalo-715579.hostingersite.com'
+    ApiBaseUrl  = 'https://optimus-v2-copy-production.up.railway.app'
+    GitBranch   = 'main'
+    HostingerGitBranch = 'hostinger'
+    GitHubRepo  = 'jdflores22/optimus-v2'
+    GitHubToken = ''
+}

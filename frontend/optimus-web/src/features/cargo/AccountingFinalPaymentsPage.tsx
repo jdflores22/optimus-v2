@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
-import { useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { useGetFinalPaymentsQuery } from '../../app/api';
 import type { FinalPaymentListItemDto } from '../../shared/types';
 import { WorkflowPage } from '../shared/WorkflowPage';

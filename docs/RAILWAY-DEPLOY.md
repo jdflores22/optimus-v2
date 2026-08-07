@@ -76,6 +76,27 @@ npm run build
 
 Upload `dist/` contents to Hostinger `public_html`.
 
+### Automated deploy script
+
+```powershell
+# Once:
+copy deploy-config.ps1.example deploy-config.ps1
+# Edit deploy-config.ps1 — set SshPassword and verify RemotePath
+
+# Build + publish to origin/hostinger + git pull on Hostinger:
+.\deploy.ps1 -SkipGitPush -UsePassword
+
+# SCP fallback if git pull on Hostinger is not set up:
+.\deploy.ps1 -SkipGitPush -UsePassword -UseScp
+```
+
+Example production values:
+
+| Setting | Value |
+|---------|--------|
+| `ApiBaseUrl` | `https://optimus-v2-copy-production.up.railway.app` |
+| `AppUrl` | `https://indigo-buffalo-715579.hostingersite.com` |
+
 ---
 
 ## Verify API

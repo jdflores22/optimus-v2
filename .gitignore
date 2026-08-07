@@ -12,6 +12,9 @@
 **/appsettings.*.local.json
 **/.env
 **/.env.local
+**/.env.production
+deploy-config.ps1
+scripts/.hostinger-deploy-manifest.json
 **/logs/
 artifacts/
 **/dev-dist/
