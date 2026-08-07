@@ -8,12 +8,16 @@ public static class DatabaseConnection
 
     public static string? ResolveFromConfiguration(IConfiguration config)
     {
-        var connectionString = config.GetConnectionString(DefaultConnectionName);
+        // MYSQL_* must win over appsettings.json localhost default (Railway sets env vars, not ConnectionStrings__Default).
+        var connectionString = BuildFromMysqlConfig(config);
         if (!string.IsNullOrWhiteSpace(connectionString))
             return connectionString;
 
-        connectionString = BuildFromMysqlConfig(config);
-        return string.IsNullOrWhiteSpace(connectionString) ? ResolveFromEnvironment() : connectionString;
+        connectionString = ResolveFromEnvironment();
+        if (!string.IsNullOrWhiteSpace(connectionString))
+            return connectionString;
+
+        return config.GetConnectionString(DefaultConnectionName);
     }
 
     public static string? ResolveFromEnvironment()
@@ -70,10 +74,17 @@ public static class DatabaseConnection
 
     public static string DescribeForLogs(IConfiguration config)
     {
-        var host = config["MYSQL_HOST"] ?? Environment.GetEnvironmentVariable("MYSQL_HOST") ?? "(not set)";
-        var port = config["MYSQL_PORT"] ?? Environment.GetEnvironmentVariable("MYSQL_PORT") ?? "3306";
-        var database = config["MYSQL_DATABASE"] ?? Environment.GetEnvironmentVariable("MYSQL_DATABASE") ?? "(not set)";
-        var user = config["MYSQL_USER"] ?? Environment.GetEnvironmentVariable("MYSQL_USER") ?? "(not set)";
-        return $"host={host};port={port};database={database};user={user}";
+        var resolved = ResolveFromConfiguration(config);
+        if (string.IsNullOrWhiteSpace(resolved))
+            return "source=none";
+
+        var builder = new MySqlConnector.MySqlConnectionStringBuilder(resolved);
+        var source = !string.IsNullOrWhiteSpace(config["MYSQL_HOST"] ?? Environment.GetEnvironmentVariable("MYSQL_HOST"))
+            ? "MYSQL_*"
+            : !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable($"ConnectionStrings__{DefaultConnectionName}"))
+                ? "ConnectionStrings__Default"
+                : "ConnectionStrings:Default";
+
+        return $"source={source};server={builder.Server};port={builder.Port};database={builder.Database};user={builder.UserID}";
     }
 }
