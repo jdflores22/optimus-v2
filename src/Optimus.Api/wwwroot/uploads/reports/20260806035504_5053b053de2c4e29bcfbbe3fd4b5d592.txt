@@ -1,0 +1,6 @@
+CY Utilization
+
+Terminal,AllocatedTEU,UsedTEU,Utilization%,AvailableForReturn,AtTerminal,PendingPreAdvice
+Manila Container Yard,100,1,1.0,0,1,0
+
+GeneratedAtUtc=2026-08-06T03:55:04.2736534Z

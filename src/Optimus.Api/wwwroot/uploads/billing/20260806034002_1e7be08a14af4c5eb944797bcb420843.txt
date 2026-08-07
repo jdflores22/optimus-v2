@@ -1,0 +1,4 @@
+Detention EDO-20260806-MSCU1234567-781
+
+OverdueDays=13; Amount=1950
+GeneratedAtUtc=2026-08-06T03:40:02.6703947Z

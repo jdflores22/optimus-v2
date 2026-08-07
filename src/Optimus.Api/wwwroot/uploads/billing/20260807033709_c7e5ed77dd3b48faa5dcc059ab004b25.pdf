@@ -1,0 +1,52 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources<< /Font<< /F1 5 0 R >> >> >>endobj
+4 0 obj<< /Length 518 >>stream
+BT
+/F1 16 Tf
+50 780 Td
+(Billing MF-887315) Tj
+/F1 10 Tf
+0 -28 Td
+( ) Tj
+0 -14 Td
+(Manifest: MF-887315) Tj
+0 -14 Td
+(BL: MF-887315) Tj
+0 -14 Td
+(Currency: USD) Tj
+0 -14 Td
+(Exchange rate: 1 USD = 60.7910 PHP) Tj
+0 -14 Td
+(Freight: 1000.00) Tj
+0 -14 Td
+(THC: 500.00) Tj
+0 -14 Td
+(Additional charges:) Tj
+0 -14 Td
+(  - Cleaning Fee: 10.00) Tj
+0 -14 Td
+(  - Fuel Surcharge: 10.00) Tj
+0 -14 Td
+(  - System Fee: 10.00) Tj
+0 -14 Td
+(Total: 1530.00 USD) Tj
+0 -14 Td
+(Total PHP: 93010.23) Tj
+ET
+endstream
+endobj
+5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000233 00000 n 
+0000000799 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+867
+%%EOF

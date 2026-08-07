@@ -1,0 +1,12 @@
+eDO Release Metrics
+
+Metric,Value
+TotalGenerated,6
+TotalReleased,3
+TotalRejected,0
+TotalExpired,0
+ReleasedLast7Days,3
+ReleasedLast30Days,3
+AvgHoursToRelease,0
+
+GeneratedAtUtc=2026-08-06T04:21:46.6359481Z

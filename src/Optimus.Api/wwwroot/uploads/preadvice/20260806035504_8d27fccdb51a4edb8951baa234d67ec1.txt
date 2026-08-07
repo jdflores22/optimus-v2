@@ -1,0 +1,6 @@
+Pre-Advice PA-P456815-20260806
+
+Container=P456815
+Terminal=Manila Container Yard
+Verify=/verify/document/F6A4227EE198252DEE50EF86C9C4951D
+GeneratedAtUtc=2026-08-06T03:55:04.0622098Z

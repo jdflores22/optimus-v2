@@ -1,0 +1,7 @@
+Billing MF-P2B-032651
+
+Freight=1000
+THC=200
+Additional=50
+Total=1250 USD
+GeneratedAtUtc=2026-08-06T03:26:51.8251283Z
