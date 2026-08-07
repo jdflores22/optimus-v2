@@ -478,7 +478,7 @@ function Invoke-HostingerGitPull {
 
     Write-Host ("Pulling origin/{0} on Hostinger (no file upload) ..." -f $branch) -ForegroundColor Cyan
 
-    $cmd = "cd '$safeRoot' && (test -d .git || (git init && git remote add origin '$safeUrl')) && git remote set-url origin '$safeUrl' && git fetch origin '$safeBranch' && git checkout -f -B '$safeBranch' origin/$safeBranch && git clean -fd && test -f index.html && echo DEPLOY_OK"
+    $cmd = "test -d '$safeRoot' || { echo REMOTE_PATH_MISSING; exit 1; }; cd '$safeRoot' && (test -d .git || (git init && git remote add origin '$safeUrl')) && git remote set-url origin '$safeUrl' && git fetch origin '$safeBranch' && git checkout -f -B '$safeBranch' origin/$safeBranch && git clean -fd && test -f index.html && echo DEPLOY_OK"
 
     Invoke-DeployRemote -Config $Config -Command $cmd -MaxAttempts $MaxAttempts
     Write-Host 'Hostinger git pull complete.' -ForegroundColor Green

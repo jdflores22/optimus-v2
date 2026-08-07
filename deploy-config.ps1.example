@@ -7,7 +7,7 @@
     SshPassword = ''
     # Hostinger SSH password (hPanel -> Advanced -> SSH Access). NOT the MySQL password.
     # Example: SshPassword = 'your-hostinger-ssh-password'
-    RemotePath  = '/home/u910121167/domains/indigo-buffalo-715579.hostingersite.com/public_html'
+    RemotePath  = '/home/u910121167/websites/61mLrRkFt/public_html'
     AppUrl      = 'https://indigo-buffalo-715579.hostingersite.com'
     ApiBaseUrl  = 'https://optimus-v2-copy-production.up.railway.app'
     GitBranch   = 'main'
