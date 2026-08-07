@@ -10,6 +10,13 @@ export const metricGrid4Sx: SxProps<Theme> = {
   },
 };
 
+/** Workflow section body: constrain width so flex/grid children wrap on mobile. */
+export const workflowSectionContentSx: SxProps<Theme> = {
+  minWidth: 0,
+  maxWidth: '100%',
+  overflow: 'hidden',
+};
+
 /** Horizontal scroll for wide tables on small screens. */
 export const tableScrollSx: SxProps<Theme> = {
   overflowX: 'auto',

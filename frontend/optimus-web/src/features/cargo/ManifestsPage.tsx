@@ -38,8 +38,41 @@ import {
 import type { RootState } from '../../app/store';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
 import { formatWorkflowState } from '../../shared/formatWorkflowState';
+import { tableScrollSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
+
+const WORKFLOW_STEPS = [
+  'Create NOA',
+  'Generate BL',
+  'Upload BL',
+  'Billing',
+  'Submit payment',
+  'Validate',
+  'Generate eDO',
+  'Release eDO',
+] as const;
+
+function WorkflowStepBadge({ index }: { index: number }) {
+  return (
+    <Box
+      sx={{
+        width: 20,
+        height: 20,
+        borderRadius: '50%',
+        bgcolor: 'primary.main',
+        color: 'primary.contrastText',
+        display: 'grid',
+        placeItems: 'center',
+        fontSize: 10,
+        fontWeight: 700,
+        flexShrink: 0,
+      }}
+    >
+      {index + 1}
+    </Box>
+  );
+}
 
 function toneForState(state: string): 'default' | 'info' | 'warning' | 'success' | 'error' | 'secondary' {
   if (/released|generated|verified|completed/i.test(state)) return 'success';
@@ -254,44 +287,33 @@ export function ManifestsPage() {
             >
               Order
             </Typography>
+            {/* Compact vertical sequence on phone / tablet */}
+            <Stack spacing={0.75} sx={{ display: { xs: 'flex', lg: 'none' } }}>
+              {WORKFLOW_STEPS.map((step, index) => (
+                <Stack key={step} direction="row" spacing={1} alignItems="center">
+                  <WorkflowStepBadge index={index} />
+                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: 13, color: 'text.primary' }}>
+                    {step}
+                  </Typography>
+                </Stack>
+              ))}
+            </Stack>
+            {/* Horizontal sequence on wide screens only */}
             <Box
               sx={{
-                display: 'flex',
+                display: { xs: 'none', lg: 'flex' },
                 alignItems: 'center',
-                gap: { xs: 0.5, sm: 0.75 },
+                gap: 0.75,
                 overflowX: 'auto',
                 pb: 0.25,
+                WebkitOverflowScrolling: 'touch',
                 '&::-webkit-scrollbar': { height: 4 },
               }}
             >
-              {[
-                'Create NOA',
-                'Generate BL',
-                'Upload BL',
-                'Billing',
-                'Submit payment',
-                'Validate',
-                'Generate eDO',
-                'Release eDO',
-              ].map((step, index, arr) => (
-                <Box key={step} sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 0.75 }, flexShrink: 0 }}>
+              {WORKFLOW_STEPS.map((step, index, arr) => (
+                <Box key={step} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
                   <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Box
-                      sx={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        bgcolor: 'primary.main',
-                        color: 'primary.contrastText',
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {index + 1}
-                    </Box>
+                    <WorkflowStepBadge index={index} />
                     <Typography
                       variant="body2"
                       fontWeight={600}
@@ -303,7 +325,7 @@ export function ManifestsPage() {
                   {index < arr.length - 1 && (
                     <Box
                       sx={{
-                        width: { xs: 10, sm: 14 },
+                        width: 14,
                         height: 2,
                         borderRadius: 1,
                         bgcolor: 'rgba(11,61,92,0.18)',
@@ -327,12 +349,15 @@ export function ManifestsPage() {
             </Typography>
             <Box
               sx={{
-                display: 'flex',
-                flexWrap: 'nowrap',
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: 'repeat(2, minmax(0, 1fr))',
+                  sm: 'repeat(3, minmax(0, 1fr))',
+                  md: 'repeat(4, minmax(0, 1fr))',
+                  lg: 'repeat(5, minmax(0, 1fr))',
+                },
                 gap: 0.75,
-                overflowX: 'auto',
-                pb: 0.25,
-                '&::-webkit-scrollbar': { height: 4 },
+                width: '100%',
               }}
             >
               {stageCards.map((stage) => {
@@ -341,20 +366,21 @@ export function ManifestsPage() {
                   <Button
                     key={stage.id}
                     size="small"
+                    fullWidth
                     variant={active ? 'contained' : 'outlined'}
                     color={active ? 'primary' : 'inherit'}
                     onClick={() => setActiveStage(stage.id)}
                     sx={{
-                      flexShrink: 0,
                       textTransform: 'none',
                       fontWeight: 600,
-                      fontSize: 12.5,
-                      px: 1.25,
+                      fontSize: { xs: 11.5, sm: 12.5 },
+                      px: { xs: 0.75, sm: 1.25 },
                       py: 0.55,
                       minHeight: 32,
                       borderRadius: 1.5,
                       borderColor: active ? 'primary.main' : 'divider',
                       whiteSpace: 'nowrap',
+                      justifyContent: 'center',
                     }}
                   >
                     {stage.label}
@@ -612,7 +638,7 @@ export function ManifestsPage() {
           </Button>
         }
       >
-        <Box sx={{ overflowX: 'auto' }}>
+        <Box sx={{ ...tableScrollSx, mx: 0, px: 0 }}>
         <Table size="small">
           <TableHead>
             <TableRow>

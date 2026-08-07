@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { Box, Chip, Paper, Stack, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { pageHeroGradient } from '../../shared/theme';
-import { tableScrollSx } from '../../shared/responsiveLayout';
+import { workflowSectionContentSx } from '../../shared/responsiveLayout';
 
 export type WorkflowStat = {
   label: string;
@@ -292,7 +292,7 @@ export function WorkflowSection({
           </Stack>
         )}
       </Stack>
-      <Box px={{ xs: 1.5, sm: 2.5 }} pb={2.5} sx={tableScrollSx}>
+      <Box px={{ xs: 1.5, sm: 2.5 }} pb={2.5} sx={workflowSectionContentSx}>
         {children}
       </Box>
     </Paper>
