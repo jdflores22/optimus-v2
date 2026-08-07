@@ -24,7 +24,7 @@ In **Railway → your service → Variables**, add:
 |----------|--------|
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
 | `ASPNETCORE_URLS` | `http://0.0.0.0:8080` |
-| `MYSQL_HOST` | MySQL hostname from Hostinger hPanel (e.g. `xxxx-db.hstgr.io`) |
+| `MYSQL_HOST` | `h5g5-db.hstgr.io` *(from Hostinger phpMyAdmin URL — not `localhost`)* |
 | `MYSQL_PORT` | `3306` |
 | `MYSQL_DATABASE` | `u910121167_61mLrRkFt_OV2` |
 | `MYSQL_USER` | `u910121167_61mLrRkFt_OV2` *(Any Host — not `optimusv2` localhost user)* |
@@ -117,6 +117,7 @@ On first start, EF migrations run automatically. Change the default admin passwo
 | Issue | Fix |
 |-------|-----|
 | Healthcheck failure | App uses `/health/live` for Railway; check Deploy logs for MySQL errors |
+| **No tables / migration skipped** | `/health` returns Unhealthy = Railway cannot reach MySQL. Set `MYSQL_HOST=h5g5-db.hstgr.io`, whitelist Railway IP in Hostinger Remote MySQL, redeploy. Or run `.\scripts\migrate-hostinger.ps1` from your PC |
 | MySQL connection failed | Check `MYSQL_HOST`, remote user (Any Host), Railway IP whitelist |
 | CORS error | Match exact frontend URL in `Cors__Origins__0` |
 | Upload 404 after redeploy | Attach volume at `/app/uploads` |

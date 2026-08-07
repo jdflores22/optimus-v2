@@ -137,20 +137,15 @@ try
         version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.1"
     }));
 
-    app.Lifetime.ApplicationStarted.Register(() =>
+    Log.Information("Running database migrations and seed...");
+    await DbSeeder.SeedAsync(app.Services);
+    Log.Information("Database migrations and seed completed.");
+
+    if (args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase))
     {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await DbSeeder.SeedAsync(app.Services);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Database migration/seed failed after startup");
-            }
-        });
-    });
+        Log.Information("Migrate-only mode — exiting.");
+        return;
+    }
 
     app.Run();
 }
