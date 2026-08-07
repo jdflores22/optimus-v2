@@ -49,6 +49,7 @@ import { DynamicFormFields, type DynamicFormValues } from './DynamicFormFields';
 import { SasFormBuilder } from './SasFormBuilder';
 import { SubmissionDetailsPreview } from './SubmissionDetailsPreview';
 import { EvaluatorApplicationsPanel } from './EvaluatorApplicationsPanel';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { TABLE_ACTIONS_HEADER, TableViewButton, TableViewLink } from '../shared/TableViewLink';
 
 function errMsg(e: unknown, fallback: string): string {
@@ -352,7 +353,7 @@ export function SasPage() {
             </Stack>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setViewing(null)}>Close</Button>
         </DialogActions>
       </Dialog>
@@ -651,7 +652,7 @@ function ApplicantAccreditationPanel({
             ))}
           </List>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={dialogActionsSx}>
           <Button variant="contained" onClick={() => setValidationErrors([])}>
             Review form
           </Button>
@@ -716,7 +717,7 @@ function ApplicantAccreditationPanel({
               : "After submission, our evaluation team will review your application. You'll be notified by email."}
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setConfirmOpen(false)} disabled={isLoading}>
             Go back
           </Button>

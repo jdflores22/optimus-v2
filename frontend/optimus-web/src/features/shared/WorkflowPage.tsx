@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Box, Chip, Paper, Stack, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { pageHeroGradient } from '../../shared/theme';
+import { tableScrollSx } from '../../shared/responsiveLayout';
 
 export type WorkflowStat = {
   label: string;
@@ -91,7 +92,20 @@ export function WorkflowPage({
             )}
           </Box>
           {actions && (
-            <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1} justifyContent={{ lg: 'flex-end' }}>
+            <Stack
+              direction="row"
+              flexWrap="wrap"
+              useFlexGap
+              spacing={1}
+              justifyContent={{ lg: 'flex-end' }}
+              sx={{
+                width: { xs: '100%', lg: 'auto' },
+                '& > .MuiButton-root': {
+                  flex: { xs: '1 1 calc(50% - 4px)', sm: '0 0 auto' },
+                  minWidth: { xs: 0, sm: 'auto' },
+                },
+              }}
+            >
               {actions}
             </Stack>
           )}
@@ -245,14 +259,14 @@ export function WorkflowSection({
   return (
     <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
       <Stack
-        direction="row"
+        direction={{ xs: 'column', sm: 'row' }}
         justifyContent="space-between"
-        alignItems="center"
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
         spacing={1.5}
-        px={2.5}
+        px={{ xs: 1.5, sm: 2.5 }}
         py={2}
       >
-        <Box minWidth={0}>
+        <Box minWidth={0} flex={1}>
           <Typography variant="h6" fontWeight={700}>
             {title}
           </Typography>
@@ -262,9 +276,23 @@ export function WorkflowSection({
             </Typography>
           )}
         </Box>
-        {actions}
+        {actions && (
+          <Stack
+            direction="row"
+            flexWrap="wrap"
+            useFlexGap
+            spacing={1}
+            sx={{
+              width: { xs: '100%', sm: 'auto' },
+              justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+              '& > .MuiButton-root': { flex: { xs: '1 1 auto', sm: '0 0 auto' } },
+            }}
+          >
+            {actions}
+          </Stack>
+        )}
       </Stack>
-      <Box px={2.5} pb={2.5}>
+      <Box px={{ xs: 1.5, sm: 2.5 }} pb={2.5} sx={tableScrollSx}>
         {children}
       </Box>
     </Paper>

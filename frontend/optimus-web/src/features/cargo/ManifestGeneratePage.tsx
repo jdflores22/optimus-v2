@@ -28,6 +28,7 @@ import {
   useGetManifestQuery,
 } from '../../app/api';
 import { API_BASE_URL } from '../../shared/types';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 function toLocalInputValue(iso?: string | null): string {
@@ -342,7 +343,7 @@ export function ManifestGeneratePage() {
             </Box>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>
             Back to edit
           </Button>

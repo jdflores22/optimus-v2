@@ -390,11 +390,16 @@ function InfoCard({
 
 function SummaryRow({ label, value }: { label: string; value?: string | null }) {
   return (
-    <Stack direction="row" justifyContent="space-between" spacing={2}>
+    <Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      justifyContent="space-between"
+      spacing={2}
+      alignItems={{ xs: 'flex-start', sm: 'center' }}
+    >
       <Typography variant="body2" color="text.secondary">
         {label}
       </Typography>
-      <Typography variant="body2" fontWeight={600} textAlign="right">
+      <Typography variant="body2" fontWeight={600} sx={{ textAlign: { xs: 'left', sm: 'right' }, wordBreak: 'break-word' }}>
         {value || '—'}
       </Typography>
     </Stack>

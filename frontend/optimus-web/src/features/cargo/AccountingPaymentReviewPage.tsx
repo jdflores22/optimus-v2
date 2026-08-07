@@ -30,6 +30,7 @@ import {
   useValidatePaymentMutation,
 } from '../../app/api';
 import { API_BASE_URL } from '../../shared/types';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 function money(amount: number, currency: string) {
@@ -340,7 +341,14 @@ export function AccountingPaymentReviewPage() {
             title="Documents"
             subtitle="Compare the submitted receipt against the billing PDF side by side."
           >
-            <Tabs value={docTab} onChange={(_, v) => setDocTab(v)} sx={{ mb: 2 }}>
+            <Tabs
+              value={docTab}
+              onChange={(_, v) => setDocTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{ mb: 2 }}
+            >
               <Tab label="Payment receipt" />
               <Tab label="Billing invoice" />
             </Tabs>
@@ -469,7 +477,7 @@ export function AccountingPaymentReviewPage() {
                 />
               </Stack>
             </DialogContent>
-            <DialogActions sx={{ px: 3, py: 2 }}>
+            <DialogActions sx={dialogActionsSx}>
               <Button onClick={closeApproveModal} fullWidth sx={{ textTransform: 'none' }}>
                 Cancel
               </Button>
@@ -557,7 +565,7 @@ export function AccountingPaymentReviewPage() {
                 />
               </Stack>
             </DialogContent>
-            <DialogActions sx={{ px: 3, py: 2 }}>
+            <DialogActions sx={dialogActionsSx}>
               <Button onClick={closeRejectModal} fullWidth sx={{ textTransform: 'none' }}>
                 Cancel
               </Button>

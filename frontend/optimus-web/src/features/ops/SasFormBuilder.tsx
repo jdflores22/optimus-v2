@@ -48,6 +48,7 @@ import {
   useUpdateFormFieldsMutation,
 } from '../../app/api';
 import type { FormConfigurationDto, SasFieldValidation, SasFormField } from '../../shared/types';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import {
   COLUMN_SPAN_OPTIONS,
   FIELD_TEMPLATE_GROUPS,
@@ -356,6 +357,9 @@ export function SasFormBuilder({ forms, onRefresh, onMessage, onError }: Props) 
               setTab(v);
               setEditingId(null);
             }}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
           >
             <Tab value="Broker" label="Broker" />
             <Tab value="Consignee" label="Consignee" />
@@ -803,7 +807,7 @@ export function SasFormBuilder({ forms, onRefresh, onMessage, onError }: Props) 
             until you save.
           </Typography>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
           <Button color="error" variant="contained" onClick={confirmDeleteField}>
             Delete Field
@@ -829,7 +833,7 @@ export function SasFormBuilder({ forms, onRefresh, onMessage, onError }: Props) 
             </Alert>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setDeleteFormTarget(null)} disabled={deleting}>
             Cancel
           </Button>

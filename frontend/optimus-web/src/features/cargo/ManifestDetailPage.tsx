@@ -20,6 +20,7 @@ import {
   Tabs,
   TextField,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
@@ -27,6 +28,7 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import PersonAddAlt1OutlinedIcon from '@mui/icons-material/PersonAddAlt1Outlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
+import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import { useParams, Link as RouterLink, useSearchParams, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../app/store';
@@ -51,6 +53,7 @@ import {
   formatEdoStatus,
 } from '../../shared/formatEdoStatus';
 import { WorkflowHistoryTimeline } from '../shared/WorkflowHistoryTimeline';
+import { dialogActionsSx, tableScrollSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { ManifestPaymentHistoryTimeline } from './ManifestPaymentHistoryTimeline';
 import { finalPaymentsForManifest } from './manifestPaymentUtils';
@@ -80,6 +83,106 @@ function teuFromSize(sizeCode?: string | null): number {
   return 1;
 }
 
+type LinkedContainer = {
+  id: string;
+  containerNumber: string;
+  typeCode?: string | null;
+  sizeCode?: string | null;
+  cyTerminalName?: string | null;
+  currentLocation?: string | null;
+  allocationStatus?: string | null;
+  status?: string | null;
+};
+
+function ContainerMobileCard({
+  container,
+  index,
+  edo,
+}: {
+  container: LinkedContainer;
+  index: number;
+  edo?: { status: string; currentPaymentStatus?: string | null };
+}) {
+  const typeLabel = container.typeCode ?? '—';
+  const sizeLabel = container.sizeCode ?? '—';
+  const teu = teuFromSize(container.sizeCode);
+  const location = container.cyTerminalName || container.currentLocation || '—';
+  const allocStatus = container.allocationStatus || container.status || '—';
+  const edoLabel = edo ? formatEdoStatus(edo.status, edo.currentPaymentStatus) : null;
+  const edoTone = edo ? edoStatusChipColor(edo.status, edo.currentPaymentStatus) : undefined;
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 2,
+        bgcolor: 'background.paper',
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        sx={{
+          px: 1.5,
+          py: 1,
+          bgcolor: 'action.hover',
+          borderBottom: 1,
+          borderColor: 'divider',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
+        }}
+      >
+        <Typography variant="caption" fontWeight={800} color="text.secondary" letterSpacing={0.6}>
+          #{index + 1}
+        </Typography>
+        <Typography
+          fontFamily="monospace"
+          fontWeight={800}
+          fontSize="0.95rem"
+          sx={{ flex: 1, minWidth: 0, wordBreak: 'break-all', lineHeight: 1.2 }}
+        >
+          {container.containerNumber}
+        </Typography>
+        <Chip
+          size="small"
+          label={`${teu} TEU`}
+          color="primary"
+          variant="outlined"
+          sx={{ height: 22, fontWeight: 700, flexShrink: 0, '& .MuiChip-label': { px: 0.75 } }}
+        />
+      </Box>
+
+      <Box sx={{ px: 1.5, py: 1.25 }}>
+        <Stack direction="row" flexWrap="wrap" useFlexGap spacing={0.75} mb={1}>
+          <Chip size="small" label={typeLabel} sx={{ height: 24, fontWeight: 700 }} />
+          <Chip size="small" label={sizeLabel} variant="outlined" sx={{ height: 24, fontWeight: 700 }} />
+        </Stack>
+
+        <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+          CY / location
+        </Typography>
+        <Typography variant="body2" fontWeight={700} sx={{ mb: 1.25, wordBreak: 'break-word', lineHeight: 1.35 }}>
+          {location}
+        </Typography>
+
+        <Stack direction="row" flexWrap="wrap" useFlexGap spacing={0.75} alignItems="center">
+          <Chip size="small" label={allocStatus} sx={{ height: 24, fontWeight: 700 }} />
+          {edoLabel ? (
+            <Chip size="small" label={edoLabel} color={edoTone} sx={{ height: 24, fontWeight: 700 }} />
+          ) : (
+            <Typography variant="caption" color="text.disabled" fontWeight={600}>
+              eDO not generated
+            </Typography>
+          )}
+        </Stack>
+      </Box>
+    </Paper>
+  );
+}
+
 export function ManifestDetailPage() {
   const { id = '' } = useParams();
   const [searchParams] = useSearchParams();
@@ -107,6 +210,7 @@ export function ManifestDetailPage() {
   const [assignError, setAssignError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(flash ?? null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const isMobile = useMediaQuery('(max-width:899px)');
 
   const openEdoDocument = async (edoId: string, kind: 'download' | 'qr') => {
     if (!accessToken) return;
@@ -330,6 +434,16 @@ export function ManifestDetailPage() {
           tone: linkedContainers.length ? 'info' : 'warning',
         },
       ]}
+      actions={
+        <Button
+          component={RouterLink}
+          to="/manifests"
+          startIcon={<ArrowBackOutlinedIcon />}
+          sx={{ textTransform: 'none' }}
+        >
+          Back
+        </Button>
+      }
     >
       {pageMessage && (
         <Alert severity="success" sx={{ mb: 1 }} onClose={() => setPageMessage(null)}>
@@ -343,19 +457,20 @@ export function ManifestDetailPage() {
         </Alert>
       )}
 
-      <Tabs
-        value={tab}
-        onChange={(_, value: number) => setTab(value)}
-        variant="scrollable"
-        scrollButtons="auto"
-        sx={{
-          mb: 2.5,
-          minHeight: 44,
-          borderBottom: 1,
-          borderColor: 'divider',
-          '& .MuiTab-root': { minHeight: 44, textTransform: 'none', fontWeight: 600, px: 2 },
-        }}
-      >
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', mb: 2.5 }}>
+        <Tabs
+          value={tab}
+          onChange={(_, value: number) => setTab(value)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            minHeight: 44,
+            borderBottom: 1,
+            borderColor: 'divider',
+            px: 0.5,
+            '& .MuiTab-root': { minHeight: 44, textTransform: 'none', fontWeight: 600, px: { xs: 1.5, sm: 2 } },
+          }}
+        >
         <Tab label="Overview" />
         <Tab
           label={
@@ -396,18 +511,19 @@ export function ManifestDetailPage() {
           }
         />
       </Tabs>
+      </Paper>
 
       {tab === 0 && (
         <Box
           sx={{
             display: 'grid',
             gap: 3,
-            gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 2fr) minmax(280px, 360px)' },
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 2fr) minmax(260px, 320px)' },
           }}
         >
-          <Stack spacing={3}>
+          <Stack spacing={3} sx={{ order: { xs: 2, md: 1 }, minWidth: 0 }}>
             <WorkflowSection title="Shipment context" subtitle="Core manifest fields that determine who owns the next action.">
-              <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' } }}>
+              <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' } }}>
                 {[
                   ['Manifest number', data.manifestNumber],
                   ['NOA number', data.noaNumber ?? '—'],
@@ -455,7 +571,22 @@ export function ManifestDetailPage() {
                   No containers are linked to this manifest yet. Add containers when creating the NOA, or assign them from
                   yard inventory.
                 </Alert>
+              ) : isMobile ? (
+                <Stack spacing={1}>
+                  {linkedContainers.map((c, index) => {
+                    const edo = edoByContainer.get(c.containerNumber.trim().toUpperCase());
+                    return (
+                      <ContainerMobileCard
+                        key={c.id}
+                        container={c}
+                        index={index}
+                        edo={edo}
+                      />
+                    );
+                  })}
+                </Stack>
               ) : (
+                <Box sx={tableScrollSx}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -506,11 +637,12 @@ export function ManifestDetailPage() {
                     })}
                   </TableBody>
                 </Table>
+                </Box>
               )}
             </WorkflowSection>
           </Stack>
 
-          <Stack spacing={3}>
+          <Stack spacing={3} sx={{ order: { xs: 1, md: 2 }, minWidth: 0 }}>
             <WorkflowSection
               title="Quick actions"
               subtitle="Next workflow steps available for this manifest."
@@ -933,7 +1065,7 @@ export function ManifestDetailPage() {
             </TextField>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setAssignOpen(false)} disabled={assigningBroker}>
             Cancel
           </Button>

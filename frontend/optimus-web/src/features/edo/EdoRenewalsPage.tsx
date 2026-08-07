@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Chip,
-  Box,
   Stack,
   Table,
   TableBody,
@@ -64,7 +63,6 @@ export function EdoRenewalsPage() {
         title="Renewal Requests"
         subtitle="Status-aware list of expired eDO renewal requests."
       >
-        <Box sx={{ overflowX: 'auto' }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -96,7 +94,7 @@ export function EdoRenewalsPage() {
                 <TableCell>{r.detentionChargeAmount} PHP</TableCell>
                 <TableCell>{r.paymentVerified ? 'Yes' : 'No'}</TableCell>
                 <TableCell>
-                  <Stack direction="row" spacing={1}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     {isStaff && r.status === 'PendingReview' && (
                       <Button
                         size="small"
@@ -161,7 +159,6 @@ export function EdoRenewalsPage() {
             ))}
           </TableBody>
         </Table>
-        </Box>
       </WorkflowSection>
     </WorkflowPage>
   );

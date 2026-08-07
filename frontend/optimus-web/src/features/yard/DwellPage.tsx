@@ -21,6 +21,7 @@ import {
   useResumeDwellMutation,
   useUpsertDwellConfigMutation,
 } from '../../app/api';
+import { formRowStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function DwellPage() {
@@ -83,7 +84,7 @@ export function DwellPage() {
           {config?.automaticReturnThresholdDays ?? '-'}d | Auto={' '}
           {config?.enableAutomaticReturns ? 'on' : 'off'}
         </Typography>
-        <Stack direction="row" spacing={2}>
+        <Stack {...formRowStackProps}>
           <TextField
             type="number"
             label="Notify days"

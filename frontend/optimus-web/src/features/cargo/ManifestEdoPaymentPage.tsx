@@ -33,6 +33,7 @@ import {
   edoPaymentSubmitted,
   formatEdoStatus,
 } from '../../shared/formatEdoStatus';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 function money(amount: number, currency: string) {
@@ -369,7 +370,7 @@ export function ManifestEdoPaymentPage() {
             )}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setConfirmOpen(false)} disabled={submitting} fullWidth>
             Cancel
           </Button>

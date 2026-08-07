@@ -29,6 +29,7 @@ import {
 } from '../../app/api';
 import { getQuickActions } from '../layout/navConfig';
 import { WorkflowPage, WorkflowSection, type WorkflowStat } from '../shared/WorkflowPage';
+import { metricGrid4Sx } from '../../shared/responsiveLayout';
 
 function greetingForNow(): string {
   const h = new Date().getHours();
@@ -1027,7 +1028,7 @@ function TerminalSizeBlock({
           }}
         />
       </Stack>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+      <Box sx={metricGrid4Sx}>
         <MetricColumn label="Inbound" value={inbound} color="info.main" />
         <MetricColumn label="At Port" value={atPort} color="success.main" />
         <MetricColumn label="Outbound" value={outbound} color="warning.main" />
@@ -1111,7 +1112,7 @@ function CySizeBlock({
           }}
         />
       </Stack>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+      <Box sx={metricGrid4Sx}>
         <MetricColumn label="Capacity" value={capacity} color="text.primary" />
         <MetricColumn label="Allocated" value={allocated} color="info.main" />
         <MetricColumn label="Pre-Forecast" value={preForecast} color="warning.main" />

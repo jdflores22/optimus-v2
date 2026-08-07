@@ -29,6 +29,7 @@ import {
 } from '../../app/api';
 import { API_BASE_URL } from '../../shared/types';
 import { formatWorkflowState } from '../../shared/formatWorkflowState';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 function money(amount: number, currency: string) {
@@ -469,7 +470,7 @@ export function ManifestFinalPaymentPage() {
             </Box>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>
             Back
           </Button>
@@ -498,9 +499,15 @@ function BreakdownRow({
   php: string | null;
 }) {
   return (
-    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={2} py={0.5}>
+    <Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      justifyContent="space-between"
+      alignItems={{ xs: 'flex-start', sm: 'center' }}
+      gap={2}
+      py={0.5}
+    >
       <Typography color="text.secondary">{label}</Typography>
-      <Box textAlign="right">
+      <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: 0, wordBreak: 'break-word' }}>
         <Typography fontWeight={700}>{amount}</Typography>
         {php && (
           <Typography variant="caption" color="text.secondary" display="block">

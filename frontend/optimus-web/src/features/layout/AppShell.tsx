@@ -153,7 +153,7 @@ export function AppShell() {
         }}
       >
         <Toolbar />
-        <Container maxWidth="lg" sx={{ py: 3, pb: { xs: 10, md: 3 } }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3 }, pb: { xs: 10, md: 3 }, px: { xs: 2, sm: 3 } }}>
           <Outlet />
         </Container>
       </Box>

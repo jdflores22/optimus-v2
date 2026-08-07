@@ -37,6 +37,7 @@ import {
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
 import { API_BASE_URL } from '../../shared/types';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
+import { metricGrid4Sx } from '../../shared/responsiveLayout';
 
 export function ManifestCreatePage() {
   const navigate = useNavigate();
@@ -800,7 +801,7 @@ function CySizeBlock({
           }}
         />
       </Stack>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+      <Box sx={metricGrid4Sx}>
         <MetricColumn label="Capacity" value={capacity} color="text.primary" />
         <MetricColumn label="Allocated" value={allocated} color="info.main" />
         <MetricColumn label="Pre-Forecast" value={preForecast} color="warning.main" />

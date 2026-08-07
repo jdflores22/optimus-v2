@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -25,6 +25,7 @@ import { useGetEdoPaymentQuery, useValidateEdoPaymentMutation } from '../../app/
 import { loadEdoPaymentReceiptBlob } from '../../shared/edoPaymentReceipt';
 import { formatEdoStatus } from '../../shared/formatEdoStatus';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
+import { DetailRow } from '../shared/DetailRow';
 import { TableViewLink } from '../shared/TableViewLink';
 
 function money(amount: number, currency: string) {
@@ -43,19 +44,6 @@ function paymentStatusTone(status: string): 'warning' | 'success' | 'error' | 'd
 }
 
 type ModalStep = 'confirm' | 'loading' | 'success';
-
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <Stack direction="row" justifyContent="space-between" spacing={2}>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="body2" fontWeight={600} textAlign="right">
-        {value}
-      </Typography>
-    </Stack>
-  );
-}
 
 export function EdoPaymentReviewPage() {
   const { id = '' } = useParams();

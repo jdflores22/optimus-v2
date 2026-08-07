@@ -116,6 +116,53 @@ const shared: ThemeOptions = {
         color: 'inherit',
       },
     },
+    MuiTableContainer: {
+      styleOverrides: {
+        root: {
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          '@media (max-width:600px)': {
+            padding: '10px 8px',
+            fontSize: '0.8125rem',
+          },
+        },
+        head: {
+          '@media (max-width:600px)': {
+            whiteSpace: 'nowrap',
+          },
+        },
+      },
+    },
+    MuiContainer: {
+      styleOverrides: {
+        root: {
+          '@media (max-width:600px)': {
+            paddingLeft: 16,
+            paddingRight: 16,
+          },
+        },
+      },
+    },
+    MuiTypography: {
+      styleOverrides: {
+        h4: {
+          '@media (max-width:600px)': {
+            fontSize: '1.5rem',
+          },
+        },
+        h6: {
+          '@media (max-width:600px)': {
+            fontSize: '1rem',
+          },
+        },
+      },
+    },
   },
 };
 

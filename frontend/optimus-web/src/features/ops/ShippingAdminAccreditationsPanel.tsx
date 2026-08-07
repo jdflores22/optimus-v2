@@ -20,6 +20,7 @@ import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import type { AccreditationDto } from '../../shared/types';
+import { metricGrid4Sx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 
@@ -113,13 +114,7 @@ export function ShippingAdminAccreditationsPanel({
         </Button>
       }
     >
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' },
-        }}
-      >
+      <Box sx={{ ...metricGrid4Sx, gap: 2 }}>
         <MetricCard
           icon={<ScheduleOutlinedIcon />}
           label="Awaiting final"
@@ -161,6 +156,9 @@ export function ShippingAdminAccreditationsPanel({
         <Tabs
           value={tab}
           onChange={(_, value: ListTab) => setTab(value)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             mb: 2,
             minHeight: 40,

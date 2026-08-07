@@ -21,6 +21,7 @@ import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { useGetFinalPaymentsQuery } from '../../app/api';
 import type { FinalPaymentListItemDto } from '../../shared/types';
+import { tableScrollSx } from '../../shared/responsiveLayout';
 import { WorkflowPage } from '../shared/WorkflowPage';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 
@@ -215,7 +216,7 @@ export function AccountingFinalPaymentsPage() {
             )}
           </Stack>
 
-        <Box sx={{ overflowX: 'auto' }}>
+        <Box sx={tableScrollSx}>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -378,7 +379,7 @@ export function AccountingFinalPaymentsPage() {
               <strong>{data.total}</strong>
               {isFetching ? ' · Updating…' : ''}
             </Typography>
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} flexWrap="wrap" useFlexGap>
               <TextField
                 select
                 size="small"

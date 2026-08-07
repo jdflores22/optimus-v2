@@ -19,6 +19,7 @@ import { Link as RouterLink, Navigate, useNavigate, useParams } from 'react-rout
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../app/store';
 import { useGetManifestQuery, useUploadBlMutation } from '../../app/api';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function ManifestUploadBlPage() {
@@ -235,7 +236,7 @@ export function ManifestUploadBlPage() {
             </Box>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>
             Edit
           </Button>

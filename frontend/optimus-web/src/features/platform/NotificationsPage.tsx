@@ -7,7 +7,6 @@ import {
   FormControlLabel,
   Paper,
   Stack,
-  TableContainer,
   Switch,
   Table,
   TableBody,
@@ -101,7 +100,6 @@ export function NotificationsPage() {
         }}
       >
         <WorkflowSection title="Alert queue" subtitle="Unread items stay visually emphasized so urgent workflow changes are easy to spot.">
-          <TableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -152,7 +150,6 @@ export function NotificationsPage() {
                 ))}
               </TableBody>
             </Table>
-          </TableContainer>
         </WorkflowSection>
 
         <Stack spacing={3}>

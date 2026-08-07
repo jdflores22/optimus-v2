@@ -41,6 +41,7 @@ import {
 } from '../../shared/formSchema';
 import { SubmissionDetailsPreview } from './SubmissionDetailsPreview';
 import type { DynamicFormValues } from './DynamicFormFields';
+import { dialogActionsSx, metricGrid4Sx } from '../../shared/responsiveLayout';
 import type { RootState } from '../../app/store';
 
 function statusChipColor(
@@ -344,13 +345,7 @@ export function EvaluatorApplicationPage() {
       >
         <Stack spacing={3}>
           <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
-            <Box
-              sx={{
-                display: 'grid',
-                gap: 1,
-                gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-              }}
-            >
+            <Box sx={metricGrid4Sx}>
               {steps.map((step) => {
                 const done = currentStep > step.index;
                 const active = currentStep === step.index;
@@ -756,7 +751,7 @@ export function EvaluatorApplicationPage() {
             )}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setFinalConfirm(null)} disabled={finalizing}>
             Cancel
           </Button>
@@ -878,7 +873,7 @@ export function EvaluatorApplicationPage() {
             )}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setReviewOpen(false)} disabled={submitting}>
             Back to edit
           </Button>

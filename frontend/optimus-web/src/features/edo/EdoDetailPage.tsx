@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Alert,
   Box,
@@ -26,23 +26,11 @@ import {
   formatEdoStatus,
 } from '../../shared/formatEdoStatus';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
+import { DetailRow } from '../shared/DetailRow';
 
 type TabKey = 'overview' | 'payment' | 'files' | 'activity';
 
 const TAB_KEYS: TabKey[] = ['overview', 'payment', 'files', 'activity'];
-
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <Stack direction="row" justifyContent="space-between" spacing={2} py={0.75}>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="body2" fontWeight={600} textAlign="right">
-        {value}
-      </Typography>
-    </Stack>
-  );
-}
 
 function formatWhen(value?: string | null) {
   return value ? new Date(value).toLocaleString() : '—';

@@ -168,12 +168,13 @@ export function ShippingAdminBrokerDetailPage() {
                   direction="row"
                   spacing={1}
                   alignItems="center"
+                  minWidth={0}
                   sx={{ textDecoration: 'none', color: 'inherit' }}
                 >
                   <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 12 }}>
                     {c.name.slice(0, 2).toUpperCase()}
                   </Avatar>
-                  <Box>
+                  <Box minWidth={0}>
                     <Typography fontWeight={600}>{c.name}</Typography>
                     <Typography variant="caption" color="text.secondary">{c.email}</Typography>
                   </Box>

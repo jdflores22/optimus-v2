@@ -25,6 +25,7 @@ import {
   useUpsertRateLimitMutation,
   useUpsertSystemSettingMutation,
 } from '../../app/api';
+import { formRowStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function AdminPlatformPage() {
@@ -98,7 +99,7 @@ export function AdminPlatformPage() {
     >
       {message && <Alert severity="success">{message}</Alert>}
       <WorkflowSection title="System settings" subtitle="Adjust global behavior such as timeouts, flags, and operational defaults.">
-        <Stack direction="row" spacing={2} my={2}>
+        <Stack {...formRowStackProps} my={2}>
           <TextField size="small" label="Key" value={settingKey} onChange={(e) => setSettingKey(e.target.value)} />
           <TextField
             size="small"
@@ -137,7 +138,7 @@ export function AdminPlatformPage() {
       </WorkflowSection>
 
       <WorkflowSection title="Rate limits" subtitle="Protect platform APIs while keeping operational traffic moving.">
-        <Stack direction="row" spacing={2} my={2} flexWrap="wrap">
+        <Stack {...formRowStackProps} my={2} flexWrap="wrap">
           <TextField size="small" label="Name" value={rateName} onChange={(e) => setRateName(e.target.value)} />
           <TextField
             size="small"
@@ -195,7 +196,7 @@ export function AdminPlatformPage() {
       </WorkflowSection>
 
       <WorkflowSection title="Message templates" subtitle="Version notification content used by operational alerts and outbound communication.">
-        <Stack direction="row" spacing={2} my={2}>
+        <Stack {...formRowStackProps} my={2}>
           <TextField size="small" label="Key" value={msgKey} onChange={(e) => setMsgKey(e.target.value)} />
           <TextField size="small" label="Body" value={msgBody} onChange={(e) => setMsgBody(e.target.value)} fullWidth />
           <Button
@@ -238,7 +239,7 @@ export function AdminPlatformPage() {
       </WorkflowSection>
 
       <WorkflowSection title="Document templates" subtitle="Maintain the HTML sources for generated documents across workflows.">
-        <Stack direction="row" spacing={2} my={2}>
+        <Stack {...formRowStackProps} my={2}>
           <TextField select size="small" label="Type" value={docType} onChange={(e) => setDocType(e.target.value)}>
             {['NOA', 'EDO', 'BL', 'Billing', 'OR', 'Certificate'].map((t) => (
               <MenuItem key={t} value={t}>

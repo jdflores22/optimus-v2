@@ -18,6 +18,7 @@ import {
   useGetExchangeRateQuery,
 } from '../../app/api';
 import type { RootState } from '../../app/store';
+import { formRowStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { AccountingFinalPaymentsPage } from './AccountingFinalPaymentsPage';
 
@@ -62,7 +63,7 @@ export function PaymentsPage() {
         >
           {message && <Alert severity="success">{message}</Alert>}
           <WorkflowSection title="Manifest access fee" subtitle="Used for manifest access payments.">
-            <Stack direction="row" spacing={2}>
+            <Stack {...formRowStackProps}>
               <TextField
                 label="Manifest access fee"
                 type="number"

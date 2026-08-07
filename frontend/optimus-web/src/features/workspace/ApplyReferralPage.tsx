@@ -19,6 +19,7 @@ import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutli
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../app/store';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { useApplyReferralMutation } from '../../app/api';
 
 const HOW_IT_WORKS = [
@@ -156,7 +157,7 @@ export function ApplyReferralPage() {
               bgcolor: 'background.paper',
             }}
           >
-            <Stack direction="row" spacing={1.25} alignItems="flex-start">
+            <Stack direction="row" spacing={1.25} alignItems="flex-start" minWidth={0}>
               <Box
                 sx={{
                   width: 26,
@@ -255,7 +256,7 @@ export function ApplyReferralPage() {
           bgcolor: 'background.paper',
         }}
       >
-        <Stack direction="row" spacing={1.25} alignItems="flex-start">
+        <Stack direction="row" spacing={1.25} alignItems="flex-start" minWidth={0}>
           <HelpOutlineOutlinedIcon color="action" sx={{ mt: 0.15 }} />
           <Box>
             <Typography variant="subtitle2" fontWeight={700} mb={0.5}>
@@ -320,14 +321,14 @@ export function ApplyReferralPage() {
               {trimmed}
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1} alignItems="flex-start">
+          <Stack direction="row" spacing={1} alignItems="flex-start" minWidth={0}>
             <CheckCircleOutlineOutlinedIcon color="success" sx={{ fontSize: 18, mt: 0.2 }} />
             <Typography variant="caption" color="text.secondary">
               This creates a relationship with the consignee and lets you access their manifests.
             </Typography>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setConfirmOpen(false)} color="inherit" disabled={isLoading} fullWidth>
             Cancel
           </Button>

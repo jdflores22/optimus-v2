@@ -42,6 +42,7 @@ import {
 import type { EdoDto, ManifestDto } from '../../shared/types';
 import { formatWorkflowState } from '../../shared/formatWorkflowState';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
+import { SectionPanelHeader } from '../shared/DetailRow';
 
 type EdoTab = 'payment' | 'pending' | 'ready';
 
@@ -483,25 +484,15 @@ export function BrokerDashboardPage() {
         <Stack spacing={2.5} minWidth={0}>
           {/* Recent Manifests */}
           <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              px={2.5}
-              py={2}
-            >
-              <Box>
-                <Typography variant="h6" fontWeight={700}>
-                  Recent Manifests
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Latest NOA-linked manifests in this workspace
-                </Typography>
-              </Box>
-              <Button component={RouterLink} to="/manifests" size="small" sx={{ textTransform: 'none' }}>
-                View all
-              </Button>
-            </Stack>
+            <SectionPanelHeader
+              title="Recent Manifests"
+              subtitle="Latest NOA-linked manifests in this workspace"
+              action={
+                <Button component={RouterLink} to="/manifests" size="small" sx={{ textTransform: 'none' }}>
+                  View all
+                </Button>
+              }
+            />
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead>
@@ -535,26 +526,15 @@ export function BrokerDashboardPage() {
 
           {/* eDO Activity */}
           <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              px={2.5}
-              pt={2}
-              pb={1}
-            >
-              <Box>
-                <Typography variant="h6" fontWeight={700}>
-                  eDO Activity
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Payments and downloads in this workspace
-                </Typography>
-              </Box>
-              <Button component={RouterLink} to="/edo" size="small" sx={{ textTransform: 'none' }}>
-                View all
-              </Button>
-            </Stack>
+            <SectionPanelHeader
+              title="eDO Activity"
+              subtitle="Payments and downloads in this workspace"
+              action={
+                <Button component={RouterLink} to="/edo" size="small" sx={{ textTransform: 'none' }}>
+                  View all
+                </Button>
+              }
+            />
             <Tabs
               value={edoTab}
               onChange={(_, v: EdoTab) => setEdoTab(v)}

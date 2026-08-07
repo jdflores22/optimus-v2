@@ -55,8 +55,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function DocRow({ label, value }: { label: string; value: string }) {
   return (
-    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-      <Typography variant="body2" color="text.secondary">
+    <Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      justifyContent="space-between"
+      alignItems={{ xs: 'flex-start', sm: 'center' }}
+      spacing={2}
+    >
+      <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
         {label}
       </Typography>
       <Typography variant="body2" fontFamily="ui-monospace, monospace" fontWeight={600}>
@@ -68,7 +73,12 @@ function DocRow({ label, value }: { label: string; value: string }) {
 
 function ChargeRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
   return (
-    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+    <Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      justifyContent="space-between"
+      alignItems={{ xs: 'flex-start', sm: 'center' }}
+      spacing={2}
+    >
       <Typography variant="body2" color={strong ? 'text.primary' : 'text.secondary'} fontWeight={strong ? 700 : 400}>
         {label}
       </Typography>

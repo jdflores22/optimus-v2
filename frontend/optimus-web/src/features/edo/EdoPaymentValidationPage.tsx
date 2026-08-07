@@ -83,6 +83,9 @@ export function EdoPaymentValidationPage() {
           <Tabs
             value={tab}
             onChange={(_, value: TabKey) => setTab(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{ px: 1, borderBottom: 1, borderColor: 'divider' }}
           >
             <Tab value="pending" label={`Pending (${payments.length})`} sx={{ textTransform: 'none' }} />

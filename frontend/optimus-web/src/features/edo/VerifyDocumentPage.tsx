@@ -10,7 +10,7 @@ export function VerifyDocumentPage() {
   if (error || !data) return <Alert severity="error">Unable to verify document.</Alert>;
 
   return (
-    <Stack spacing={2} maxWidth={560} mx="auto" mt={6}>
+    <Stack spacing={2} maxWidth={560} mx="auto" mt={{ xs: 3, sm: 6 }} px={{ xs: 2, sm: 0 }}>
       <Typography variant="h4">Document verification</Typography>
       <Alert severity={data.valid ? 'success' : 'error'}>{data.message}</Alert>
       {data.valid && (

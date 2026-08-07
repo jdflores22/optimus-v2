@@ -23,6 +23,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined';
 import { Link as RouterLink } from 'react-router-dom';
 import type { AccreditationDto } from '../../shared/types';
+import { metricGrid4Sx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 
@@ -182,13 +183,7 @@ export function EvaluatorApplicationsPanel({ submissions, onRefresh }: Props) {
         />
       </Box>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' },
-        }}
-      >
+      <Box sx={{ ...metricGrid4Sx, gap: 2 }}>
         <MetricCard
           icon={<DescriptionOutlinedIcon />}
           label="Total Applications"

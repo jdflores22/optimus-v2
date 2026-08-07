@@ -37,6 +37,7 @@ import {
   useGetEdoGenerationQueueQuery,
 } from '../../app/api';
 import type { EdoGenerationContainerDto, EdoGenerationGroupDto } from '../../shared/types';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 type TabKey = 'pending' | 'generated';
@@ -309,6 +310,9 @@ export function EdoGenerationPage() {
             <Tabs
               value={tab}
               onChange={(_, v: TabKey) => setTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
               sx={{ minHeight: 40 }}
             >
               <Tab
@@ -619,7 +623,7 @@ export function EdoGenerationPage() {
                 </Alert>
               )}
             </DialogContent>
-            <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+            <DialogActions sx={dialogActionsSx}>
               <Button onClick={closeConfirmModal} fullWidth sx={{ textTransform: 'none' }}>
                 Cancel
               </Button>

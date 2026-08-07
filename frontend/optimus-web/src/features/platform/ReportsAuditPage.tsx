@@ -21,6 +21,7 @@ import {
   useGetEdoAuditQuery,
 } from '../../app/api';
 import { API_BASE_URL } from '../../shared/types';
+import { formRowStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function ReportsAuditPage() {
@@ -131,7 +132,7 @@ export function ReportsAuditPage() {
       </WorkflowSection>
 
       <WorkflowSection title="Manifest and eDO audit" subtitle="Inspect state-change history for a specific manifest or eDO identifier.">
-        <Stack direction="row" spacing={2} mb={2}>
+        <Stack {...formRowStackProps} mb={2}>
           <TextField
             size="small"
             label="Manifest Id"

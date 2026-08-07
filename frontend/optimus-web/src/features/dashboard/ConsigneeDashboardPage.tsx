@@ -35,6 +35,7 @@ import {
 } from '../../app/api';
 import { parseFormFields } from '../../shared/formSchema';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
+import { SectionPanelHeader } from '../shared/DetailRow';
 
 function needsPayment(state: string): boolean {
   return /payment|billing|awaiting|pending.?pay/i.test(state);
@@ -614,25 +615,15 @@ export function ConsigneeDashboardPage() {
           elevation={0}
           sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}
         >
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-            px={2.5}
-            py={2}
-          >
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Recent Manifests
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Your latest shipment manifests
-              </Typography>
-            </Box>
-            <Button component={RouterLink} to="/manifests" size="small" sx={{ textTransform: 'none' }}>
-              View all
-            </Button>
-          </Stack>
+          <SectionPanelHeader
+            title="Recent Manifests"
+            subtitle="Your latest shipment manifests"
+            action={
+              <Button component={RouterLink} to="/manifests" size="small" sx={{ textTransform: 'none' }}>
+                View all
+              </Button>
+            }
+          />
           <Box sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
@@ -685,7 +676,13 @@ export function ConsigneeDashboardPage() {
 
         <Stack spacing={2}>
           <Paper elevation={0} sx={{ p: 2.25, border: 1, borderColor: 'divider', borderRadius: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              spacing={1}
+              mb={1.5}
+            >
               <Typography variant="subtitle1" fontWeight={700}>
                 Account Information
               </Typography>

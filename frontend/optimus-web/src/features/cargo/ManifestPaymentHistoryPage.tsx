@@ -271,15 +271,23 @@ export function ManifestPaymentHistoryPage() {
 
 function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <Stack direction="row" justifyContent="space-between" gap={2}>
+    <Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      justifyContent="space-between"
+      gap={2}
+      alignItems={{ xs: 'flex-start', sm: 'center' }}
+    >
       <Typography variant="body2" color="text.secondary">
         {label}
       </Typography>
       <Typography
         variant="body2"
         fontWeight={700}
-        textAlign="right"
-        sx={mono ? { fontFamily: 'ui-monospace, monospace' } : undefined}
+        sx={{
+          textAlign: { xs: 'left', sm: 'right' },
+          wordBreak: 'break-word',
+          ...(mono ? { fontFamily: 'ui-monospace, monospace' } : {}),
+        }}
       >
         {value}
       </Typography>

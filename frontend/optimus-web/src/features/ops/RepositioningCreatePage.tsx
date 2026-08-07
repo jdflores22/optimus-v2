@@ -22,6 +22,7 @@ import {
   useGetTerminalsQuery,
 } from '../../app/api';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
+import { pageActionsStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 function dwellTone(days: number): 'default' | 'warning' | 'error' {
@@ -240,7 +241,7 @@ export function RepositioningCreatePage() {
         </WorkflowSection>
       </Box>
 
-      <Stack direction="row" spacing={1.5} mt={3} justifyContent="flex-end">
+      <Stack {...pageActionsStackProps} mt={3} justifyContent="flex-end">
         <Button component={RouterLink} to="/repositioning" variant="outlined">
           Cancel
         </Button>

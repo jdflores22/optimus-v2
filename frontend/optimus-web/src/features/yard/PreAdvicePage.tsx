@@ -28,6 +28,7 @@ import {
 } from '../../app/api';
 import type { RootState } from '../../app/store';
 import { API_BASE_URL } from '../../shared/types';
+import { formRowStackProps, pageActionsStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function PreAdvicePage() {
@@ -85,7 +86,7 @@ export function PreAdvicePage() {
 
       {isTrucker && (
         <WorkflowSection title="Trucker submission tools" subtitle="Generate the token and capture the terminal booking details before dispatch.">
-          <Stack direction="row" spacing={2} mb={2}>
+          <Stack {...formRowStackProps} mb={2}>
             <Button
               variant="outlined"
               onClick={async () => {
@@ -154,7 +155,7 @@ export function PreAdvicePage() {
                 </MenuItem>
               ))}
             </TextField>
-            <Stack direction="row" spacing={2}>
+            <Stack {...pageActionsStackProps}>
               <TextField label="Latitude" value={lat} onChange={(e) => setLat(e.target.value)} />
               <TextField label="Longitude" value={lng} onChange={(e) => setLng(e.target.value)} />
             </Stack>

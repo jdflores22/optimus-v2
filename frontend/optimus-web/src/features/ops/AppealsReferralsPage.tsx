@@ -29,6 +29,7 @@ import {
   useSuspendBrokerMutation,
 } from '../../app/api';
 import type { RootState } from '../../app/store';
+import { formRowStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function AppealsReferralsPage() {
@@ -114,7 +115,7 @@ export function AppealsReferralsPage() {
           title="Broker Suspension"
           subtitle="Administrative suspension action before any appeal review happens."
         >
-          <Stack direction="row" spacing={2}>
+          <Stack {...formRowStackProps}>
             <TextField
               select
               label="Broker"
@@ -174,7 +175,7 @@ export function AppealsReferralsPage() {
             >
               Submit appeal
             </Button>
-            <Stack direction="row" spacing={2}>
+            <Stack {...formRowStackProps}>
               <TextField label="Referral code" value={code} onChange={(e) => setCode(e.target.value)} />
               <Button
                 variant="contained"

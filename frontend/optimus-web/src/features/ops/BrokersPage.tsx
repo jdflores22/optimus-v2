@@ -32,6 +32,7 @@ import {
   useGetRelationshipsQuery,
 } from '../../app/api';
 import type { RelationshipDto } from '../../shared/types';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -447,7 +448,7 @@ export function BrokersPage() {
             active.
           </Typography>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setDeactivateId(null)} disabled={deactivating}>
             Cancel
           </Button>
@@ -572,7 +573,7 @@ export function BrokersPage() {
             </Stack>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={dialogActionsSx}>
           {viewingBroker?.brokerEmail && (
             <Button
               href={`mailto:${viewingBroker.brokerEmail}`}

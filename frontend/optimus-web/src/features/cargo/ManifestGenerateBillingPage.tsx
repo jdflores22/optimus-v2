@@ -30,6 +30,7 @@ import {
 } from '../../app/api';
 import { API_BASE_URL } from '../../shared/types';
 import { formatWorkflowState } from '../../shared/formatWorkflowState';
+import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 type ExtraCharge = { id: number; description: string; amount: string };
@@ -341,11 +342,17 @@ export function ManifestGenerateBillingPage() {
               ['Broker', data.brokerName ?? '—'],
               ['Consignee', data.consigneeName ?? '—'],
             ].map(([label, value]) => (
-              <Stack key={label} direction="row" justifyContent="space-between" gap={2}>
+              <Stack
+                key={label}
+                direction={{ xs: 'column', sm: 'row' }}
+                justifyContent="space-between"
+                gap={2}
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+              >
                 <Typography variant="body2" color="text.secondary">
                   {label}
                 </Typography>
-                <Typography variant="body2" fontWeight={700} textAlign="right">
+                <Typography variant="body2" fontWeight={700} sx={{ textAlign: { xs: 'left', sm: 'right' }, wordBreak: 'break-word' }}>
                   {value}
                 </Typography>
               </Stack>
@@ -436,7 +443,7 @@ export function ManifestGenerateBillingPage() {
             )}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>
             Back
           </Button>
@@ -464,9 +471,15 @@ function PreviewRow({
   php: string | null;
 }) {
   return (
-    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={2} py={0.5}>
+    <Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      justifyContent="space-between"
+      alignItems={{ xs: 'flex-start', sm: 'center' }}
+      gap={2}
+      py={0.5}
+    >
       <Typography color="text.secondary">{label}</Typography>
-      <Box textAlign="right">
+      <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: 0, wordBreak: 'break-word' }}>
         <Typography fontWeight={700}>{amount}</Typography>
         {php && (
           <Typography variant="caption" color="text.secondary" display="block">
