@@ -10,6 +10,7 @@ using Optimus.Application.Edo.Interfaces;
 using Optimus.Domain.Entities;
 using Optimus.Domain.Enums;
 using Optimus.Infrastructure.Persistence;
+using Optimus.Infrastructure.Storage;
 using Optimus.Shared.Constants;
 using QRCoder;
 
@@ -19,9 +20,9 @@ public class QrCodeService : IQrCodeService
 {
     private readonly string _root;
 
-    public QrCodeService()
+    public QrCodeService(IUploadRootProvider uploads)
     {
-        _root = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+        _root = uploads.RootDirectory;
         Directory.CreateDirectory(_root);
     }
 

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Optimus.Api.Security;
 using Optimus.Application.Auth.Dtos;
 using Optimus.Application.Auth.Interfaces;
+using Optimus.Infrastructure.Storage;
 
 namespace Optimus.Api.Controllers;
 
@@ -13,10 +14,12 @@ namespace Optimus.Api.Controllers;
 public class ShippingLinesController : ControllerBase
 {
     private readonly IShippingLineService _service;
+    private readonly IUploadRootProvider _uploads;
 
-    public ShippingLinesController(IShippingLineService service)
+    public ShippingLinesController(IShippingLineService service, IUploadRootProvider uploads)
     {
         _service = service;
+        _uploads = uploads;
     }
 
     [HttpGet]
@@ -67,7 +70,7 @@ public class ShippingLinesController : ControllerBase
     {
         UploadGuard.Validate(file, ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg");
 
-        var uploads = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "logos");
+        var uploads = Path.Combine(_uploads.RootDirectory, "logos");
         Directory.CreateDirectory(uploads);
         var fileName = $"{id:N}{Path.GetExtension(file.FileName).ToLowerInvariant()}";
         var fullPath = Path.Combine(uploads, fileName);

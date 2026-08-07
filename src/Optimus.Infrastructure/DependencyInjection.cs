@@ -19,6 +19,7 @@ using Optimus.Infrastructure.Identity;
 using Optimus.Infrastructure.Ops;
 using Optimus.Infrastructure.Persistence;
 using Optimus.Infrastructure.Platform;
+using Optimus.Infrastructure.Storage;
 using Optimus.Infrastructure.ShippingAdmin;
 using Optimus.Infrastructure.Security;
 using Optimus.Infrastructure.Yard;
@@ -32,8 +33,9 @@ public static class DependencyInjection
     {
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
 
-        var connectionString = configuration.GetConnectionString("Default")
-            ?? throw new InvalidOperationException("Connection string 'Default' is missing.");
+        var connectionString = DatabaseConnection.ResolveFromConfiguration(configuration)
+            ?? throw new InvalidOperationException(
+                "Set ConnectionStrings__Default or MYSQL_HOST/MYSQL_DATABASE/MYSQL_USER/MYSQL_PASSWORD.");
 
         var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
         services.AddDbContext<OptimusDbContext>(options =>
@@ -114,6 +116,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkspaceService, WorkspaceService>();
         services.AddScoped<IHierarchyService, HierarchyService>();
         services.AddScoped<IShippingAdminPartnerService, ShippingAdminPartnerService>();
+        services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
         services.AddScoped<IDocumentStore, DocumentStore>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
         services.AddScoped<IExchangeRateService, ExchangeRateService>();

@@ -1,10 +1,12 @@
 using System.Reflection;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using Optimus.Application;
 using Optimus.Infrastructure;
 using Optimus.Infrastructure.Persistence.Seed;
+using Optimus.Infrastructure.Storage;
 using Optimus.Api;
 using Optimus.Api.Middleware;
 using Serilog;
@@ -112,6 +114,14 @@ try
     app.UseCors("Frontend");
     app.UseRateLimiter();
     app.UseMiddleware<BlockEdoStaticFilesMiddleware>();
+
+    var uploadRoot = FileStoragePaths.ResolveUploadRoot(app.Configuration, app.Environment);
+    Directory.CreateDirectory(uploadRoot);
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(uploadRoot),
+        RequestPath = "/uploads"
+    });
     app.UseStaticFiles();
     app.UseAuthentication();
     app.UseAuthorization();

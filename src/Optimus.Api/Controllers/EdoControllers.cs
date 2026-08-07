@@ -8,6 +8,7 @@ using Optimus.Application.Edo.Dtos;
 using Optimus.Application.Edo.Interfaces;
 using Optimus.Application.Security;
 using Optimus.Domain.Enums;
+using Optimus.Infrastructure.Storage;
 using Optimus.Shared.Constants;
 
 namespace Optimus.Api.Controllers;
@@ -21,13 +22,20 @@ public class EdoController : ControllerBase
     private readonly IEdoPaymentService _payments;
     private readonly IDocumentStore _docs;
     private readonly IResourceAuthorizationService _access;
+    private readonly IUploadRootProvider _uploads;
 
-    public EdoController(IEdoService edo, IEdoPaymentService payments, IDocumentStore docs, IResourceAuthorizationService access)
+    public EdoController(
+        IEdoService edo,
+        IEdoPaymentService payments,
+        IDocumentStore docs,
+        IResourceAuthorizationService access,
+        IUploadRootProvider uploads)
     {
         _edo = edo;
         _payments = payments;
         _docs = docs;
         _access = access;
+        _uploads = uploads;
     }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -112,27 +120,13 @@ public class EdoController : ControllerBase
 
     private IActionResult ServeUpload(string? webPath, string downloadName, string contentType)
     {
-        var fullPath = ResolveUploadPath(webPath);
+        var fullPath = _uploads.ResolveExistingFile(webPath);
         if (fullPath is null || !System.IO.File.Exists(fullPath))
         {
             return NotFound(new { message = "File not found." });
         }
 
         return PhysicalFile(fullPath, contentType, downloadName);
-    }
-
-    private static string? ResolveUploadPath(string? webPath)
-    {
-        if (string.IsNullOrWhiteSpace(webPath)) return null;
-
-        var normalized = webPath.Trim().Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-        var candidates = new[]
-        {
-            Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", normalized),
-            Path.Combine(Directory.GetCurrentDirectory(), normalized),
-        };
-
-        return candidates.FirstOrDefault(System.IO.File.Exists);
     }
 
     [HttpPost("generate")]
@@ -199,8 +193,13 @@ public class EdoController : ControllerBase
 public class EdoPaymentsController : ControllerBase
 {
     private readonly IEdoPaymentService _payments;
+    private readonly IUploadRootProvider _uploads;
 
-    public EdoPaymentsController(IEdoPaymentService payments) => _payments = payments;
+    public EdoPaymentsController(IEdoPaymentService payments, IUploadRootProvider uploads)
+    {
+        _payments = payments;
+        _uploads = uploads;
+    }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private string Role => User.FindFirstValue(ClaimTypes.Role)!;
@@ -230,7 +229,7 @@ public class EdoPaymentsController : ControllerBase
             return NotFound(new { message = "Receipt not found." });
         }
 
-        var fullPath = ResolveUploadPath(payment.ReceiptFilePath);
+        var fullPath = _uploads.ResolveExistingFile(payment.ReceiptFilePath);
         if (fullPath is null || !System.IO.File.Exists(fullPath))
         {
             return NotFound(new { message = "Receipt file not found." });
@@ -252,20 +251,6 @@ public class EdoPaymentsController : ControllerBase
     [Authorize(Policy = "EdoPaymentAdmin")]
     public async Task<ActionResult<EdoPaymentDto>> Validate(Guid id, [FromBody] ValidateEdoPaymentRequest request, CancellationToken ct)
         => Ok(await _payments.ValidateAsync(id, request, UserId, Role, ct));
-
-    private static string? ResolveUploadPath(string? webPath)
-    {
-        if (string.IsNullOrWhiteSpace(webPath)) return null;
-
-        var normalized = webPath.Trim().Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-        var candidates = new[]
-        {
-            Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", normalized),
-            Path.Combine(Directory.GetCurrentDirectory(), normalized),
-        };
-
-        return candidates.FirstOrDefault(System.IO.File.Exists);
-    }
 }
 
 [ApiController]

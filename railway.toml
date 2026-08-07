@@ -1,0 +1,12 @@
+# Railway deploy — API only (Hostinger MySQL + Hostinger frontend)
+# https://railway.com/new → Deploy from GitHub → jdflores22/optimus-v2
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "docker/Dockerfile.api"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+# Attach a Railway Volume at /app/uploads so PDFs/uploads survive redeploys.
+requiredMountPath = "/app/uploads"

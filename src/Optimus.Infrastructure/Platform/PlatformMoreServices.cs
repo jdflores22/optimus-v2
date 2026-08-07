@@ -10,6 +10,7 @@ using Optimus.Application.Platform.Interfaces;
 using Optimus.Domain.Entities;
 using Optimus.Domain.Enums;
 using Optimus.Infrastructure.Persistence;
+using Optimus.Infrastructure.Storage;
 
 namespace Optimus.Infrastructure.Platform;
 
@@ -338,11 +339,16 @@ public class MaintenanceService : IMaintenanceService
 {
     private readonly OptimusDbContext _db;
     private readonly ILogger<MaintenanceService> _logger;
+    private readonly IUploadRootProvider _uploads;
 
-    public MaintenanceService(OptimusDbContext db, ILogger<MaintenanceService> logger)
+    public MaintenanceService(
+        OptimusDbContext db,
+        ILogger<MaintenanceService> logger,
+        IUploadRootProvider uploads)
     {
         _db = db;
         _logger = logger;
+        _uploads = uploads;
     }
 
     public async Task<MaintenanceResultDto> RunAsync(CancellationToken ct = default)
@@ -360,7 +366,7 @@ public class MaintenanceService : IMaintenanceService
         await _db.SaveChangesAsync(ct);
 
         var orphanFiles = 0;
-        var uploads = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+        var uploads = _uploads.RootDirectory;
         if (Directory.Exists(uploads))
         {
             foreach (var file in Directory.EnumerateFiles(uploads, "*", SearchOption.AllDirectories))
