@@ -62,7 +62,7 @@ public static class DatabaseConnection
             return null;
 
         var portValue = uint.TryParse(port, out var parsedPort) ? parsedPort : 3306;
-        var sslMode = sslRequired ? "Required" : "Preferred";
+        var sslMode = sslRequired ? "Preferred" : "Preferred";
 
         return
             $"Server={host};Port={portValue};Database={database};User={user};Password={password};CharSet=utf8mb4;SslMode={sslMode};";

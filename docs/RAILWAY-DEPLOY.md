@@ -116,6 +116,7 @@ On first start, EF migrations run automatically. Change the default admin passwo
 
 | Issue | Fix |
 |-------|-----|
+| Healthcheck failure | App uses `/health/live` for Railway; check Deploy logs for MySQL errors |
 | MySQL connection failed | Check `MYSQL_HOST`, remote user (Any Host), Railway IP whitelist |
 | CORS error | Match exact frontend URL in `Cors__Origins__0` |
 | Upload 404 after redeploy | Attach volume at `/app/uploads` |

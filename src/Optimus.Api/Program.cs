@@ -127,6 +127,7 @@ try
     app.UseAuthorization();
 
     app.MapControllers();
+    app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
     app.MapHealthChecks("/health");
     app.MapGet("/", () => Results.Ok(new
     {
@@ -136,7 +137,20 @@ try
         version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.1"
     }));
 
-    await DbSeeder.SeedAsync(app.Services);
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await DbSeeder.SeedAsync(app.Services);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Database migration/seed failed after startup");
+            }
+        });
+    });
 
     app.Run();
 }
