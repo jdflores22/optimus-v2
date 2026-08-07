@@ -19,6 +19,18 @@ import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
+import CurrencyExchangeOutlinedIcon from '@mui/icons-material/CurrencyExchangeOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
+import ViewInArOutlinedIcon from '@mui/icons-material/ViewInArOutlined';
+import AspectRatioOutlinedIcon from '@mui/icons-material/AspectRatioOutlined';
+import DynamicFormOutlinedIcon from '@mui/icons-material/DynamicFormOutlined';
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import AnchorOutlinedIcon from '@mui/icons-material/AnchorOutlined';
+import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
+import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
 
 export const ALL_ROLES = [
   'SystemAdmin',
@@ -42,7 +54,13 @@ export type NavItem = {
   icon: SvgIconComponent;
   exact?: boolean;
   /** Optional badge key rendered by SideNav (e.g. awaitingFinalApprovals). */
-  badgeKey?: 'awaitingFinalApprovals' | 'pendingPayments';
+  badgeKey?:
+    | 'awaitingFinalApprovals'
+    | 'pendingPayments'
+    | 'pendingEdoRelease'
+    | 'notifications'
+    | 'pendingAppeals'
+    | 'pendingTransfers';
 };
 
 export type NavGroup = {
@@ -477,6 +495,180 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
     ];
   }
 
+  if (r === 'SystemAdmin') {
+    return [
+      {
+        id: 'overview',
+        label: '',
+        items: [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            path: '/',
+            roles: ['SystemAdmin'],
+            icon: DashboardOutlinedIcon,
+          },
+          {
+            id: 'edo-release-queue',
+            label: 'eDO Release Queue',
+            path: '/admin/edo-release/queue',
+            roles: ['SystemAdmin'],
+            icon: TaskAltOutlinedIcon,
+            badgeKey: 'pendingEdoRelease',
+          },
+          {
+            id: 'edo-revenue',
+            label: 'eDO Revenue',
+            path: '/admin/edo-release/revenue',
+            roles: ['SystemAdmin'],
+            icon: CurrencyExchangeOutlinedIcon,
+          },
+          {
+            id: 'notifications',
+            label: 'Notifications',
+            path: '/notifications',
+            roles: ['SystemAdmin'],
+            icon: NotificationsNoneOutlinedIcon,
+            badgeKey: 'notifications',
+          },
+        ],
+      },
+      {
+        id: 'management',
+        label: 'Management',
+        items: [
+          {
+            id: 'user-management',
+            label: 'User Management',
+            path: '/admin/users',
+            roles: ['SystemAdmin'],
+            icon: PeopleOutlineOutlinedIcon,
+          },
+          {
+            id: 'suspension-appeals',
+            label: 'Suspension Appeals',
+            path: '/admin/appeals',
+            roles: ['SystemAdmin'],
+            icon: DescriptionOutlinedIcon,
+            badgeKey: 'pendingAppeals',
+          },
+          {
+            id: 'transfer-requests',
+            label: 'Transfer Requests',
+            path: '/admin/transfers',
+            roles: ['SystemAdmin'],
+            icon: SwapHorizOutlinedIcon,
+            badgeKey: 'pendingTransfers',
+          },
+          {
+            id: 'audit-logs',
+            label: 'Audit Logs',
+            path: '/admin/audit-logs',
+            roles: ['SystemAdmin'],
+            icon: ListAltOutlinedIcon,
+          },
+          {
+            id: 'edo-audit-search',
+            label: 'eDO Audit Search',
+            path: '/admin/edo-audit',
+            roles: ['SystemAdmin'],
+            icon: SearchOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'configuration',
+        label: 'Configuration',
+        items: [
+          {
+            id: 'shipping-lines',
+            label: 'Shipping Lines',
+            path: '/admin/shipping-lines',
+            roles: ['SystemAdmin'],
+            icon: DirectionsBoatOutlinedIcon,
+          },
+          {
+            id: 'terminals',
+            label: 'Terminals',
+            path: '/admin/terminals',
+            roles: ['SystemAdmin'],
+            icon: BusinessOutlinedIcon,
+          },
+          {
+            id: 'container-types',
+            label: 'Container Types',
+            path: '/admin/container-types',
+            roles: ['SystemAdmin'],
+            icon: ViewInArOutlinedIcon,
+          },
+          {
+            id: 'container-sizes',
+            label: 'Container Sizes',
+            path: '/admin/container-sizes',
+            roles: ['SystemAdmin'],
+            icon: AspectRatioOutlinedIcon,
+          },
+          {
+            id: 'user-hierarchy',
+            label: 'User Hierarchy',
+            path: '/admin/hierarchy',
+            roles: ['SystemAdmin'],
+            icon: AccountTreeOutlinedIcon,
+          },
+          {
+            id: 'form-builder',
+            label: 'Form Builder',
+            path: '/admin/form-builder',
+            roles: ['SystemAdmin'],
+            icon: DynamicFormOutlinedIcon,
+          },
+          {
+            id: 'document-templates',
+            label: 'Document Templates',
+            path: '/admin/document-templates',
+            roles: ['SystemAdmin'],
+            icon: ArticleOutlinedIcon,
+          },
+          {
+            id: 'payment-fees',
+            label: 'Payment Fees',
+            path: '/admin/payment-fees',
+            roles: ['SystemAdmin'],
+            icon: ReceiptLongOutlinedIcon,
+          },
+          {
+            id: 'cy-utilization',
+            label: 'CY Utilization',
+            path: '/admin/reports/cy-utilization',
+            roles: ['SystemAdmin'],
+            icon: BarChartOutlinedIcon,
+          },
+          {
+            id: 'port-utilization',
+            label: 'Port Utilization',
+            path: '/admin/reports/port-utilization',
+            roles: ['SystemAdmin'],
+            icon: AnchorOutlinedIcon,
+          },
+          {
+            id: 'notification-metrics',
+            label: 'Notification Metrics',
+            path: '/admin/notification-metrics',
+            roles: ['SystemAdmin'],
+            icon: InsightsOutlinedIcon,
+          },
+          {
+            id: 'system-settings',
+            label: 'System Settings',
+            path: '/admin/system-settings',
+            roles: ['SystemAdmin'],
+            icon: SettingsOutlinedIcon,
+          },
+        ],
+      },
+    ];
+  }
+
   if (r === 'SlStaff') {
     return [
       {
@@ -563,7 +755,7 @@ export function getQuickActions(role: string | undefined | null): NavItem[] {
   const byId = (id: string) => catalog.find((i) => i.id === id);
 
   const prefs: Record<string, string[]> = {
-    SystemAdmin: ['dashboard', 'manifests', 'edo-payment-validation', 'edo-release', 'platform'],
+    SystemAdmin: ['dashboard', 'edo-release-queue', 'notifications', 'user-management'],
     ShippingLinesAdmin: ['dashboard', 'approvals', 'manifests', 'edo-release'],
     SlStaff: ['dashboard', 'manifests', 'edo', 'edo-release'],
     Evaluator: ['dashboard', 'sas', 'hierarchy', 'notifications'],

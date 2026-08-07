@@ -9,7 +9,14 @@ import {
 } from '@mui/material';
 import { NavLink } from 'react-router-dom';
 import { useMemo } from 'react';
-import { useGetAccreditationsQuery, useGetFinalPaymentsQuery } from '../../app/api';
+import {
+  useGetAccreditationsQuery,
+  useGetAppealsQuery,
+  useGetEdoReleaseQueueQuery,
+  useGetFinalPaymentsQuery,
+  useGetNotificationsQuery,
+  useGetTransfersQuery,
+} from '../../app/api';
 import { getNavGroups } from './navConfig';
 
 type SideNavProps = {
@@ -22,6 +29,7 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
   const groups = getNavGroups(role);
   const needsApprovalBadge = role === 'ShippingLinesAdmin';
   const needsPendingPaymentsBadge = role === 'Accounting' || role === 'SystemAdmin';
+  const needsSystemAdminBadges = role === 'SystemAdmin';
   const { data: accreditations = [] } = useGetAccreditationsQuery(undefined, {
     skip: !needsApprovalBadge,
     pollingInterval: needsApprovalBadge ? 30_000 : 0,
@@ -33,15 +41,60 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
       pollingInterval: needsPendingPaymentsBadge ? 30_000 : 0,
     },
   );
+  const { data: releaseQueue } = useGetEdoReleaseQueueQuery(undefined, {
+    skip: !needsSystemAdminBadges,
+    pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
+  });
+  const { data: notifications = [] } = useGetNotificationsQuery(undefined, {
+    skip: !needsSystemAdminBadges,
+    pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
+  });
+  const { data: appeals = [] } = useGetAppealsQuery(undefined, {
+    skip: !needsSystemAdminBadges,
+    pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
+  });
+  const { data: transfers = [] } = useGetTransfersQuery(undefined, {
+    skip: !needsSystemAdminBadges,
+    pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
+  });
   const awaitingFinalCount = useMemo(
     () => accreditations.filter((a) => a.status === 'AwaitingFinalApproval').length,
     [accreditations],
   );
   const pendingPaymentsCount = finalPayments?.stats.pending ?? 0;
 
-  const badgeFor = (badgeKey?: 'awaitingFinalApprovals' | 'pendingPayments') => {
+  const pendingEdoReleaseCount = useMemo(() => {
+    const items = releaseQueue?.items ?? [];
+    return items.filter((x) => !x.paymentId || /pendingvalidation/i.test(x.paymentStatus ?? '')).length;
+  }, [releaseQueue]);
+  const unreadNotificationsCount = useMemo(
+    () => notifications.filter((n) => !n.isRead).length,
+    [notifications],
+  );
+  const pendingAppealsCount = useMemo(
+    () => appeals.filter((a) => a.status === 'Pending').length,
+    [appeals],
+  );
+  const pendingTransfersCount = useMemo(
+    () => transfers.filter((t) => t.status === 'Pending').length,
+    [transfers],
+  );
+
+  const badgeFor = (
+    badgeKey?:
+      | 'awaitingFinalApprovals'
+      | 'pendingPayments'
+      | 'pendingEdoRelease'
+      | 'notifications'
+      | 'pendingAppeals'
+      | 'pendingTransfers',
+  ) => {
     if (badgeKey === 'awaitingFinalApprovals') return awaitingFinalCount;
     if (badgeKey === 'pendingPayments') return needsPendingPaymentsBadge ? pendingPaymentsCount : 0;
+    if (badgeKey === 'pendingEdoRelease') return needsSystemAdminBadges ? pendingEdoReleaseCount : 0;
+    if (badgeKey === 'notifications') return needsSystemAdminBadges ? unreadNotificationsCount : 0;
+    if (badgeKey === 'pendingAppeals') return needsSystemAdminBadges ? pendingAppealsCount : 0;
+    if (badgeKey === 'pendingTransfers') return needsSystemAdminBadges ? pendingTransfersCount : 0;
     return 0;
   };
 
@@ -67,18 +120,20 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
     >
       {groups.map((group) => (
         <Box key={group.id} sx={{ mb: 1.5 }}>
-          <Typography
-            variant="body2"
-            sx={{
-              px: 2.5,
-              py: 1,
-              display: 'block',
-              color: 'text.secondary',
-              fontWeight: 600,
-            }}
-          >
-            {group.label}
-          </Typography>
+          {group.label ? (
+            <Typography
+              variant="body2"
+              sx={{
+                px: 2.5,
+                py: 1,
+                display: 'block',
+                color: 'text.secondary',
+                fontWeight: 600,
+              }}
+            >
+              {group.label}
+            </Typography>
+          ) : null}
           <List dense={dense} disablePadding>
             {group.items.map((item) => {
               const Icon = item.icon;
@@ -110,7 +165,7 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
                   {badgeCount > 0 && (
                     <Badge
                       badgeContent={badgeCount}
-                      color="warning"
+                      color="error"
                       sx={{
                         '& .MuiBadge-badge': {
                           position: 'static',

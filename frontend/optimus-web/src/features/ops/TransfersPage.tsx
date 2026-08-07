@@ -25,9 +25,9 @@ import {
 import type { RootState } from '../../app/store';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
-export function TransfersPage() {
+export function TransfersPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isConsignee = ['Consignee', 'SystemAdmin'].includes(user?.role ?? '');
+  const isConsignee = !adminOnly && ['Consignee', 'SystemAdmin'].includes(user?.role ?? '');
   const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
   const { data: transfers = [], refetch } = useGetTransfersQuery();
   const { data: manifests = [] } = useGetManifestsQuery();
@@ -46,9 +46,13 @@ export function TransfersPage() {
 
   return (
     <WorkflowPage
-      eyebrow="Transfer Workflow"
-      title="Broker Transfers"
-      subtitle="Request broker reassignment and review transfer approvals across affected manifests."
+      eyebrow={adminOnly ? 'Management' : 'Transfer Workflow'}
+      title={adminOnly ? 'Transfer Requests' : 'Broker Transfers'}
+      subtitle={
+        adminOnly
+          ? 'Review and approve broker reassignment requests submitted by consignees.'
+          : 'Request broker reassignment and review transfer approvals across affected manifests.'
+      }
       chips={
         <>
           <Chip size="small" color="warning" label={`${pending.length} pending`} />

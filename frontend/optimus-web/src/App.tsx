@@ -14,6 +14,20 @@ import { BrokerDashboardPage } from './features/dashboard/BrokerDashboardPage';
 import { AppShell } from './features/layout/AppShell';
 import { ShippingLinesPage } from './features/admin/ShippingLinesPage';
 import { HierarchyPage } from './features/admin/HierarchyPage';
+import { UserManagementPage } from './features/admin/UserManagementPage';
+import { EdoRevenueAdminPage } from './features/admin/EdoRevenueAdminPage';
+import { TerminalsAdminPage } from './features/admin/TerminalsAdminPage';
+import { ContainerCatalogAdminPage } from './features/admin/ContainerCatalogAdminPage';
+import { PaymentFeesAdminPage } from './features/admin/PaymentFeesAdminPage';
+import { FormBuilderAdminPage } from './features/admin/FormBuilderAdminPage';
+import { DocumentTemplatesAdminPage } from './features/admin/DocumentTemplatesAdminPage';
+import { SystemSettingsAdminPage } from './features/admin/SystemSettingsAdminPage';
+import { NotificationMetricsAdminPage } from './features/admin/NotificationMetricsAdminPage';
+import { AuditLogsAdminPage } from './features/admin/AuditLogsAdminPage';
+import { EdoAuditSearchAdminPage } from './features/admin/EdoAuditSearchAdminPage';
+import { UtilizationKindAdminPage } from './features/admin/UtilizationKindAdminPage';
+import { AdminSuspensionAppealsPage } from './features/admin/AdminSuspensionAppealsPage';
+import { AdminTransferRequestsPage } from './features/admin/AdminTransferRequestsPage';
 import { ShippingAdminConsigneesPage } from './features/admin/ShippingAdminConsigneesPage';
 import { ShippingAdminConsigneeDetailPage } from './features/admin/ShippingAdminConsigneeDetailPage';
 import { ShippingAdminBrokersPage } from './features/admin/ShippingAdminBrokersPage';
@@ -168,6 +182,14 @@ export default function App() {
             element={<Navigate to="/edo/payment-validation" replace />}
           />
           <Route path="/admin/edo-release/queue" element={<Navigate to="/edo/release" replace />} />
+          <Route
+            path="/admin/edo-release/revenue"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <EdoRevenueAdminPage />
+              </Protected>
+            }
+          />
           <Route path="/edo/:id" element={<EdoDetailPage />} />
           <Route path="/yard" element={<YardAdminPage />} />
           <Route
@@ -287,6 +309,126 @@ export default function App() {
             element={
               <Protected roles={['ShippingLinesAdmin']}>
                 <ShippingAdminBrokerDetailPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <UserManagementPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/appeals"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <AdminSuspensionAppealsPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/transfers"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <AdminTransferRequestsPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/audit-logs"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <AuditLogsAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/edo-audit"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <EdoAuditSearchAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/terminals"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <TerminalsAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/container-types"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <ContainerCatalogAdminPage mode="types" />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/container-sizes"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <ContainerCatalogAdminPage mode="sizes" />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/form-builder"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <FormBuilderAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/document-templates"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <DocumentTemplatesAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/payment-fees"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <PaymentFeesAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/reports/cy-utilization"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <UtilizationKindAdminPage terminalKind="Cy" />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/reports/port-utilization"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <UtilizationKindAdminPage terminalKind="Port" />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/notification-metrics"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <NotificationMetricsAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/system-settings"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <SystemSettingsAdminPage />
               </Protected>
             }
           />

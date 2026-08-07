@@ -36,7 +36,11 @@ const SYSTEM_ROLES = [
 
 const TEAM_INVITE_ROLES = ['SlStaff', 'Evaluator', 'Accounting', 'TerminalTeam'];
 
-export function HierarchyPage() {
+type HierarchyPageProps = {
+  variant?: 'hierarchy' | 'users';
+};
+
+export function HierarchyPage({ variant = 'hierarchy' }: HierarchyPageProps) {
   const role = useSelector((state: RootState) => state.auth.user?.role ?? '');
   const isShippingAdmin = role === 'ShippingLinesAdmin';
   const isSystemAdmin = role === 'SystemAdmin';
@@ -84,12 +88,16 @@ export function HierarchyPage() {
     }
   };
 
+  const isUsersView = variant === 'users' && isSystemAdmin;
+
   return (
     <WorkflowPage
-      eyebrow={isShippingAdmin ? 'Shipping Lines Admin' : 'Governance'}
-      title={isShippingAdmin ? 'My Team' : 'User hierarchy'}
+      eyebrow={isUsersView ? 'Management' : isShippingAdmin ? 'Shipping Lines Admin' : 'Governance'}
+      title={isUsersView ? 'User Management' : isShippingAdmin ? 'My Team' : 'User hierarchy'}
       subtitle={
-        isShippingAdmin
+        isUsersView
+          ? 'Manage system users and their roles across shipping lines, brokers, and internal operators.'
+          : isShippingAdmin
           ? 'Invite and manage operators under your shipping line: staff, evaluators, accounting, and terminal team.'
           : 'Invite internal operators, review account status, and restore access for locked users.'
       }

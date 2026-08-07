@@ -1,14 +1,35 @@
 import { Alert, Button, Chip, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
-import { useState } from 'react';
-import { useExportUtilizationMutation, useGetUtilizationQuery } from '../../app/api';
+import { useMemo, useState } from 'react';
+import { useExportUtilizationMutation, useGetTerminalsQuery, useGetUtilizationQuery } from '../../app/api';
 import { API_BASE_URL } from '../../shared/types';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
-export function UtilizationReportPage() {
-  const { data = [], refetch } = useGetUtilizationQuery();
+type UtilizationReportPageProps = {
+  terminalKind?: 'Cy' | 'Port';
+  title?: string;
+  subtitle?: string;
+};
+
+export function UtilizationReportPage({
+  terminalKind,
+  title = 'Port and CY utilization',
+  subtitle = 'Review capacity pressure across terminals before yard congestion creates downstream release delays.',
+}: UtilizationReportPageProps = {}) {
+  const { data: utilization = [], refetch } = useGetUtilizationQuery();
+  const { data: terminals = [] } = useGetTerminalsQuery(undefined, { skip: !terminalKind });
   const [exportReport] = useExportUtilizationMutation();
   const [csv, setCsv] = useState<string | null>(null);
   const [pdf, setPdf] = useState<string | null>(null);
+
+  const data = useMemo(() => {
+    if (!terminalKind) return utilization;
+    const terminalIds = new Set(
+      terminals
+        .filter((t) => (terminalKind === 'Cy' ? t.kind === 'Cy' : t.kind !== 'Cy'))
+        .map((t) => t.id),
+    );
+    return utilization.filter((row) => terminalIds.has(row.terminalId));
+  }, [terminalKind, terminals, utilization]);
   const totalAllocated = data.reduce((sum, row) => sum + row.allocatedTeu, 0);
   const totalUsed = data.reduce((sum, row) => sum + row.usedTeu, 0);
   const totalPending = data.reduce((sum, row) => sum + row.pendingPreAdvice, 0);
@@ -16,8 +37,8 @@ export function UtilizationReportPage() {
   return (
     <WorkflowPage
       eyebrow="Capacity oversight"
-      title="Port and CY utilization"
-      subtitle="Review capacity pressure across terminals before yard congestion creates downstream release delays."
+      title={title}
+      subtitle={subtitle}
       chips={
         <>
           <Chip size="small" label={`${data.length} terminals`} color="primary" />

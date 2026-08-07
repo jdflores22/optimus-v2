@@ -128,6 +128,7 @@ export const api = createApi({
     'EdoRenewals',
     'Terminals',
     'Containers',
+    'ContainerCatalog',
     'CyAllocations',
     'Dwell',
     'PreAdvice',
@@ -643,6 +644,29 @@ export const api = createApi({
           },
         };
       },
+      providesTags: ['ContainerCatalog'],
+    }),
+    upsertContainerType: builder.mutation<
+      ContainerTypeDto,
+      { id?: string; name: string; code: string; description?: string | null; isActive?: boolean }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/container-catalog/types${id ? `?id=${id}` : ''}`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['ContainerCatalog'],
+    }),
+    upsertContainerSize: builder.mutation<
+      ContainerSizeDto,
+      { id?: string; name: string; code: string; teuValue: number; description?: string | null; isActive?: boolean }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/container-catalog/sizes${id ? `?id=${id}` : ''}`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['ContainerCatalog'],
     }),
     getCyAllocations: builder.query<CyAllocationDto[], void>({
       query: () => '/api/cy-allocations',
@@ -1283,6 +1307,8 @@ export const {
   useUpsertTerminalMutation,
   useGetTerminalSlotsQuery,
   useGetContainerCatalogQuery,
+  useUpsertContainerTypeMutation,
+  useUpsertContainerSizeMutation,
   useGetCyAllocationsQuery,
   useGetContainersQuery,
   useGetContainerInventoryQuery,

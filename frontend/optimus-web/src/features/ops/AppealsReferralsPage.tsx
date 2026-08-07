@@ -32,12 +32,12 @@ import type { RootState } from '../../app/store';
 import { formRowStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
-export function AppealsReferralsPage() {
+export function AppealsReferralsPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const { user } = useSelector((state: RootState) => state.auth);
   const role = user?.role ?? '';
   const isAdmin = role === 'SystemAdmin' || role === 'ShippingLinesAdmin';
-  const isBroker = role === 'Broker' || role === 'SystemAdmin';
-  const isConsignee = role === 'Consignee' || role === 'SystemAdmin';
+  const isBroker = !adminOnly && (role === 'Broker' || role === 'SystemAdmin');
+  const isConsignee = !adminOnly && (role === 'Consignee' || role === 'SystemAdmin');
 
   const { data: appeals = [], refetch: refetchAppeals } = useGetAppealsQuery();
   const { data: referrals = [], refetch: refetchRefs } = useGetReferralsQuery(undefined, {
@@ -64,9 +64,13 @@ export function AppealsReferralsPage() {
 
   return (
     <WorkflowPage
-      eyebrow="Appeals And Referrals"
-      title="Appeals, Referrals & Onboarding"
-      subtitle="Manage broker appeals, consignee referral codes, and onboarding guidance in one operational surface."
+      eyebrow={adminOnly ? 'Management' : 'Appeals And Referrals'}
+      title={adminOnly ? 'Suspension Appeals' : 'Appeals, Referrals & Onboarding'}
+      subtitle={
+        adminOnly
+          ? 'Review broker suspension appeals and restore access after compliance review.'
+          : 'Manage broker appeals, consignee referral codes, and onboarding guidance in one operational surface.'
+      }
       chips={
         <>
           <Chip size="small" color="warning" label={`${pendingAppeals.length} pending appeals`} />
@@ -83,7 +87,7 @@ export function AppealsReferralsPage() {
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="error">{error}</Alert>}
 
-      {welcome && (
+      {welcome && !adminOnly && (
         <WorkflowSection
           title="Onboarding"
           subtitle="Contextual guidance and completion tracking for first-time setup."
