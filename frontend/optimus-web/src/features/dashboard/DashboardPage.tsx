@@ -544,7 +544,7 @@ export function DashboardPage() {
               No active port terminal contracts for your shipping line.
             </Alert>
           ) : (
-            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
               {slStaffDashboard.contractPortCards.map((terminal) => (
                 <ContractTeuLocationCard
                   key={terminal.id}
@@ -580,7 +580,7 @@ export function DashboardPage() {
               No active container yard contracts for your shipping line.
             </Alert>
           ) : (
-            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
               {slStaffDashboard.contractCyCards.map((yard) => (
                 <ContractTeuLocationCard
                   key={yard.id}

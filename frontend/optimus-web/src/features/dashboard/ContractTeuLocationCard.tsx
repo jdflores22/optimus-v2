@@ -108,13 +108,28 @@ export function ContractTeuLocationCard({
   const utilizationPct = capacityTeu ? Math.round((usedTeu / capacityTeu) * 1000) / 10 : 0;
 
   return (
-    <Paper elevation={0} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 2.5, height: '100%' }}>
+    <Paper
+      elevation={0}
+      sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 2.5, height: '100%', minWidth: 0 }}
+    >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5} mb={2}>
         <Box minWidth={0} flex={1}>
           <Typography fontWeight={800} fontSize="1.2rem" lineHeight={1.2} noWrap title={code || name}>
             {code || name}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }} noWrap title={subtitle ?? name}>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              mt: 0.35,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              wordBreak: 'break-word',
+            }}
+            title={subtitle ?? name}
+          >
             {subtitle ?? name}
           </Typography>
           {typeLabel && (

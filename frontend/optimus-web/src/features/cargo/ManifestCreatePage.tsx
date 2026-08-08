@@ -474,7 +474,7 @@ export function ManifestCreatePage() {
           subtitle="Container yards only. Use the same compact 3-column location cards from the SL Staff dashboard."
           actions={<Chip size="small" label={`${cyCards.length} CY`} color="primary" />}
         >
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
             {cyCards.map((yard) => (
               <Paper key={yard.id} elevation={0} sx={{ p: 1.75, border: 1, borderColor: 'divider', borderRadius: 2.5 }}>
                 <Stack direction="row" justifyContent="space-between" spacing={1} mb={1.5} alignItems="flex-start">
