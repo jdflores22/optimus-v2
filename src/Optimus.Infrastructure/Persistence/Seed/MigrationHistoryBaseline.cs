@@ -36,16 +36,24 @@ public static class MigrationHistoryBaseline
     {
         await EnsureHistoryTableAsync(db, cancellationToken);
 
+        var pending = (await db.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        // Only needed when EF still wants Phase1 but the legacy schema already created core tables.
+        if (!pending.Contains(Markers[0].MigrationId, StringComparer.Ordinal))
+        {
+            return;
+        }
+
         if (!await TableExistsAsync(db, "regions", cancellationToken))
         {
             return;
         }
 
         var applied = (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
-        if (applied.Contains(Markers[0].MigrationId))
-        {
-            return;
-        }
 
         logger.LogWarning(
             "Database has application tables but EF migration history is missing or incomplete. " +
@@ -112,11 +120,41 @@ public static class MigrationHistoryBaseline
             SELECT COUNT(*)
             FROM information_schema.tables
             WHERE table_schema = DATABASE()
-              AND table_name = {0}
+              AND LOWER(table_name) = LOWER({0})
             """,
             tableName,
             cancellationToken);
-        return count > 0;
+        if (count > 0)
+        {
+            return true;
+        }
+
+        // Shared hosts sometimes restrict information_schema; probe the table directly.
+        return await CanSelectFromTableAsync(db, tableName, cancellationToken);
+    }
+
+    private static async Task<bool> CanSelectFromTableAsync(
+        OptimusDbContext db,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var connection = db.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT 1 FROM `{tableName}` LIMIT 1";
+        try
+        {
+            await command.ExecuteScalarAsync(cancellationToken);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static async Task<bool> ColumnExistsAsync(
