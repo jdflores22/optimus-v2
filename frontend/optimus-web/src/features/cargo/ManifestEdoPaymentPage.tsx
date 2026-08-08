@@ -33,6 +33,11 @@ import {
   edoPaymentSubmitted,
   formatEdoStatus,
 } from '../../shared/formatEdoStatus';
+import {
+  EDO_PAYMENT_RECEIPT_ACCEPT,
+  isEdoPaymentReceiptFile,
+} from '../../shared/edoPaymentReceipt';
+import { paymentFeeDocUrl, resolveEdoFeeAmount } from '../../shared/paymentFees';
 import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
@@ -48,7 +53,7 @@ export function ManifestEdoPaymentPage() {
   const { id = '', edoId = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const canPay = user?.role === 'Broker' || user?.role === 'Consignee' || user?.role === 'SystemAdmin';
+  const canPay = user?.role === 'Broker' || user?.role === 'Consignee';
 
   const { data: manifest, error: manifestError, isLoading: manifestLoading } = useGetManifestQuery(id, {
     skip: !id,
@@ -85,7 +90,12 @@ export function ManifestEdoPaymentPage() {
     return <Navigate to={`/manifests/${id}?tab=documents`} replace />;
   }
 
-  const amount = edo.feeAmount ?? edoFee?.amount ?? 750;
+  const amount = resolveEdoFeeAmount(
+    edoFee,
+    edo.feeAmount,
+    { lockSnapshot: paymentSubmitted },
+  );
+  const paymentQrUrl = paymentFeeDocUrl(edoFee?.qrCodePath);
   const currency = 'PHP';
   const displayStatus = formatEdoStatus(edo.status, edo.currentPaymentStatus);
 
@@ -93,11 +103,11 @@ export function ManifestEdoPaymentPage() {
     e.preventDefault();
     setFormError(null);
     if (!receipt) {
-      setFormError('Please upload a PDF payment receipt before submitting.');
+      setFormError('Please upload a payment receipt before submitting.');
       return;
     }
-    if (!/\.pdf$/i.test(receipt.name) && receipt.type !== 'application/pdf') {
-      setFormError('Receipt must be a PDF file.');
+    if (!isEdoPaymentReceiptFile(receipt)) {
+      setFormError('Receipt must be a PDF or image file (PNG, JPG).');
       return;
     }
     setConfirmOpen(true);
@@ -268,7 +278,7 @@ export function ManifestEdoPaymentPage() {
 
               <Box>
                 <Typography variant="body2" fontWeight={700} mb={1}>
-                  Payment receipt (PDF) *
+                  Payment receipt (PDF or image) *
                 </Typography>
                 <Box
                   component="label"
@@ -303,16 +313,16 @@ export function ManifestEdoPaymentPage() {
                   </Box>
                   <Box minWidth={0} flex={1}>
                     <Typography fontWeight={700} noWrap>
-                      {receipt ? receipt.name : 'Choose PDF receipt'}
+                      {receipt ? receipt.name : 'Choose receipt file'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      PDF only · max 10 MB
+                      PDF or image (PNG, JPG) · max 10 MB
                     </Typography>
                   </Box>
                   <input
                     type="file"
                     hidden
-                    accept="application/pdf,.pdf"
+                    accept={EDO_PAYMENT_RECEIPT_ACCEPT}
                     onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
                   />
                 </Box>
@@ -353,6 +363,26 @@ export function ManifestEdoPaymentPage() {
             </Typography>
           </Stack>
         </WorkflowSection>
+
+        {paymentQrUrl && (
+          <WorkflowSection title="Payment QR code" subtitle="Scan to pay the exact fee amount.">
+            <Box
+              component="img"
+              src={paymentQrUrl}
+              alt="Payment QR code"
+              sx={{
+                width: '100%',
+                maxWidth: 280,
+                maxHeight: 280,
+                objectFit: 'contain',
+                borderRadius: 1.5,
+                border: 1,
+                borderColor: 'divider',
+                bgcolor: 'background.default',
+              }}
+            />
+          </WorkflowSection>
+        )}
       </Box>
 
       <Dialog open={confirmOpen} onClose={() => (submitting ? null : setConfirmOpen(false))} fullWidth maxWidth="xs">

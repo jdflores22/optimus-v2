@@ -5,6 +5,7 @@ import { Link as RouterLink, Outlet, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../../app/authSlice';
 import type { RootState } from '../../app/store';
+import { RouteAccessGuard } from '../auth/RouteAccessGuard';
 import { OptimusLogo } from '../../shared/OptimusLogo';
 import { ColorModeToggle } from '../../shared/ColorModeToggle';
 import { authPanelGradient } from '../../shared/theme';
@@ -107,7 +108,7 @@ export function WorkspaceGateLayout({ children }: WorkspaceGateLayoutProps) {
         }}
       >
         <Stack spacing={0} maxWidth={880} mx="auto" width="100%" flex={1}>
-          {children ?? <Outlet />}
+          <RouteAccessGuard>{children ?? <Outlet />}</RouteAccessGuard>
         </Stack>
       </Box>
     </Box>

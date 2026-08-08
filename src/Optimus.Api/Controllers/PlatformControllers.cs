@@ -1,6 +1,9 @@
+using System.Net;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Optimus.Api.Security;
 using Optimus.Application.Cargo.Dtos;
 using Optimus.Application.Platform.Dtos;
 using Optimus.Application.Platform.Interfaces;
@@ -146,6 +149,61 @@ public class DocumentTemplatesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<DocumentTemplateDto>> Upsert([FromBody] UpsertDocumentTemplateRequest request, CancellationToken ct)
         => Ok(await _templates.UpsertAsync(request, UserId, ct));
+
+    [HttpPost("{id:guid}/activate")]
+    public async Task<ActionResult<DocumentTemplateDto>> Activate(Guid id, CancellationToken ct)
+        => Ok(await _templates.ActivateAsync(id, ct));
+
+    [HttpPost("{id:guid}/clone")]
+    public async Task<ActionResult<DocumentTemplateDto>> Clone(Guid id, CancellationToken ct)
+        => Ok(await _templates.CloneVersionAsync(id, UserId, ct));
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await _templates.DeleteAsync(id, ct);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/layout")]
+    public async Task<ActionResult<object>> SaveLayout(Guid id, [FromBody] SaveDocumentTemplateLayoutRequest request, CancellationToken ct)
+    {
+        await _templates.SaveLayoutAsync(id, request, UserId, ct);
+        return Ok(new { success = true, message = "Layout saved successfully" });
+    }
+
+    [HttpPost("{id:guid}/upload-image")]
+    public async Task<ActionResult<object>> UploadImage(Guid id, IFormFile image, CancellationToken ct)
+    {
+        UploadGuard.Validate(image, ".png", ".jpg", ".jpeg");
+        if (image.Length > 2 * 1024 * 1024)
+            return BadRequest(new { success = false, message = "Image must be 2 MB or smaller" });
+
+        await using var stream = image.OpenReadStream();
+        var url = await _templates.UploadImageAsync(id, stream, image.FileName, ct);
+        return Ok(new { success = true, url, path = url });
+    }
+
+    [HttpPost("{id:guid}/preview-html")]
+    public async Task<IActionResult> PreviewHtml(Guid id, [FromBody] SaveDocumentTemplateLayoutRequest? request, CancellationToken ct)
+    {
+        var templates = await _templates.ListAsync(ct);
+        var template = templates.FirstOrDefault(x => x.Id == id);
+        if (template is null) return NotFound();
+
+        var layoutJson = request?.Layout.ValueKind == JsonValueKind.Object
+            ? request.Layout.GetRawText()
+            : template.LayoutJson ?? "{}";
+        var encoded = WebUtility.HtmlEncode(layoutJson);
+        var html =
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Preview — " + WebUtility.HtmlEncode(template.Name) +
+            "</title><style>body{font-family:system-ui,sans-serif;padding:24px;background:#f1f5f9}" +
+            "pre{background:#fff;padding:16px;border-radius:8px;overflow:auto;font-size:12px}</style></head><body>" +
+            "<h1>" + WebUtility.HtmlEncode(template.Name) + " — Layout Preview</h1>" +
+            "<p>Full PDF rendering will use this layout at generation time. Below is the saved layout JSON.</p>" +
+            "<pre>" + encoded + "</pre></body></html>";
+        return Content(html, "text/html; charset=UTF-8");
+    }
 }
 
 [ApiController]

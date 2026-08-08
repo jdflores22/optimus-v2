@@ -30,8 +30,8 @@ export function EdoRenewalsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
-  const isAccounting = ['Accounting', 'SystemAdmin'].includes(user?.role ?? '');
+  const isStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
+  const isAccounting = user?.role === 'Accounting';
   const pending = renewals.filter((r) => r.status === 'PendingReview');
   const awaitingPayment = renewals.filter((r) => r.status === 'AwaitingPayment');
   const ready = renewals.filter((r) => r.status === 'ReadyForGeneration');

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -86,7 +87,12 @@ public class RateLimitAdminService : IRateLimitAdminService
 public class DocumentTemplateService : IDocumentTemplateService
 {
     private readonly OptimusDbContext _db;
-    public DocumentTemplateService(OptimusDbContext db) => _db = db;
+    private readonly IUploadRootProvider _uploads;
+    public DocumentTemplateService(OptimusDbContext db, IUploadRootProvider uploads)
+    {
+        _db = db;
+        _uploads = uploads;
+    }
 
     public async Task<IReadOnlyList<DocumentTemplateDto>> ListAsync(CancellationToken ct = default)
     {
@@ -108,6 +114,9 @@ public class DocumentTemplateService : IDocumentTemplateService
             DocumentType = request.DocumentType,
             Name = request.Name,
             BodyHtml = request.BodyHtml,
+            LayoutJson = request.LayoutJson,
+            PaperSize = string.IsNullOrWhiteSpace(request.PaperSize) ? "A4" : request.PaperSize,
+            Orientation = string.IsNullOrWhiteSpace(request.Orientation) ? "portrait" : request.Orientation,
             Version = max + 1,
             IsActive = request.IsActive,
             UpdatedById = actorId
@@ -125,7 +134,113 @@ public class DocumentTemplateService : IDocumentTemplateService
     }
 
     private static DocumentTemplateDto Map(DocumentTemplate x) =>
-        new(x.Id, x.DocumentType, x.Name, x.Version, x.BodyHtml, x.IsActive);
+        new(x.Id, x.DocumentType, x.Name, x.Version, x.BodyHtml, x.LayoutJson, x.PaperSize, x.Orientation, x.IsActive, x.CreatedAt);
+
+    public async Task<DocumentTemplateDto> ActivateAsync(Guid id, CancellationToken ct = default)
+    {
+        var entity = await _db.DocumentTemplates.FirstOrDefaultAsync(x => x.Id == id, ct)
+                     ?? throw new KeyNotFoundException("Document template not found.");
+
+        var actives = await _db.DocumentTemplates
+            .Where(x => x.DocumentType == entity.DocumentType && x.IsActive)
+            .ToListAsync(ct);
+        foreach (var active in actives)
+        {
+            active.IsActive = false;
+        }
+
+        entity.IsActive = true;
+        await _db.SaveChangesAsync(ct);
+        return Map(entity);
+    }
+
+    public async Task<DocumentTemplateDto> CloneVersionAsync(Guid id, Guid actorId, CancellationToken ct = default)
+    {
+        var source = await _db.DocumentTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
+                     ?? throw new KeyNotFoundException("Document template not found.");
+
+        var max = await _db.DocumentTemplates
+            .Where(x => x.DocumentType == source.DocumentType)
+            .Select(x => (int?)x.Version)
+            .MaxAsync(ct) ?? 0;
+
+        var entity = new DocumentTemplate
+        {
+            DocumentType = source.DocumentType,
+            Name = source.Name,
+            BodyHtml = source.BodyHtml,
+            LayoutJson = source.LayoutJson,
+            PaperSize = source.PaperSize,
+            Orientation = source.Orientation,
+            Version = max + 1,
+            IsActive = false,
+            UpdatedById = actorId,
+        };
+        _db.DocumentTemplates.Add(entity);
+        await _db.SaveChangesAsync(ct);
+        return Map(entity);
+    }
+
+    public async Task<DocumentTemplateDto> SaveLayoutAsync(Guid id, SaveDocumentTemplateLayoutRequest request, Guid actorId, CancellationToken ct = default)
+    {
+        var entity = await _db.DocumentTemplates.FirstOrDefaultAsync(x => x.Id == id, ct)
+                     ?? throw new KeyNotFoundException("Document template not found.");
+
+        if (request.Layout.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException("Invalid layout data.");
+
+        if (!request.Layout.TryGetProperty("canvas", out _) || !request.Layout.TryGetProperty("elements", out _))
+            throw new InvalidOperationException("Invalid layout data.");
+
+        entity.LayoutJson = request.Layout.GetRawText();
+        entity.UpdatedById = actorId;
+
+        if (request.Layout.TryGetProperty("canvas", out var canvas))
+        {
+            if (canvas.TryGetProperty("paperSize", out var paperSize) && paperSize.ValueKind == JsonValueKind.String)
+                entity.PaperSize = paperSize.GetString() ?? entity.PaperSize;
+            if (canvas.TryGetProperty("orientation", out var orientation) && orientation.ValueKind == JsonValueKind.String)
+                entity.Orientation = orientation.GetString() ?? entity.Orientation;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return Map(entity);
+    }
+
+    public async Task<string> UploadImageAsync(Guid id, Stream stream, string fileName, CancellationToken ct = default)
+    {
+        _ = await _db.DocumentTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
+            ?? throw new KeyNotFoundException("Document template not found.");
+
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        if (ext is not (".png" or ".jpg" or ".jpeg"))
+            throw new InvalidOperationException("Only PNG and JPG images are allowed.");
+
+        var uploads = Path.Combine(_uploads.RootDirectory, "document-templates", id.ToString("N"));
+        Directory.CreateDirectory(uploads);
+        var storedName = $"{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(uploads, storedName);
+        await using (var fs = File.Create(fullPath))
+        {
+            await stream.CopyToAsync(fs, ct);
+        }
+
+        return $"/uploads/document-templates/{id:N}/{storedName}";
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        var entity = await _db.DocumentTemplates.FirstOrDefaultAsync(x => x.Id == id, ct)
+                     ?? throw new KeyNotFoundException("Document template not found.");
+
+        if (entity.IsActive)
+        {
+            throw new InvalidOperationException("Cannot delete the active template version.");
+        }
+
+        _db.DocumentTemplates.Remove(entity);
+        await _db.SaveChangesAsync(ct);
+    }
 }
 
 public class ScheduledReportService : IScheduledReportService

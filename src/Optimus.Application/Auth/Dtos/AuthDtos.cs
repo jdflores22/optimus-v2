@@ -22,7 +22,25 @@ public record UserDto(
     Guid? ManagedShippingLineId,
     Guid? ActiveShippingLineId,
     Guid? ActiveWorkspaceConsigneeId,
-    string? BusinessName);
+    string? BusinessName,
+    string? BusinessAddress,
+    string? Department,
+    string? PhoneNumber,
+    string? LicenseNumber,
+    string? CompanyName,
+    string? TruckPlateNumber,
+    string? ProfilePhotoPath);
+
+public record UpdateProfileRequest(
+    string FirstName,
+    string LastName,
+    string? BusinessName = null,
+    string? BusinessAddress = null,
+    string? Department = null,
+    string? PhoneNumber = null,
+    string? LicenseNumber = null,
+    string? CompanyName = null,
+    string? TruckPlateNumber = null);
 
 public record HelloResponse(string Message, UserDto User, DateTime ServerTimeUtc);
 
@@ -40,6 +58,16 @@ public record RegisterConsigneeRequest(
     string FirstName,
     string LastName,
     string BusinessName);
+
+public record RegisterTruckerRequest(
+    string Email,
+    string Password,
+    string FirstName,
+    string LastName,
+    string? CompanyName,
+    string? PhoneNumber,
+    string? LicenseNumber,
+    string? TruckPlateNumber);
 
 public record RequestPasswordResetRequest(string Email);
 public record VerifyOtpResetRequest(string Email, string Otp, string NewPassword);

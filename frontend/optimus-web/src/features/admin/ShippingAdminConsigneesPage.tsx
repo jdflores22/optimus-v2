@@ -11,9 +11,9 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
 import { useGetShippingAdminConsigneesQuery } from '../../app/api';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
+import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function ShippingAdminConsigneesPage() {
@@ -70,20 +70,14 @@ export function ShippingAdminConsigneesPage() {
                 <TableCell align="center">Manifests</TableCell>
                 <TableCell align="center">Containers</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell align="right">{TABLE_ACTIONS_HEADER}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {data.map((c) => (
                 <TableRow key={c.id} hover>
                   <TableCell>
-                    <Stack
-                      component={RouterLink}
-                      to={`/shipping-admin/consignees/${c.id}`}
-                      direction="row"
-                      spacing={1.25}
-                      alignItems="center"
-                      sx={{ textDecoration: 'none', color: 'inherit' }}
-                    >
+                    <Stack direction="row" spacing={1.25} alignItems="center">
                       <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 13 }}>
                         {(c.businessName || c.fullName).slice(0, 2).toUpperCase()}
                       </Avatar>
@@ -122,6 +116,9 @@ export function ShippingAdminConsigneesPage() {
                       label={c.isActive ? 'Active' : 'Inactive'}
                       color={c.isActive ? 'success' : 'default'}
                     />
+                  </TableCell>
+                  <TableCell align="right">
+                    <TableViewLink to={`/shipping-admin/consignees/${c.id}`} />
                   </TableCell>
                 </TableRow>
               ))}

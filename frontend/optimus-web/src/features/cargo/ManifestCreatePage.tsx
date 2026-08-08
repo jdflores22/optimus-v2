@@ -35,6 +35,8 @@ import {
   useGetUtilizationQuery,
 } from '../../app/api';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
+import { isContainerYardTerminal, isPortTerminal } from '../../shared/terminalTaxonomy';
+import { formatTerminalLocationOrFallback } from '../../shared/terminalAddressHelpers';
 import { API_BASE_URL } from '../../shared/types';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { metricGrid4Sx } from '../../shared/responsiveLayout';
@@ -57,9 +59,15 @@ export function ManifestCreatePage() {
   const { data: consignees = [], isLoading: consigneesLoading } = useGetAccreditedConsigneesQuery();
   const { data: catalog } = useGetContainerCatalogQuery();
   const { data: terminals = [] } = useGetTerminalsQuery();
-  const { data: allocations = [] } = useGetCyAllocationsQuery();
+  const { data: allocations = [] } = useGetCyAllocationsQuery(
+    shippingLineId ? { shippingLineId } : undefined,
+    { skip: !shippingLineId },
+  );
   const { data: containers = [] } = useGetContainersQuery();
-  const { data: utilization = [] } = useGetUtilizationQuery();
+  const { data: utilization = [] } = useGetUtilizationQuery(
+    shippingLineId ? { shippingLineId } : undefined,
+    { skip: !shippingLineId },
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -73,7 +81,7 @@ export function ManifestCreatePage() {
   }>>([]);
 
   const portTerminals = useMemo(
-    () => terminals.filter((terminal) => !/cy|containeryard/i.test(`${terminal.kind}${terminal.identity}`)),
+    () => terminals.filter((terminal) => isPortTerminal(terminal.identity) && terminal.isActive),
     [terminals],
   );
   const selectedConsignee = useMemo(
@@ -86,7 +94,12 @@ export function ManifestCreatePage() {
   );
 
   const cyCards = useMemo(() => {
-    return allocations.map((allocation) => {
+    const cyTerminalIds = new Set(
+      terminals.filter((terminal) => terminal.isActive && isContainerYardTerminal(terminal.identity)).map((terminal) => terminal.id),
+    );
+    return allocations
+      .filter((allocation) => cyTerminalIds.has(allocation.terminalId))
+      .map((allocation) => {
       const utilizationRow = utilization.find(
         (row) => row.terminalId === allocation.terminalId || row.terminalName === allocation.terminalName,
       );
@@ -497,7 +510,7 @@ export function ManifestCreatePage() {
                         />
                       </Stack>
                       <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                        {yard.location || 'Return location'}
+                        {formatTerminalLocationOrFallback(yard, 'Return location')}
                       </Typography>
                     </Box>
                   </Stack>

@@ -11,6 +11,25 @@ export type UserDto = {
   activeShippingLineId?: string | null;
   activeWorkspaceConsigneeId?: string | null;
   businessName?: string | null;
+  businessAddress?: string | null;
+  department?: string | null;
+  phoneNumber?: string | null;
+  licenseNumber?: string | null;
+  companyName?: string | null;
+  truckPlateNumber?: string | null;
+  profilePhotoPath?: string | null;
+};
+
+export type UpdateProfileRequest = {
+  firstName: string;
+  lastName: string;
+  businessName?: string;
+  businessAddress?: string;
+  department?: string;
+  phoneNumber?: string;
+  licenseNumber?: string;
+  companyName?: string;
+  truckPlateNumber?: string;
 };
 
 export type WorkspaceDto = {
@@ -151,6 +170,8 @@ export type PaymentFeeDto = {
   amount: number;
   isActive: boolean;
   qrCodePath?: string | null;
+  previousAmount?: number | null;
+  createdAt: string;
 };
 
 export type BulkImportResultDto = {
@@ -273,6 +294,10 @@ export type EdoPaymentDto = {
   submittedByName?: string | null;
   validatedAt?: string | null;
   validatedByName?: string | null;
+  paymentChannel?: string | null;
+  paymentReference?: string | null;
+  qrphNumber?: string | null;
+  transactionAt?: string | null;
 };
 
 export type EdoReleaseQueueItemDto = {
@@ -299,6 +324,50 @@ export type EdoReleaseQueueDto = {
   pendingValidation: number;
   readyToRelease: number;
   awaitingPayment: number;
+};
+
+export type EdoRevenueBucketDto = {
+  amount: number;
+  count: number;
+};
+
+export type EdoRevenueDailyDto = {
+  day: string;
+  amount: number;
+  count: number;
+};
+
+export type EdoRevenueByLineDto = {
+  shippingLineId: string;
+  brandName: string;
+  amount: number;
+  count: number;
+};
+
+export type EdoRevenuePaymentRowDto = {
+  id: string;
+  edoNumber?: string | null;
+  manifestNumber?: string | null;
+  shippingLineName: string;
+  submittedByName?: string | null;
+  validatedByName?: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  validatedAt?: string | null;
+};
+
+export type EdoRevenueReportDto = {
+  from: string;
+  to: string;
+  verified: EdoRevenueBucketDto;
+  pending: EdoRevenueBucketDto;
+  rejected: EdoRevenueBucketDto;
+  lifetimeVerified: EdoRevenueBucketDto;
+  dailyRevenue: EdoRevenueDailyDto[];
+  byShippingLine: EdoRevenueByLineDto[];
+  recentVerified: EdoRevenuePaymentRowDto[];
 };
 
 export type EdoReleaseRecordDto = {
@@ -353,6 +422,26 @@ export type TerminalDto = {
   city?: string | null;
   dailyCapacity: number;
   isActive: boolean;
+  logoPath?: string | null;
+};
+
+export type TerminalAllocationRowDto = {
+  id: string;
+  shippingLineId: string;
+  shippingLineName: string;
+  allocatedCapacityTeu: number;
+  capacity20Ft: number;
+  capacity40Ft: number;
+  usedTeu: number;
+  createdAt: string;
+};
+
+export type TerminalDetailDto = {
+  terminal: TerminalDto;
+  totalAllocatedTeu: number;
+  availableCapacityTeu: number;
+  utilizationPercent: number;
+  allocations: TerminalAllocationRowDto[];
 };
 
 export type TerminalSlotDto = {
@@ -575,6 +664,8 @@ export type TruckerTokenDto = {
 export type UtilizationReportDto = {
   terminalId: string;
   terminalName: string;
+  terminalIdentity: string;
+  terminalOperator?: string | null;
   allocatedTeu: number;
   usedTeu: number;
   utilizationPercent: number;
@@ -682,6 +773,8 @@ export type AccreditationDto = {
   submittedAt: string;
   evaluatedAt?: string | null;
   approvedAt?: string | null;
+  sasIdNumber?: string | null;
+  certificatePdfPath?: string | null;
 };
 
 export type TransferDto = {
@@ -851,7 +944,11 @@ export type DocumentTemplateDto = {
   name: string;
   version: number;
   bodyHtml: string;
+  layoutJson?: string | null;
+  paperSize: string;
+  orientation: string;
   isActive: boolean;
+  createdAt: string;
 };
 export type ScheduledReportDto = {
   id: string;
@@ -892,3 +989,9 @@ export type ActivityLogDto = {
 };
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5080';
+
+export function resolveUploadUrl(path?: string | null) {
+  if (!path) return undefined;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}

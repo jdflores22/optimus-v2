@@ -66,9 +66,9 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 export function RepositioningDetailPage() {
   const { id = '' } = useParams();
   const { user } = useSelector((state: RootState) => state.auth);
-  const canReview = ['SlStaff', 'SystemAdmin'].includes(user?.role ?? '');
-  const canComplete = ['SlStaff', 'TerminalTeam', 'SystemAdmin'].includes(user?.role ?? '');
-  const canCancel = ['ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
+  const canReview = user?.role === 'SlStaff';
+  const canComplete = ['SlStaff', 'TerminalTeam'].includes(user?.role ?? '');
+  const canCancel = user?.role === 'ShippingLinesAdmin';
 
   const { data, error, isLoading, refetch } = useGetRepositioningByIdQuery(id, { skip: !id });
   const [review] = useReviewRepositioningMutation();

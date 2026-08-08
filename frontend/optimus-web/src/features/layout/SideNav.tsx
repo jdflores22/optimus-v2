@@ -14,10 +14,11 @@ import {
   useGetAppealsQuery,
   useGetEdoReleaseQueueQuery,
   useGetFinalPaymentsQuery,
-  useGetNotificationsQuery,
+  useGetPendingEdoPaymentsQuery,
   useGetTransfersQuery,
 } from '../../app/api';
 import { getNavGroups } from './navConfig';
+import { useBrokerAccreditation } from '../../shared/useBrokerAccreditation';
 
 type SideNavProps = {
   role?: string | null;
@@ -26,9 +27,13 @@ type SideNavProps = {
 };
 
 export function SideNav({ role, onNavigate, dense }: SideNavProps) {
-  const groups = getNavGroups(role);
+  const { isBroker, brokerAccredited } = useBrokerAccreditation();
+  const navOptions = isBroker ? { brokerAccredited } : undefined;
+  const groups = getNavGroups(role, navOptions);
   const needsApprovalBadge = role === 'ShippingLinesAdmin';
-  const needsPendingPaymentsBadge = role === 'Accounting' || role === 'SystemAdmin';
+  const needsAppealBadges = role === 'ShippingLinesAdmin';
+  const needsTransferBadges = role === 'ShippingLinesAdmin' || role === 'SlStaff';
+  const needsPendingPaymentsBadge = role === 'Accounting';
   const needsSystemAdminBadges = role === 'SystemAdmin';
   const { data: accreditations = [] } = useGetAccreditationsQuery(undefined, {
     skip: !needsApprovalBadge,
@@ -45,17 +50,17 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
     skip: !needsSystemAdminBadges,
     pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
   });
-  const { data: notifications = [] } = useGetNotificationsQuery(undefined, {
+  const { data: pendingEdoPayments = [] } = useGetPendingEdoPaymentsQuery(undefined, {
     skip: !needsSystemAdminBadges,
     pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
   });
   const { data: appeals = [] } = useGetAppealsQuery(undefined, {
-    skip: !needsSystemAdminBadges,
-    pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
+    skip: !needsAppealBadges,
+    pollingInterval: needsAppealBadges ? 30_000 : 0,
   });
   const { data: transfers = [] } = useGetTransfersQuery(undefined, {
-    skip: !needsSystemAdminBadges,
-    pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
+    skip: !needsTransferBadges,
+    pollingInterval: needsTransferBadges ? 30_000 : 0,
   });
   const awaitingFinalCount = useMemo(
     () => accreditations.filter((a) => a.status === 'AwaitingFinalApproval').length,
@@ -67,10 +72,6 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
     const items = releaseQueue?.items ?? [];
     return items.filter((x) => !x.paymentId || /pendingvalidation/i.test(x.paymentStatus ?? '')).length;
   }, [releaseQueue]);
-  const unreadNotificationsCount = useMemo(
-    () => notifications.filter((n) => !n.isRead).length,
-    [notifications],
-  );
   const pendingAppealsCount = useMemo(
     () => appeals.filter((a) => a.status === 'Pending').length,
     [appeals],
@@ -84,17 +85,17 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
     badgeKey?:
       | 'awaitingFinalApprovals'
       | 'pendingPayments'
+      | 'pendingEdoPayments'
       | 'pendingEdoRelease'
-      | 'notifications'
       | 'pendingAppeals'
       | 'pendingTransfers',
   ) => {
     if (badgeKey === 'awaitingFinalApprovals') return awaitingFinalCount;
     if (badgeKey === 'pendingPayments') return needsPendingPaymentsBadge ? pendingPaymentsCount : 0;
+    if (badgeKey === 'pendingEdoPayments') return needsSystemAdminBadges ? pendingEdoPayments.length : 0;
     if (badgeKey === 'pendingEdoRelease') return needsSystemAdminBadges ? pendingEdoReleaseCount : 0;
-    if (badgeKey === 'notifications') return needsSystemAdminBadges ? unreadNotificationsCount : 0;
-    if (badgeKey === 'pendingAppeals') return needsSystemAdminBadges ? pendingAppealsCount : 0;
-    if (badgeKey === 'pendingTransfers') return needsSystemAdminBadges ? pendingTransfersCount : 0;
+    if (badgeKey === 'pendingAppeals') return needsAppealBadges ? pendingAppealsCount : 0;
+    if (badgeKey === 'pendingTransfers') return needsTransferBadges ? pendingTransfersCount : 0;
     return 0;
   };
 
@@ -122,13 +123,17 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
         <Box key={group.id} sx={{ mb: 1.5 }}>
           {group.label ? (
             <Typography
-              variant="body2"
+              variant="overline"
               sx={{
                 px: 2.5,
-                py: 1,
+                pt: 1.25,
+                pb: 0.5,
                 display: 'block',
                 color: 'text.secondary',
-                fontWeight: 600,
+                fontWeight: 700,
+                fontSize: 10.5,
+                letterSpacing: '0.08em',
+                lineHeight: 1.6,
               }}
             >
               {group.label}

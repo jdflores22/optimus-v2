@@ -214,6 +214,14 @@ public class EdoPaymentsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<EdoPaymentDto>>> Reviewed(CancellationToken ct)
         => Ok(await _payments.ListReviewedAsync(ct));
 
+    [HttpGet("revenue")]
+    [Authorize(Policy = "EdoPaymentAdmin")]
+    public async Task<ActionResult<EdoRevenueReportDto>> Revenue(
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        CancellationToken ct)
+        => Ok(await _payments.GetRevenueReportAsync(from, to, ct));
+
     [HttpGet("{id:guid}")]
     [Authorize(Policy = "EdoPaymentAdmin")]
     public async Task<ActionResult<EdoPaymentDto>> Get(Guid id, CancellationToken ct)
@@ -251,6 +259,14 @@ public class EdoPaymentsController : ControllerBase
     [Authorize(Policy = "EdoPaymentAdmin")]
     public async Task<ActionResult<EdoPaymentDto>> Validate(Guid id, [FromBody] ValidateEdoPaymentRequest request, CancellationToken ct)
         => Ok(await _payments.ValidateAsync(id, request, UserId, Role, ct));
+
+    [HttpPut("{id:guid}/receipt-insights")]
+    [Authorize(Policy = "EdoPaymentAdmin")]
+    public async Task<ActionResult<EdoPaymentDto>> SaveReceiptInsights(
+        Guid id,
+        [FromBody] SaveEdoPaymentReceiptInsightsRequest request,
+        CancellationToken ct)
+        => Ok(await _payments.SaveReceiptInsightsAsync(id, request, UserId, Role, ct));
 }
 
 [ApiController]

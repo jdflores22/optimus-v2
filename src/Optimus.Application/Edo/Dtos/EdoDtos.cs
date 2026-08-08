@@ -73,7 +73,17 @@ public record EdoPaymentDto(
     string? EdoStatus = null,
     string? SubmittedByName = null,
     DateTime? ValidatedAt = null,
-    string? ValidatedByName = null);
+    string? ValidatedByName = null,
+    string? PaymentChannel = null,
+    string? PaymentReference = null,
+    string? QrphNumber = null,
+    DateTime? TransactionAt = null);
+
+public record SaveEdoPaymentReceiptInsightsRequest(
+    string? PaymentChannel,
+    string? PaymentReference,
+    string? QrphNumber,
+    DateTime? TransactionAt);
 
 public record EdoReleaseQueueItemDto(
     Guid EdoId,
@@ -116,6 +126,36 @@ public record EdoReleaseRecordDto(
     string? PaymentValidatedByName);
 
 public record ValidateEdoPaymentRequest(bool Approve, string? RejectionReason);
+
+public record EdoRevenueBucketDto(decimal Amount, int Count);
+
+public record EdoRevenueDailyDto(string Day, decimal Amount, int Count);
+
+public record EdoRevenueByLineDto(Guid ShippingLineId, string BrandName, decimal Amount, int Count);
+
+public record EdoRevenuePaymentRowDto(
+    Guid Id,
+    string? EdoNumber,
+    string? ManifestNumber,
+    string ShippingLineName,
+    string? SubmittedByName,
+    string? ValidatedByName,
+    decimal Amount,
+    string Currency,
+    string Status,
+    DateTime CreatedAt,
+    DateTime? ValidatedAt);
+
+public record EdoRevenueReportDto(
+    string From,
+    string To,
+    EdoRevenueBucketDto Verified,
+    EdoRevenueBucketDto Pending,
+    EdoRevenueBucketDto Rejected,
+    EdoRevenueBucketDto LifetimeVerified,
+    IReadOnlyList<EdoRevenueDailyDto> DailyRevenue,
+    IReadOnlyList<EdoRevenueByLineDto> ByShippingLine,
+    IReadOnlyList<EdoRevenuePaymentRowDto> RecentVerified);
 
 public record CreateRenewalRequest(
     Guid ExpiredEdoId,

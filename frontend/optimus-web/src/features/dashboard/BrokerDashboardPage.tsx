@@ -40,6 +40,7 @@ import {
   useGetActivePaymentFeeQuery,
 } from '../../app/api';
 import type { EdoDto, ManifestDto } from '../../shared/types';
+import { resolveEdoFeeAmount } from '../../shared/paymentFees';
 import { formatWorkflowState } from '../../shared/formatWorkflowState';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 import { SectionPanelHeader } from '../shared/DetailRow';
@@ -164,7 +165,7 @@ export function BrokerDashboardPage() {
   const tabEdos =
     edoTab === 'payment' ? paymentNeeded : edoTab === 'pending' ? pendingValidation : readyToDownload;
 
-  const accredApproved = Boolean(mySas && /approv/i.test(mySas.status));
+  const accredApproved = mySas?.status === 'Approved';
   const workspaceName =
     activeWorkspace?.businessName || activeWorkspace?.fullName || 'No workspace selected';
 
@@ -179,7 +180,7 @@ export function BrokerDashboardPage() {
     try {
       await submitPayment({
         edoId: edo.id,
-        amount: edo.feeAmount ?? edoFee?.amount ?? 750,
+        amount: resolveEdoFeeAmount(edoFee, edo.feeAmount),
         currency: 'PHP',
       }).unwrap();
       setPayMessage(`Payment submitted for ${edo.edoNumber}`);

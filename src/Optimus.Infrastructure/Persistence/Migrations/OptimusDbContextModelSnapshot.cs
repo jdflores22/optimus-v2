@@ -31,6 +31,10 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ApprovedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("CertificatePdfPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<string>("ComplianceFieldIdsJson")
                         .HasColumnType("longtext");
 
@@ -60,6 +64,10 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ShippingLineId")
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("SasIdNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -84,6 +92,9 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.HasIndex("FormConfigurationId");
 
                     b.HasIndex("ShippingLineId");
+
+                    b.HasIndex("SasIdNumber")
+                        .IsUnique();
 
                     b.HasIndex("ApplicantId", "ShippingLineId")
                         .IsUnique();
@@ -688,10 +699,23 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<string>("LayoutJson")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("varchar(120)");
+
+                    b.Property<string>("Orientation")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("PaperSize")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -909,6 +933,18 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<string>("PaymentChannel")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("QrphNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
                     b.Property<string>("ReceiptFilePath")
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
@@ -924,6 +960,9 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("varchar(40)");
+
+                    b.Property<DateTime?>("TransactionAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<Guid>("SubmittedById")
                         .HasColumnType("char(36)");
@@ -2676,8 +2715,12 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(20)");
 
                     b.Property<string>("Location")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("LogoPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2806,6 +2849,10 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Property<string>("PasswordResetOtpHash")
                         .HasMaxLength(128)
                         .HasColumnType("varchar(128)");
+
+                    b.Property<string>("ProfilePhotoPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<string>("Role")
                         .IsRequired()

@@ -132,7 +132,14 @@ public record FinalPaymentListResponse(
     int Start,
     int End);
 
-public record PaymentFeeDto(Guid Id, string FeeType, decimal Amount, bool IsActive, string? QrCodePath);
+public record PaymentFeeDto(
+    Guid Id,
+    string FeeType,
+    decimal Amount,
+    bool IsActive,
+    string? QrCodePath,
+    decimal? PreviousAmount,
+    DateTime CreatedAt);
 
 public record UpsertPaymentFeeRequest(string FeeType, decimal Amount);
 

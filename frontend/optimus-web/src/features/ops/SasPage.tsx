@@ -30,7 +30,6 @@ import {
   useCompleteOnboardingStepMutation,
   useGetAccreditationsQuery,
   useGetActiveFormQuery,
-  useGetFormsQuery,
   useGetRelationshipsQuery,
   useSubmitAccreditationMutation,
 } from '../../app/api';
@@ -46,11 +45,11 @@ import {
   parseFormFields,
 } from '../../shared/formSchema';
 import { DynamicFormFields, type DynamicFormValues } from './DynamicFormFields';
-import { SasFormBuilder } from './SasFormBuilder';
 import { SubmissionDetailsPreview } from './SubmissionDetailsPreview';
 import { EvaluatorApplicationsPanel } from './EvaluatorApplicationsPanel';
 import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { TABLE_ACTIONS_HEADER, TableViewButton, TableViewLink } from '../shared/TableViewLink';
+import { AccreditationCertificateButton } from './AccreditationCertificateButton';
 
 function errMsg(e: unknown, fallback: string): string {
   const data = (e as { data?: { message?: string; error?: string } })?.data;
@@ -130,13 +129,11 @@ function summarizeSubmitted(json: string, fields: SasFormField[]): string {
 export function SasPage() {
   const { user, accessToken } = useSelector((state: RootState) => state.auth);
   const role = user?.role ?? '';
-  const isAdmin = role === 'SystemAdmin';
+  const isEvaluator = role === 'Evaluator';
   const isEvaluatorOnly = role === 'Evaluator';
-  const isEvaluator = ['Evaluator', 'SystemAdmin'].includes(role);
   const isApplicant = role === 'Broker' || role === 'Consignee';
   const formType = role === 'Consignee' ? 'Consignee' : 'Broker';
 
-  const { data: forms = [], refetch: refetchForms } = useGetFormsQuery(undefined, { skip: !isAdmin });
   const {
     data: activeForm,
     isLoading: formLoading,
@@ -160,10 +157,9 @@ export function SasPage() {
 
   const formFieldsById = useMemo(() => {
     const map = new Map<string, SasFormField[]>();
-    forms.forEach((f) => map.set(f.id, parseFormFields(f.fieldsJson)));
     if (activeForm) map.set(activeForm.id, parseFormFields(activeForm.fieldsJson));
     return map;
-  }, [forms, activeForm]);
+  }, [activeForm]);
 
   const fieldsForSubmission = (s: AccreditationDto) =>
     formFieldsById.get(s.formConfigurationId) ??
@@ -190,15 +186,16 @@ export function SasPage() {
   return (
     <Stack spacing={3}>
       <Box>
+        <Typography variant="overline" color="primary.main" fontWeight={700} letterSpacing="0.08em">
+          SAS
+        </Typography>
         <Typography variant="h4" fontWeight={700}>
-          SAS Accreditation
+          Secured Accreditation System
         </Typography>
         <Typography color="text.secondary">
-          {isAdmin
-            ? 'Build Broker and Consignee forms with templates, structure, properties, and live preview.'
-            : isApplicant
-              ? `Complete the active ${formType} accreditation form configured by your shipping line.`
-              : 'Review accreditation submissions.'}
+          {isApplicant
+            ? `Complete your active ${formType.toLowerCase()} accreditation application.`
+            : 'Review accreditation submissions.'}
         </Typography>
       </Box>
 
@@ -213,13 +210,33 @@ export function SasPage() {
         </Alert>
       )}
 
-      {isAdmin && (
-        <SasFormBuilder
-          forms={forms}
-          onRefresh={refetchForms}
-          onMessage={setMessage}
-          onError={setError}
-        />
+      {isApplicant && mySubmission?.status === 'Approved' && mySubmission.sasIdNumber && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2.5,
+            border: 1,
+            borderColor: 'success.main',
+            borderRadius: 2,
+            bgcolor: 'rgba(46,125,50,0.06)',
+          }}
+        >
+          <Typography variant="overline" color="success.main" fontWeight={700}>
+            Your SAS ID
+          </Typography>
+          <Typography variant="h4" fontWeight={800} fontFamily="monospace" letterSpacing="0.04em">
+            {mySubmission.sasIdNumber}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mt={0.75}>
+            Keep this number for shipping line transactions and accreditation references.
+          </Typography>
+          <Box mt={1.5}>
+            <AccreditationCertificateButton
+              submissionId={mySubmission.id}
+              size="medium"
+            />
+          </Box>
+        </Paper>
       )}
 
       {isApplicant && (
@@ -254,7 +271,7 @@ export function SasPage() {
           <TableHead>
             <TableRow>
               {!isApplicant && <TableCell>Applicant</TableCell>}
-              <TableCell>Shipping line</TableCell>
+              <TableCell>SAS ID</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Submitted</TableCell>
               <TableCell>Summary</TableCell>
@@ -283,7 +300,17 @@ export function SasPage() {
                         </Typography>
                       </TableCell>
                     )}
-                    <TableCell>{s.shippingLineName}</TableCell>
+                    <TableCell>
+                      {s.status === 'Approved' && s.sasIdNumber ? (
+                        <Typography variant="body2" fontWeight={700} fontFamily="monospace">
+                          {s.sasIdNumber}
+                        </Typography>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          {s.status === 'Approved' ? 'Pending assignment' : 'After approval'}
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Chip size="small" label={s.status} color={statusChipColor(s.status)} />
                     </TableCell>
@@ -306,10 +333,15 @@ export function SasPage() {
                     </TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end" flexWrap="wrap">
-                        {(isEvaluator || isAdmin) && (
+                        {isEvaluator && (
                           <TableViewLink to={`/evaluator/application/${s.id}`} />
                         )}
                         {isApplicant && <TableViewButton onClick={() => setViewing(s)} />}
+                        {s.status === 'Approved' && (
+                          <AccreditationCertificateButton
+                            submissionId={s.id}
+                          />
+                        )}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -330,7 +362,7 @@ export function SasPage() {
           Submission details
           {viewing && (
             <Typography variant="body2" color="text.secondary" fontWeight={400}>
-              {viewing.applicantName} · {viewing.shippingLineName} · {viewing.status}
+              {viewing.applicantName} · {viewing.status}
             </Typography>
           )}
         </DialogTitle>
@@ -339,6 +371,15 @@ export function SasPage() {
             <Stack spacing={2}>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip size="small" label={viewing.status} color={statusChipColor(viewing.status)} />
+                {viewing.sasIdNumber && (
+                  <Chip
+                    size="small"
+                    color="success"
+                    variant="outlined"
+                    label={viewing.sasIdNumber}
+                    sx={{ fontFamily: 'monospace', fontWeight: 700 }}
+                  />
+                )}
                 <Chip
                   size="small"
                   variant="outlined"
@@ -354,6 +395,12 @@ export function SasPage() {
           )}
         </DialogContent>
         <DialogActions sx={dialogActionsSx}>
+          {viewing?.status === 'Approved' && (
+            <AccreditationCertificateButton
+              submissionId={viewing.id}
+              size="medium"
+            />
+          )}
           <Button onClick={() => setViewing(null)}>Close</Button>
         </DialogActions>
       </Dialog>
@@ -437,10 +484,6 @@ function ApplicantAccreditationPanel({
       );
       return;
     }
-    if (role === 'Consignee' && !hasActiveBroker) {
-      onError('Link an approved broker before submitting SAS.');
-      return;
-    }
 
     const errors = collectValidationErrors(fields, values);
     if (errors.length > 0) {
@@ -505,14 +548,15 @@ function ApplicantAccreditationPanel({
     <Stack spacing={2}>
       {role === 'Consignee' && !hasActiveBroker && (
         <Alert
-          severity="warning"
+          severity="info"
           action={
             <Button component={RouterLink} to="/brokers" color="inherit" size="small">
-              Link broker
+              My brokers
             </Button>
           }
         >
-          Broker linkage required before you can submit accreditation.
+          You can submit SAS accreditation without a linked broker. Link brokers anytime before shipment
+          work begins.
         </Alert>
       )}
 
@@ -541,6 +585,29 @@ function ApplicantAccreditationPanel({
               }
             />
           </Stack>
+          {mySubmission.status === 'Approved' && mySubmission.sasIdNumber && (
+            <Paper
+              variant="outlined"
+              sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: 'rgba(46,125,50,0.04)' }}
+            >
+              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                SAS ID
+              </Typography>
+              <Typography variant="h6" fontWeight={800} fontFamily="monospace">
+                {mySubmission.sasIdNumber}
+              </Typography>
+              <Box mt={1.25}>
+                <AccreditationCertificateButton
+                  submissionId={mySubmission.id}
+                />
+              </Box>
+            </Paper>
+          )}
+          {mySubmission.status !== 'Approved' && (
+            <Typography variant="caption" color="text.secondary" display="block" mt={2}>
+              SAS ID will be issued after shipping line final approval.
+            </Typography>
+          )}
           {mySubmission.complianceNotes && (
             <Alert severity="warning" sx={{ mt: 2 }}>
               {mySubmission.complianceNotes}
@@ -604,13 +671,12 @@ function ApplicantAccreditationPanel({
                 fields={fields}
                 values={values}
                 onChange={(id, value) => setValues((prev) => ({ ...prev, [id]: value }))}
-                disabled={role === 'Consignee' && !hasActiveBroker}
               />
               <Button
                 type="submit"
                 variant="contained"
                 color={isResubmit ? 'warning' : 'primary'}
-                disabled={isLoading || (role === 'Consignee' && !hasActiveBroker)}
+                disabled={isLoading}
                 sx={{ alignSelf: 'flex-start' }}
               >
                 {isResubmit ? 'Resubmit' : 'Submit'}

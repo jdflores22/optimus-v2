@@ -20,6 +20,7 @@ public interface IAccreditationService
     Task<AccreditationDto> FinalDecisionAsync(Guid id, FinalApprovalRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<AccreditationDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<AccreditationDto>> ListAsync(string? status, Guid? applicantId, CancellationToken ct = default);
+    Task<string> EnsureCertificateAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default);
 }
 
 public interface IBrokerTransferService

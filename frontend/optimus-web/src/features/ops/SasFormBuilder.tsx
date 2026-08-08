@@ -1,9 +1,13 @@
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
+import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
+import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import PublishOutlinedIcon from '@mui/icons-material/PublishOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -29,12 +33,11 @@ import {
   Radio,
   RadioGroup,
   Stack,
-  Tab,
-  Tabs,
   Table,
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -65,20 +68,46 @@ import {
   type FieldTemplate,
 } from '../../shared/formSchema';
 import { DynamicFormFields, type DynamicFormValues } from './DynamicFormFields';
+import { AdminFilterBar, AdminSearchField, AdminSelectField } from '../shared/AdminFilterBar';
+import { WorkflowSection } from '../shared/WorkflowPage';
+
+const PAGE_SIZE = 10;
 
 function errMsg(e: unknown, fallback: string): string {
   return (e as { data?: { message?: string } })?.data?.message ?? fallback;
 }
 
+function formStatusColor(status: string): 'success' | 'info' | 'warning' | 'default' {
+  if (status === 'Active') return 'success';
+  if (status === 'Published') return 'info';
+  if (status === 'Inactive') return 'warning';
+  return 'default';
+}
+
+function formatFormDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 type Props = {
   forms: FormConfigurationDto[];
+  tab: 'Broker' | 'Consignee';
   onRefresh: () => void;
   onMessage: (m: string) => void;
   onError: (m: string) => void;
 };
 
-export function SasFormBuilder({ forms, onRefresh, onMessage, onError }: Props) {
-  const [tab, setTab] = useState<'Broker' | 'Consignee'>('Broker');
+export function SasFormBuilder({ forms, tab, onRefresh, onMessage, onError }: Props) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [fields, setFields] = useState<SasFormField[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -96,7 +125,29 @@ export function SasFormBuilder({ forms, onRefresh, onMessage, onError }: Props) 
   const [deleteForm, { isLoading: deleting }] = useDeleteFormMutation();
 
   const typedForms = useMemo(() => forms.filter((f) => f.type === tab), [forms, tab]);
+
+  const filteredForms = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return typedForms.filter((f) => {
+      const matchesSearch = !q || f.name.toLowerCase().includes(q);
+      const matchesStatus = !statusFilter || f.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [typedForms, search, statusFilter]);
+
+  const pagedForms = useMemo(
+    () => filteredForms.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
+    [filteredForms, page],
+  );
+
   const editing = typedForms.find((f) => f.id === editingId) ?? null;
+
+  useEffect(() => {
+    setEditingId(null);
+    setPage(0);
+    setSearch('');
+    setStatusFilter('');
+  }, [tab]);
   const canEdit = Boolean(editing && editing.status !== 'Active');
   const selected = selectedIndex != null ? fields[selectedIndex] : null;
 
@@ -321,6 +372,26 @@ export function SasFormBuilder({ forms, onRefresh, onMessage, onError }: Props) 
     }
   };
 
+  const onPublishForm = async (form: FormConfigurationDto) => {
+    try {
+      await publishForm(form.id).unwrap();
+      onMessage(`Published v${form.version}`);
+      onRefresh();
+    } catch (e) {
+      onError(errMsg(e, 'Publish failed'));
+    }
+  };
+
+  const onActivateFormVersion = async (form: FormConfigurationDto) => {
+    try {
+      await activateForm(form.id).unwrap();
+      onMessage(`Activated v${form.version}`);
+      onRefresh();
+    } catch (e) {
+      onError(errMsg(e, 'Activate failed'));
+    }
+  };
+
   const panelSx = {
     p: 2,
     border: 1,
@@ -335,158 +406,228 @@ export function SasFormBuilder({ forms, onRefresh, onMessage, onError }: Props) 
 
   return (
     <Stack spacing={2}>
-      <Paper elevation={0} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 2 }}>
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          justifyContent="space-between"
-          spacing={1.5}
-          alignItems={{ md: 'center' }}
-        >
-          <Box>
-            <Typography variant="h6" fontWeight={700}>
-              Form Builder
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Mirrors V1 admin form builder — Field Templates, Form Structure, Field Properties, and
-              Live Preview
-            </Typography>
-          </Box>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => {
-              setTab(v);
-              setEditingId(null);
-            }}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-          >
-            <Tab value="Broker" label="Broker" />
-            <Tab value="Consignee" label="Consignee" />
-          </Tabs>
-        </Stack>
-
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} mt={2} mb={2} flexWrap="wrap">
-          <Button variant="contained" onClick={onCreateDraft} disabled={creating}>
-            New {tab} draft
-          </Button>
-          {editing && canEdit && (
-            <Button variant="outlined" onClick={onSaveFields} disabled={saving}>
-              Save structure
-            </Button>
-          )}
-          {editing && (
-            <Button
-              startIcon={showPreview ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
-              onClick={() => setShowPreview((v) => !v)}
-            >
-              {showPreview ? 'Hide preview' : 'Live Preview'}
-            </Button>
-          )}
-          {editing?.status === 'Draft' && (
-            <Button
-              onClick={async () => {
-                try {
-                  await publishForm(editing.id).unwrap();
-                  onMessage(`Published v${editing.version}`);
-                  onRefresh();
-                } catch (e) {
-                  onError(errMsg(e, 'Publish failed'));
-                }
-              }}
-            >
-              Publish
-            </Button>
-          )}
-          {editing && (editing.status === 'Published' || editing.status === 'Inactive') && (
+      {!editing ? (
+        <WorkflowSection
+          title={`${tab} forms`}
+          subtitle={`${filteredForms.length} version${filteredForms.length === 1 ? '' : 's'} matching filters`}
+          actions={
             <Button
               variant="contained"
-              color="success"
-              onClick={async () => {
-                try {
-                  await activateForm(editing.id).unwrap();
-                  onMessage(`Activated v${editing.version}`);
-                  onRefresh();
-                } catch (e) {
-                  onError(errMsg(e, 'Activate failed'));
-                }
-              }}
+              startIcon={<AddOutlinedIcon />}
+              onClick={onCreateDraft}
+              disabled={creating}
             >
-              Activate
+              Create new form
             </Button>
-          )}
-        </Stack>
+          }
+        >
+          <AdminFilterBar>
+            <AdminSearchField
+              placeholder="Search form name…"
+              value={search}
+              onValueChange={(value) => {
+                setSearch(value);
+                setPage(0);
+              }}
+            />
+            <AdminSelectField
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(0);
+              }}
+              SelectProps={{ displayEmpty: true }}
+            >
+              <MenuItem value="">All status</MenuItem>
+              <MenuItem value="Draft">Draft</MenuItem>
+              <MenuItem value="Published">Published</MenuItem>
+              <MenuItem value="Active">Active</MenuItem>
+              <MenuItem value="Inactive">Inactive</MenuItem>
+            </AdminSelectField>
+          </AdminFilterBar>
 
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Version</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Fields</TableCell>
-              <TableCell align="right">Open</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {typedForms.length === 0 ? (
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography variant="body2" color="text.secondary">
-                    No {tab} forms yet. Create a draft to open the builder.
-                  </Typography>
-                </TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Version</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Fields</TableCell>
+                <TableCell>Created</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
-            ) : (
-              typedForms.map((f) => (
-                <TableRow key={f.id} selected={editingId === f.id} hover>
-                  <TableCell>{f.name}</TableCell>
-                  <TableCell>v{f.version}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={f.status}
-                      color={
-                        f.status === 'Active'
-                          ? 'success'
-                          : f.status === 'Published'
-                            ? 'info'
-                            : 'default'
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>{parseFormFields(f.fieldsJson).length}</TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end" flexWrap="wrap">
-                      <Button size="small" onClick={() => startEdit(f)}>
-                        {f.status === 'Active' ? 'View' : 'Build'}
-                      </Button>
-                      {f.status === 'Active' && (
-                        <Button size="small" onClick={() => onCloneVersion(f)}>
-                          New version
-                        </Button>
-                      )}
-                      {f.status !== 'Active' && (
-                        <Button
-                          size="small"
-                          color="error"
-                          onClick={() => setDeleteFormTarget(f)}
-                        >
-                          Delete
-                        </Button>
-                      )}
-                    </Stack>
+            </TableHead>
+            <TableBody>
+              {pagedForms.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <Typography variant="body2" color="text.secondary" py={2}>
+                      {typedForms.length === 0
+                        ? `No ${tab} forms yet. Create a new form to open the builder.`
+                        : 'No forms match your filters.'}
+                    </Typography>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Paper>
+              ) : (
+                pagedForms.map((f) => (
+                  <TableRow key={f.id} hover>
+                    <TableCell sx={{ fontWeight: 600 }}>{f.name}</TableCell>
+                    <TableCell>v{f.version}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={f.status} color={formStatusColor(f.status)} />
+                    </TableCell>
+                    <TableCell>{parseFormFields(f.fieldsJson).length}</TableCell>
+                    <TableCell>{formatFormDate(f.createdAt)}</TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={0.25} justifyContent="flex-end">
+                        <Tooltip title={f.status === 'Active' ? 'View form' : 'Edit form'}>
+                          <IconButton size="small" onClick={() => startEdit(f)} aria-label="Edit form">
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        {f.status === 'Draft' && (
+                          <Tooltip title="Publish">
+                            <IconButton
+                              size="small"
+                              color="success"
+                              onClick={() => onPublishForm(f)}
+                              aria-label="Publish form"
+                            >
+                              <PublishOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {(f.status === 'Published' || f.status === 'Inactive') && (
+                          <Tooltip title="Activate">
+                            <IconButton
+                              size="small"
+                              color="info"
+                              onClick={() => onActivateFormVersion(f)}
+                              aria-label="Activate form"
+                            >
+                              <CheckCircleOutlineOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {['Published', 'Active', 'Inactive'].includes(f.status) && (
+                          <Tooltip title="New version">
+                            <IconButton
+                              size="small"
+                              onClick={() => onCloneVersion(f)}
+                              aria-label="New version"
+                            >
+                              <AddOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {f.status !== 'Active' && (
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => setDeleteFormTarget(f)}
+                              aria-label="Delete form"
+                            >
+                              <DeleteOutlineOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
 
-      {!editing ? (
-        <Alert severity="info">Select or create a form above to open the builder workspace.</Alert>
+          {filteredForms.length > PAGE_SIZE && (
+            <TablePagination
+              component="div"
+              count={filteredForms.length}
+              page={page}
+              onPageChange={(_, next) => setPage(next)}
+              rowsPerPage={PAGE_SIZE}
+              rowsPerPageOptions={[PAGE_SIZE]}
+            />
+          )}
+        </WorkflowSection>
       ) : (
         <>
+          <Paper
+            elevation={0}
+            sx={{ p: { xs: 1.5, sm: 2 }, border: 1, borderColor: 'divider', borderRadius: 2 }}
+          >
+            <Stack
+              direction={{ xs: 'column', lg: 'row' }}
+              justifyContent="space-between"
+              alignItems={{ lg: 'center' }}
+              spacing={1.5}
+            >
+              <Stack direction="row" spacing={1.5} alignItems="flex-start" minWidth={0}>
+                <Button
+                  startIcon={<ArrowBackOutlinedIcon />}
+                  onClick={() => setEditingId(null)}
+                  size="small"
+                  sx={{ flexShrink: 0, mt: 0.25 }}
+                >
+                  All forms
+                </Button>
+                <Box minWidth={0}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {tab} · Version {editing.version}
+                  </Typography>
+                  <Typography variant="h6" fontWeight={700} noWrap>
+                    {editing.name}
+                  </Typography>
+                  <Stack direction="row" spacing={0.75} mt={0.75} flexWrap="wrap" useFlexGap>
+                    <Chip size="small" label={editing.type} color="primary" variant="outlined" />
+                    <Chip size="small" label={editing.status} color={formStatusColor(editing.status)} />
+                  </Stack>
+                </Box>
+              </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent={{ lg: 'flex-end' }}>
+                {canEdit && (
+                  <Button variant="outlined" onClick={onSaveFields} disabled={saving} size="small">
+                    Save structure
+                  </Button>
+                )}
+                <Button
+                  size="small"
+                  startIcon={showPreview ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                  onClick={() => setShowPreview((v) => !v)}
+                >
+                  {showPreview ? 'Hide preview' : 'Live preview'}
+                </Button>
+                {editing.status === 'Draft' && (
+                  <Button
+                    size="small"
+                    color="success"
+                    startIcon={<PublishOutlinedIcon />}
+                    onClick={() => onPublishForm(editing)}
+                  >
+                    Publish
+                  </Button>
+                )}
+                {(editing.status === 'Published' || editing.status === 'Inactive') && (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    color="success"
+                    startIcon={<CheckCircleOutlineOutlinedIcon />}
+                    onClick={() => onActivateFormVersion(editing)}
+                  >
+                    Activate
+                  </Button>
+                )}
+                {['Published', 'Active', 'Inactive'].includes(editing.status) && (
+                  <Button size="small" onClick={() => onCloneVersion(editing)}>
+                    New version
+                  </Button>
+                )}
+              </Stack>
+            </Stack>
+          </Paper>
+
           {!canEdit && (
             <Alert severity="warning">
               This form is Active and locked. Use <strong>New version</strong> to edit a draft copy.

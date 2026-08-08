@@ -34,7 +34,7 @@ function statusLabel(status: string): string {
 
 export function RepositioningPage() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
+  const isStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
   const isShippingAdmin = user?.role === 'ShippingLinesAdmin';
   const { data: list = [], error, isFetching } = useGetRepositioningQuery();
 

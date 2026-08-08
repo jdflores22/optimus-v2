@@ -26,7 +26,7 @@ export function ManifestUploadBlPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const isBroker = user?.role === 'Broker' || user?.role === 'SystemAdmin';
+  const isBroker = user?.role === 'Broker';
   const { data, error, isLoading } = useGetManifestQuery(id, { skip: !id });
   const [uploadBl] = useUploadBlMutation();
 

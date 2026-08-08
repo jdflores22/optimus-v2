@@ -171,7 +171,7 @@ public class ShippingLineService : IShippingLineService
 {
     private readonly OptimusDbContext _db;
     private readonly IAuthService _authService;
-    private static readonly string[] LogoAllowed = { ".png", ".jpg", ".jpeg", ".webp" };
+    private static readonly string[] LogoAllowed = { ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg" };
 
     public ShippingLineService(OptimusDbContext db, IAuthService authService)
     {
@@ -276,6 +276,14 @@ public class ShippingLineService : IShippingLineService
         var entity = await _db.ShippingLines.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
                      ?? throw new KeyNotFoundException("Shipping line not found.");
         entity.LogoPath = relativePath;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ClearLogoAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await _db.ShippingLines.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                     ?? throw new KeyNotFoundException("Shipping line not found.");
+        entity.LogoPath = null;
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -457,6 +465,82 @@ public class HierarchyService : IHierarchyService
             .ToListAsync(cancellationToken);
         return users.Select(u => Auth.AuthService.MapUser(u)).ToList();
     }
+
+    public async Task<UserDto?> GetUserByIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _db.Users.AsNoTracking()
+            .Include(x => x.ShippingLinePreference)
+            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        Guid? workspaceId = null;
+        if (user is Broker broker)
+        {
+            workspaceId = broker.ActiveWorkspaceConsigneeId;
+        }
+        else
+        {
+            var trackedBroker = await _db.Brokers.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+            workspaceId = trackedBroker?.ActiveWorkspaceConsigneeId;
+        }
+
+        var activeShippingLineId = user.ShippingLinePreference?.LastSelectedShippingLineId
+                                   ?? user.ManagedShippingLineId;
+        return Auth.AuthService.MapUser(user, activeShippingLineId, workspaceId);
+    }
+
+    public async Task<UserDto> UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        var firstName = request.FirstName.Trim();
+        var lastName = request.LastName.Trim();
+        if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
+        {
+            throw new InvalidOperationException("First name and last name are required.");
+        }
+
+        var user = await _db.Users
+            .Include(x => x.ShippingLinePreference)
+            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        user.FirstName = firstName;
+        user.LastName = lastName;
+
+        switch (user)
+        {
+            case Consignee consignee:
+                if (!string.IsNullOrWhiteSpace(request.BusinessName))
+                {
+                    consignee.BusinessName = request.BusinessName.Trim();
+                }
+                break;
+            case Broker broker:
+                broker.BusinessAddress = NormalizeOptional(request.BusinessAddress);
+                break;
+            case StaffUser staff:
+                staff.Department = NormalizeOptional(request.Department);
+                break;
+            case TerminalTeamUser terminal:
+                terminal.Department = NormalizeOptional(request.Department);
+                break;
+            case Trucker trucker:
+                trucker.PhoneNumber = NormalizeOptional(request.PhoneNumber);
+                trucker.LicenseNumber = NormalizeOptional(request.LicenseNumber);
+                trucker.CompanyName = NormalizeOptional(request.CompanyName);
+                trucker.TruckPlateNumber = NormalizeOptional(request.TruckPlateNumber);
+                break;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return (await GetUserByIdAsync(userId, cancellationToken))!;
+    }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     public async Task UnlockUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {

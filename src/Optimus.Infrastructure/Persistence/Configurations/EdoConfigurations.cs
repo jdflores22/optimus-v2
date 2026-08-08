@@ -62,6 +62,10 @@ public class EdoPaymentConfiguration : IEntityTypeConfiguration<EdoPayment>
         builder.Property(x => x.OfficialReceiptPath).HasMaxLength(500);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
         builder.Property(x => x.RejectionReason).HasMaxLength(500);
+        builder.Property(x => x.PaymentChannel).HasMaxLength(50);
+        builder.Property(x => x.PaymentReference).HasMaxLength(100);
+        builder.Property(x => x.QrphNumber).HasMaxLength(100);
+        builder.Property(x => x.TransactionAt).HasColumnType("datetime(6)");
         builder.HasOne(x => x.Manifest).WithMany().HasForeignKey(x => x.ManifestId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(x => x.Edo).WithMany(x => x.Payments).HasForeignKey(x => x.EdoId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Restrict);

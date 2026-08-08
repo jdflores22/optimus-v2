@@ -24,7 +24,6 @@ export function canViewManifestPaymentHistory(role?: string | null) {
     'Broker',
     'Consignee',
     'Accounting',
-    'SystemAdmin',
     'ShippingLinesAdmin',
     'SlStaff',
   ].includes(role ?? '');
@@ -35,10 +34,7 @@ export function canResubmitFinalPayment(
   manifest: ManifestDto,
   latest?: PaymentDto,
 ) {
-  const canPay =
-    user?.role === 'Broker' ||
-    user?.role === 'Consignee' ||
-    user?.role === 'SystemAdmin';
+  const canPay = user?.role === 'Broker' || user?.role === 'Consignee';
   if (!canPay) return false;
   if (user?.role === 'Broker' && manifest.brokerId && manifest.brokerId !== user.id) return false;
   if (user?.role === 'Consignee' && manifest.consigneeId && manifest.consigneeId !== user.id) {

@@ -6,6 +6,10 @@ public interface ITerminalService
 {
     Task<TerminalDto> UpsertAsync(Guid? id, UpsertTerminalRequest request, Guid actorId, CancellationToken ct = default);
     Task<IReadOnlyList<TerminalDto>> ListAsync(bool? activeOnly = true, CancellationToken ct = default);
+    Task<TerminalDetailDto> GetDetailAsync(Guid id, CancellationToken ct = default);
+    Task<TerminalDto> ToggleStatusAsync(Guid id, Guid actorId, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, Guid actorId, CancellationToken ct = default);
+    Task<TerminalDto> UploadLogoAsync(Guid id, string relativePath, Guid actorId, CancellationToken ct = default);
     Task<TerminalSlotDto> UpsertSlotAsync(UpsertSlotRequest request, Guid actorId, CancellationToken ct = default);
     Task<IReadOnlyList<TerminalSlotDto>> ListSlotsAsync(Guid terminalId, DateOnly? from, DateOnly? to, CancellationToken ct = default);
 }
@@ -21,7 +25,12 @@ public interface IContainerCatalogService
 public interface ICyAllocationService
 {
     Task<CyAllocationDto> UpsertAsync(Guid? id, UpsertCyAllocationRequest request, Guid actorId, CancellationToken ct = default);
-    Task<IReadOnlyList<CyAllocationDto>> ListAsync(Guid? shippingLineId, Guid? terminalId, CancellationToken ct = default);
+    Task<IReadOnlyList<CyAllocationDto>> ListAsync(
+        Guid? shippingLineId,
+        Guid? terminalId,
+        bool activeTerminalsOnly = true,
+        bool containerYardsOnly = true,
+        CancellationToken ct = default);
 }
 
 public interface IContainerInventoryService
@@ -45,8 +54,14 @@ public interface IContainerInventoryService
     Task<ContainerDto> LockAllocationAsync(Guid id, Guid actorId, CancellationToken ct = default);
     Task<ContainerDto> UpdateStackAsync(Guid id, UpdateStackRequest request, Guid actorId, CancellationToken ct = default);
     Task<ContainerDto> MarkAvailableForReturnAsync(Guid id, Guid actorId, CancellationToken ct = default);
-    Task<(string Csv, string PdfPath)> ExportUtilizationAsync(CancellationToken ct = default);
-    Task<IReadOnlyList<UtilizationReportDto>> UtilizationReportAsync(CancellationToken ct = default);
+    Task<(string Csv, string PdfPath)> ExportUtilizationAsync(
+        string? terminalIdentity = null,
+        Guid? shippingLineId = null,
+        CancellationToken ct = default);
+    Task<IReadOnlyList<UtilizationReportDto>> UtilizationReportAsync(
+        string? terminalIdentity = null,
+        Guid? shippingLineId = null,
+        CancellationToken ct = default);
 }
 
 public interface IDwellService

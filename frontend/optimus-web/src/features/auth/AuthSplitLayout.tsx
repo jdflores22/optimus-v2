@@ -5,7 +5,7 @@ import { OptimusLogo } from '../../shared/OptimusLogo';
 import { ColorModeToggle } from '../../shared/ColorModeToggle';
 import { authPanelGradient } from '../../shared/theme';
 
-const HIGHLIGHTS = ['Brokers', 'Consignees', 'Shipping lines', 'Accreditation', 'Manifests'] as const;
+const HIGHLIGHTS = ['Brokers', 'Consignees', 'Truckers', 'Shipping lines', 'Manifests'] as const;
 
 type AuthSplitLayoutProps = {
   title: string;
@@ -53,9 +53,8 @@ export function AuthSplitLayout({
               Welcome to OPTIMUS
             </Typography>
             <Typography variant="body1" color="text.secondary" mt={2} sx={{ lineHeight: 1.7 }}>
-              Operational platform for consignees, brokers, and shipping lines — accreditation,
-              manifests, and relationships in one place so your team can move freight with
-              confidence.
+              Operational platform for consignees, brokers, truckers, and shipping lines —
+              accreditation, manifests, yard ops, and partner relationships in one secure workspace.
             </Typography>
           </Box>
           <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1.5} pt={1}>

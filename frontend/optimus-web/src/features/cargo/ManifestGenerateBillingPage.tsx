@@ -47,7 +47,7 @@ export function ManifestGenerateBillingPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const isAccounting = user?.role === 'Accounting' || user?.role === 'SystemAdmin';
+  const isAccounting = user?.role === 'Accounting';
   const { data, error, isLoading } = useGetManifestQuery(id, { skip: !id });
   const { data: fx, isFetching: fxLoading, isError: fxError } = useGetExchangeRateQuery();
   const [generateBilling] = useGenerateBillingMutation();

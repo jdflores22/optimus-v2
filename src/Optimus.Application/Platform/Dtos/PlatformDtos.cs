@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Optimus.Application.Platform.Dtos;
 
 public record NotificationPreferenceDto(
@@ -38,8 +40,26 @@ public record UpsertSystemSettingRequest(string Key, string Value, string? Descr
 public record RateLimitRuleDto(Guid Id, string Name, string PathPrefix, string? Role, int PermitLimit, int WindowSeconds, bool IsActive);
 public record UpsertRateLimitRuleRequest(string Name, string PathPrefix, string? Role, int PermitLimit, int WindowSeconds, bool IsActive = true);
 
-public record DocumentTemplateDto(Guid Id, string DocumentType, string Name, int Version, string BodyHtml, bool IsActive);
-public record UpsertDocumentTemplateRequest(string DocumentType, string Name, string BodyHtml, bool IsActive = true);
+public record DocumentTemplateDto(
+    Guid Id,
+    string DocumentType,
+    string Name,
+    int Version,
+    string BodyHtml,
+    string? LayoutJson,
+    string PaperSize,
+    string Orientation,
+    bool IsActive,
+    DateTime CreatedAt);
+public record UpsertDocumentTemplateRequest(
+    string DocumentType,
+    string Name,
+    string BodyHtml,
+    string? LayoutJson = null,
+    string? PaperSize = null,
+    string? Orientation = null,
+    bool IsActive = true);
+public record SaveDocumentTemplateLayoutRequest(JsonElement Layout);
 
 public record ScheduledReportDto(
     Guid Id,

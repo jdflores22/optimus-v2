@@ -1,10 +1,14 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { LoginPage } from './features/auth/LoginPage';
+import { GuestRoute } from './features/auth/GuestRoute';
+import { LastActivityTracker } from './features/auth/LastActivityTracker';
+import { SessionIdleGuard } from './features/auth/SessionIdleGuard';
 import {
   ForgotPasswordPage,
   RegisterBrokerPage,
   RegisterConsigneePage,
+  RegisterTruckerPage,
   RoleAcceptancePage,
   VerifyEmailPage,
 } from './features/auth/AuthPages';
@@ -17,6 +21,8 @@ import { HierarchyPage } from './features/admin/HierarchyPage';
 import { UserManagementPage } from './features/admin/UserManagementPage';
 import { EdoRevenueAdminPage } from './features/admin/EdoRevenueAdminPage';
 import { TerminalsAdminPage } from './features/admin/TerminalsAdminPage';
+import { TeuContractAllocationsAdminPage } from './features/admin/TeuContractAllocationsAdminPage';
+import { TerminalAdminDetailPage } from './features/admin/TerminalAdminDetailPage';
 import { ContainerCatalogAdminPage } from './features/admin/ContainerCatalogAdminPage';
 import { PaymentFeesAdminPage } from './features/admin/PaymentFeesAdminPage';
 import { FormBuilderAdminPage } from './features/admin/FormBuilderAdminPage';
@@ -77,6 +83,19 @@ import { BrokerWorkspaceGate } from './features/workspace/BrokerWorkspaceGate';
 import { ReportsAuditPage } from './features/platform/ReportsAuditPage';
 import { AdminPlatformPage } from './features/platform/AdminPlatformPage';
 import type { RootState } from './app/store';
+import { getAccessDeniedRedirect } from './shared/routeAccess';
+import { saveLastActivityPath } from './shared/authReturnPath';
+
+function AuthSessionLayer() {
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  if (!accessToken) return null;
+  return (
+    <>
+      <LastActivityTracker />
+      <SessionIdleGuard />
+    </>
+  );
+}
 
 function Protected({
   children,
@@ -85,12 +104,14 @@ function Protected({
   children: React.ReactNode;
   roles?: string[];
 }) {
+  const location = useLocation();
   const { accessToken, user } = useSelector((state: RootState) => state.auth);
   if (!accessToken) {
-    return <Navigate to="/login" replace />;
+    saveLastActivityPath(location.pathname, location.search);
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
   if (roles && user && !roles.includes(user.role)) {
-    return <Navigate to={user.role === 'Broker' ? '/workspace' : '/'} replace />;
+    return <Navigate to={getAccessDeniedRedirect(user.role)} replace />;
   }
   return <>{children}</>;
 }
@@ -108,10 +129,13 @@ function HomePage() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
+    <>
+      <AuthSessionLayer />
+      <Routes>
+      <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register/broker" element={<RegisterBrokerPage />} />
       <Route path="/register/consignee" element={<RegisterConsigneePage />} />
+      <Route path="/register/trucker" element={<RegisterTruckerPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/role-acceptance/:token" element={<RoleAcceptancePage />} />
@@ -235,7 +259,7 @@ export default function App() {
           <Route
             path="/brokers"
             element={
-              <Protected roles={['Consignee', 'SystemAdmin']}>
+              <Protected roles={['Consignee']}>
                 <BrokersPage />
               </Protected>
             }
@@ -321,21 +345,23 @@ export default function App() {
             }
           />
           <Route
-            path="/admin/appeals"
+            path="/shipping-admin/appeals"
             element={
-              <Protected roles={['SystemAdmin']}>
+              <Protected roles={['ShippingLinesAdmin']}>
                 <AdminSuspensionAppealsPage />
               </Protected>
             }
           />
           <Route
-            path="/admin/transfers"
+            path="/shipping-admin/transfers"
             element={
-              <Protected roles={['SystemAdmin']}>
+              <Protected roles={['ShippingLinesAdmin', 'SlStaff']}>
                 <AdminTransferRequestsPage />
               </Protected>
             }
           />
+          <Route path="/admin/appeals" element={<Navigate to="/shipping-admin/appeals" replace />} />
+          <Route path="/admin/transfers" element={<Navigate to="/shipping-admin/transfers" replace />} />
           <Route
             path="/admin/audit-logs"
             element={
@@ -357,6 +383,22 @@ export default function App() {
             element={
               <Protected roles={['SystemAdmin']}>
                 <TerminalsAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/teu-contracts"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <TeuContractAllocationsAdminPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/terminals/:id"
+            element={
+              <Protected roles={['SystemAdmin']}>
+                <TerminalAdminDetailPage />
               </Protected>
             }
           />
@@ -447,5 +489,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

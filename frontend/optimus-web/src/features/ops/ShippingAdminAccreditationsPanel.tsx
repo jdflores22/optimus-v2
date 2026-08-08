@@ -260,6 +260,7 @@ export function ShippingAdminAccreditationsPanel({
               <TableRow>
                 <TableCell>Applicant</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell>SAS ID</TableCell>
                 <TableCell>Submitted</TableCell>
                 <TableCell align="right">{TABLE_ACTIONS_HEADER}</TableCell>
               </TableRow>
@@ -267,7 +268,7 @@ export function ShippingAdminAccreditationsPanel({
             <TableBody>
               {submissions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Typography variant="body2" color="text.secondary">
                       No submissions yet.
                     </Typography>
@@ -284,6 +285,17 @@ export function ShippingAdminAccreditationsPanel({
                     </TableCell>
                     <TableCell>
                       <Chip size="small" label={statusLabel(s.status)} color={statusChipColor(s.status)} />
+                    </TableCell>
+                    <TableCell>
+                      {s.sasIdNumber ? (
+                        <Typography variant="body2" fontWeight={700} fontFamily="monospace">
+                          {s.sasIdNumber}
+                        </Typography>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          {s.status === 'Approved' ? 'Pending' : 'After approval'}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>{new Date(s.submittedAt).toLocaleDateString()}</TableCell>
                     <TableCell align="right">

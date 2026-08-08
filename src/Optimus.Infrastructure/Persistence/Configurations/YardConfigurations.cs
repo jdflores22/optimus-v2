@@ -13,11 +13,18 @@ public class TerminalConfiguration : IEntityTypeConfiguration<Terminal>
         builder.Property(x => x.Name).HasMaxLength(120).IsRequired();
         builder.Property(x => x.Code).HasMaxLength(40).IsRequired();
         builder.HasIndex(x => x.Code).IsUnique();
-        builder.Property(x => x.Identity).HasConversion<string>().HasMaxLength(30);
+        builder.Property(x => x.Identity)
+            .HasConversion(
+                v => v.ToString(),
+                v => string.Equals(v, "Terminal", StringComparison.OrdinalIgnoreCase)
+                    ? Optimus.Domain.Enums.TerminalIdentity.PortTerminal
+                    : Enum.Parse<Optimus.Domain.Enums.TerminalIdentity>(v, true))
+            .HasMaxLength(30);
         builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
-        builder.Property(x => x.Location).HasMaxLength(200);
+        builder.Property(x => x.Location).HasMaxLength(2000);
         builder.Property(x => x.Region).HasMaxLength(80);
         builder.Property(x => x.City).HasMaxLength(80);
+        builder.Property(x => x.LogoPath).HasMaxLength(500);
     }
 }
 

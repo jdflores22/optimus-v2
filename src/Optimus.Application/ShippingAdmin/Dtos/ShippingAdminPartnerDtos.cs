@@ -29,13 +29,18 @@ public record ShippingAdminBrokerDto(
 public record ShippingAdminConsigneeDetailDto(
     ShippingAdminConsigneeDto Consignee,
     int EdoCount,
-    IReadOnlyList<RecentManifestDto> RecentManifests,
+    IReadOnlyList<PartnerNoaListItemDto> Noas,
+    IReadOnlyList<PartnerManifestListItemDto> Manifests,
+    IReadOnlyList<PartnerContainerListItemDto> Containers,
+    IReadOnlyList<PartnerEdoListItemDto> Edos,
     PartnerAccreditationDto? Accreditation);
 
 public record ShippingAdminBrokerDetailDto(
     ShippingAdminBrokerDto Broker,
     int ContainerCount,
-    IReadOnlyList<RecentManifestDto> RecentManifests,
+    IReadOnlyList<PartnerManifestListItemDto> Manifests,
+    IReadOnlyList<PartnerContainerListItemDto> Containers,
+    IReadOnlyList<PartnerEdoListItemDto> Edos,
     PartnerAccreditationDto? Accreditation);
 
 public record PartnerAccreditationDto(
@@ -49,10 +54,54 @@ public record PartnerAccreditationDto(
     string Status,
     DateTime SubmittedAt,
     DateTime? ApprovedAt,
-    DateTime? EvaluatedAt);
+    DateTime? EvaluatedAt,
+    string? SasIdNumber,
+    string? CertificatePdfPath);
 
 public record RecentManifestDto(
     Guid Id,
     string ManifestNumber,
     string WorkflowState,
     DateTime CreatedAt);
+
+public record PartnerNoaListItemDto(
+    Guid Id,
+    string NoaNumber,
+    Guid ManifestId,
+    string ManifestNumber,
+    string? VesselName,
+    DateTime? Eta,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+public record PartnerManifestListItemDto(
+    Guid Id,
+    string ManifestNumber,
+    string WorkflowState,
+    string? NoaNumber,
+    string? BlNumber,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    int EdoTotalCount,
+    int EdoReleasedCount);
+
+public record PartnerContainerListItemDto(
+    Guid Id,
+    string ContainerNumber,
+    Guid? ManifestId,
+    string? ManifestNumber,
+    string? TypeCode,
+    string? SizeCode,
+    string Status,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+public record PartnerEdoListItemDto(
+    Guid Id,
+    string EdoNumber,
+    Guid ManifestId,
+    string ManifestNumber,
+    string? ContainerNumber,
+    string Status,
+    DateTime GeneratedAt,
+    DateTime? UpdatedAt);

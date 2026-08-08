@@ -40,6 +40,7 @@ import {
   parseFormFields,
 } from '../../shared/formSchema';
 import { SubmissionDetailsPreview } from './SubmissionDetailsPreview';
+import { AccreditationCertificateButton } from './AccreditationCertificateButton';
 import type { DynamicFormValues } from './DynamicFormFields';
 import { dialogActionsSx, metricGrid4Sx } from '../../shared/responsiveLayout';
 import type { RootState } from '../../app/store';
@@ -312,12 +313,21 @@ export function EvaluatorApplicationPage() {
               </Typography>
             </Box>
           </Stack>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             <Chip
               size="small"
               label={submission.status.replace(/([a-z])([A-Z])/g, '$1 $2')}
               color={statusChipColor(submission.status)}
             />
+            {submission.sasIdNumber && (
+              <Chip
+                size="small"
+                color="success"
+                variant="outlined"
+                label={submission.sasIdNumber}
+                sx={{ fontFamily: 'monospace', fontWeight: 700 }}
+              />
+            )}
           </Stack>
         </Stack>
       </Paper>
@@ -687,6 +697,14 @@ export function EvaluatorApplicationPage() {
                 <Alert severity="warning">{submission.complianceNotes}</Alert>
               )}
               {submission.denialReason && <Alert severity="error">{submission.denialReason}</Alert>}
+
+              {submission.status === 'Approved' && (
+                <AccreditationCertificateButton
+                  submissionId={submission.id}
+                  size="medium"
+                  label="Download accreditation certificate"
+                />
+              )}
 
               <Button
                 component={RouterLink}

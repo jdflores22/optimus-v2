@@ -42,16 +42,52 @@ public class ShippingAdminPartnerService : IShippingAdminPartnerService
                 ?? throw new KeyNotFoundException("Consignee not found.");
 
         var dto = await MapConsigneeAsync(c.Id, c.BusinessName, c.FullName, c.Email, c.Status.ToString(), c.IsActive, lineId, ct);
-        var edoCount = await _db.ElectronicDeliveryOrders.AsNoTracking()
-            .CountAsync(e => e.Manifest.ConsigneeId == consigneeId && e.Manifest.ShippingLineId == lineId, ct);
-        var recent = await _db.Manifests.AsNoTracking()
-            .Where(m => m.ConsigneeId == consigneeId && m.ShippingLineId == lineId)
-            .OrderByDescending(m => m.CreatedAt)
-            .Take(10)
-            .Select(m => new RecentManifestDto(m.Id, m.ManifestNumber, m.WorkflowState.ToString(), m.CreatedAt))
+        var noas = await _db.Noas.AsNoTracking()
+            .Where(n => n.ConsigneeId == consigneeId && n.Manifest.ShippingLineId == lineId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Select(n => new PartnerNoaListItemDto(
+                n.Id,
+                n.NoaNumber,
+                n.ManifestId,
+                n.Manifest.ManifestNumber,
+                n.VesselName,
+                n.Eta,
+                n.CreatedAt,
+                n.UpdatedAt))
             .ToListAsync(ct);
+        var manifests = await LoadManifestsWithEdoCountsAsync(
+            _db.Manifests.AsNoTracking().Where(m => m.ConsigneeId == consigneeId && m.ShippingLineId == lineId),
+            ct);
+        var containers = await _db.Containers.AsNoTracking()
+            .Where(c => c.Manifest != null && c.Manifest.ConsigneeId == consigneeId && c.Manifest.ShippingLineId == lineId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new PartnerContainerListItemDto(
+                c.Id,
+                c.ContainerNumber,
+                c.ManifestId,
+                c.Manifest != null ? c.Manifest.ManifestNumber : null,
+                c.ContainerType != null ? c.ContainerType.Code : null,
+                c.ContainerSize != null ? c.ContainerSize.Code : null,
+                c.Status.ToString(),
+                c.CreatedAt,
+                c.UpdatedAt))
+            .ToListAsync(ct);
+        var edos = await _db.ElectronicDeliveryOrders.AsNoTracking()
+            .Where(e => e.Manifest.ConsigneeId == consigneeId && e.Manifest.ShippingLineId == lineId)
+            .OrderByDescending(e => e.GeneratedAt)
+            .Select(e => new PartnerEdoListItemDto(
+                e.Id,
+                e.EdoNumber,
+                e.ManifestId,
+                e.Manifest.ManifestNumber,
+                e.ContainerNumber,
+                e.Status.ToString(),
+                e.GeneratedAt,
+                e.UpdatedAt))
+            .ToListAsync(ct);
+        var edoCount = edos.Count;
 
-        return new ShippingAdminConsigneeDetailDto(dto, edoCount, recent, await LoadAccreditationAsync(consigneeId, lineId, ct));
+        return new ShippingAdminConsigneeDetailDto(dto, edoCount, noas, manifests, containers, edos, await LoadAccreditationAsync(consigneeId, lineId, ct));
     }
 
     public async Task<IReadOnlyList<ShippingAdminBrokerDto>> ListBrokersAsync(Guid adminUserId, CancellationToken ct = default)
@@ -83,16 +119,39 @@ public class ShippingAdminPartnerService : IShippingAdminPartnerService
                 ?? throw new KeyNotFoundException("Broker not found.");
 
         var dto = await MapBrokerAsync(b.Id, b.FullName, b.Email, b.Status.ToString(), b.IsActive, lineId, ct);
-        var containerCount = await _db.Containers.AsNoTracking()
-            .CountAsync(c => c.Manifest != null && c.Manifest.BrokerId == brokerId && c.Manifest.ShippingLineId == lineId, ct);
-        var recent = await _db.Manifests.AsNoTracking()
-            .Where(m => m.BrokerId == brokerId && m.ShippingLineId == lineId)
-            .OrderByDescending(m => m.CreatedAt)
-            .Take(10)
-            .Select(m => new RecentManifestDto(m.Id, m.ManifestNumber, m.WorkflowState.ToString(), m.CreatedAt))
+        var manifests = await LoadManifestsWithEdoCountsAsync(
+            _db.Manifests.AsNoTracking().Where(m => m.BrokerId == brokerId && m.ShippingLineId == lineId),
+            ct);
+        var containers = await _db.Containers.AsNoTracking()
+            .Where(c => c.Manifest != null && c.Manifest.BrokerId == brokerId && c.Manifest.ShippingLineId == lineId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new PartnerContainerListItemDto(
+                c.Id,
+                c.ContainerNumber,
+                c.ManifestId,
+                c.Manifest != null ? c.Manifest.ManifestNumber : null,
+                c.ContainerType != null ? c.ContainerType.Code : null,
+                c.ContainerSize != null ? c.ContainerSize.Code : null,
+                c.Status.ToString(),
+                c.CreatedAt,
+                c.UpdatedAt))
             .ToListAsync(ct);
+        var edos = await _db.ElectronicDeliveryOrders.AsNoTracking()
+            .Where(e => e.Manifest.BrokerId == brokerId && e.Manifest.ShippingLineId == lineId)
+            .OrderByDescending(e => e.GeneratedAt)
+            .Select(e => new PartnerEdoListItemDto(
+                e.Id,
+                e.EdoNumber,
+                e.ManifestId,
+                e.Manifest.ManifestNumber,
+                e.ContainerNumber,
+                e.Status.ToString(),
+                e.GeneratedAt,
+                e.UpdatedAt))
+            .ToListAsync(ct);
+        var containerCount = containers.Count;
 
-        return new ShippingAdminBrokerDetailDto(dto, containerCount, recent, await LoadAccreditationAsync(brokerId, lineId, ct));
+        return new ShippingAdminBrokerDetailDto(dto, containerCount, manifests, containers, edos, await LoadAccreditationAsync(brokerId, lineId, ct));
     }
 
     private async Task<PartnerAccreditationDto?> LoadAccreditationAsync(Guid applicantId, Guid lineId, CancellationToken ct)
@@ -119,7 +178,9 @@ public class ShippingAdminPartnerService : IShippingAdminPartnerService
             submission.Status.ToString(),
             submission.SubmittedAt,
             submission.ApprovedAt,
-            submission.EvaluatedAt);
+            submission.EvaluatedAt,
+            submission.SasIdNumber,
+            submission.CertificatePdfPath);
     }
 
     private async Task<Guid> ResolveLineIdAsync(Guid adminUserId, CancellationToken ct)
@@ -209,5 +270,56 @@ public class ShippingAdminPartnerService : IShippingAdminPartnerService
         return new ShippingAdminBrokerDto(
             id, fullName, email, status, isActive,
             linked.Count, manifestCount, edoCount, linked);
+    }
+
+    private async Task<IReadOnlyList<PartnerManifestListItemDto>> LoadManifestsWithEdoCountsAsync(
+        IQueryable<Domain.Entities.Manifest> query,
+        CancellationToken ct)
+    {
+        var rows = await query
+            .OrderByDescending(m => m.CreatedAt)
+            .Select(m => new
+            {
+                m.Id,
+                m.ManifestNumber,
+                State = m.WorkflowState.ToString(),
+                NoaNumber = m.Noa != null ? m.Noa.NoaNumber : null,
+                m.BlNumber,
+                m.CreatedAt,
+                m.UpdatedAt,
+            })
+            .ToListAsync(ct);
+
+        if (rows.Count == 0) return Array.Empty<PartnerManifestListItemDto>();
+
+        var manifestIds = rows.Select(r => r.Id).ToList();
+        var edoStats = await _db.ElectronicDeliveryOrders.AsNoTracking()
+            .Where(e => manifestIds.Contains(e.ManifestId) && e.Status != EdoStatus.Superseded)
+            .GroupBy(e => e.ManifestId)
+            .Select(g => new
+            {
+                ManifestId = g.Key,
+                Total = g.Count(),
+                Released = g.Count(e =>
+                    e.Status == EdoStatus.Released
+                    || e.Status == EdoStatus.Active
+                    || e.Status == EdoStatus.Expired),
+            })
+            .ToDictionaryAsync(x => x.ManifestId, ct);
+
+        return rows.Select(r =>
+        {
+            edoStats.TryGetValue(r.Id, out var stats);
+            return new PartnerManifestListItemDto(
+                r.Id,
+                r.ManifestNumber,
+                r.State,
+                r.NoaNumber,
+                r.BlNumber,
+                r.CreatedAt,
+                r.UpdatedAt,
+                stats?.Total ?? 0,
+                stats?.Released ?? 0);
+        }).ToList();
     }
 }

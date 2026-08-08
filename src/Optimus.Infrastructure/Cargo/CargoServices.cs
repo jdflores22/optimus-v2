@@ -45,6 +45,17 @@ public class DocumentStore : IDocumentStore
         File.WriteAllBytes(full, MinimalPdfWriter.Build(title, body));
         return $"/uploads/{category}/{safe}";
     }
+
+    public string CreateAccreditationCertificatePdf(AccreditationCertificatePdfRequest request)
+    {
+        var dir = Path.Combine(_root, "certificates");
+        Directory.CreateDirectory(dir);
+        var safe = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}.pdf";
+        var full = Path.Combine(dir, safe);
+        var logo = AccreditationCertificateLogoLoader.TryLoad(_root, request.ShippingLineLogoPath);
+        File.WriteAllBytes(full, AccreditationCertificatePdfWriter.Build(request, logo));
+        return $"/uploads/certificates/{safe}";
+    }
 }
 
 public class ActivityLogService : IActivityLogService
@@ -142,7 +153,7 @@ public class PaymentFeeService : IPaymentFeeService
         if (fee is null)
         {
             var amount = feeType == "edo" ? 750m : 500m;
-            return new PaymentFeeDto(Guid.Empty, feeType, amount, true, null);
+            return new PaymentFeeDto(Guid.Empty, feeType, amount, true, null, null, DateTime.UtcNow);
         }
 
         return Map(fee);
@@ -158,6 +169,11 @@ public class PaymentFeeService : IPaymentFeeService
 
     public async Task<PaymentFeeDto> UpsertAsync(UpsertPaymentFeeRequest request, string? qrPath, Guid actorId, CancellationToken ct = default)
     {
+        if (!string.Equals(request.FeeType, "edo", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only eDO access fees can be configured.");
+        }
+
         var active = await _db.PaymentFeeConfigurations
             .Where(x => x.FeeType == request.FeeType && x.IsActive)
             .ToListAsync(ct);
@@ -182,7 +198,7 @@ public class PaymentFeeService : IPaymentFeeService
     }
 
     private static PaymentFeeDto Map(PaymentFeeConfiguration x) =>
-        new(x.Id, x.FeeType, x.Amount, x.IsActive, x.QrCodePath);
+        new(x.Id, x.FeeType, x.Amount, x.IsActive, x.QrCodePath, x.PreviousAmount, x.CreatedAt);
 }
 
 public class ManifestWorkflowService : IManifestWorkflowService
@@ -1106,11 +1122,7 @@ public class PaymentService : IPaymentService
 
         if (request.PaymentType == PaymentType.ManifestAccess)
         {
-            var fee = await _fees.GetActiveAsync("manifest_access", ct);
-            if (request.Amount <= 0)
-            {
-                request = request with { Amount = fee.Amount };
-            }
+            throw new InvalidOperationException("Manifest access fees are no longer collected.");
         }
 
         var nextVersion = 1;

@@ -24,6 +24,7 @@ public class User : BaseEntity
     public DateTime? LastLoginAt { get; set; }
     public DateTime? DeactivatedAt { get; set; }
     public string? DeactivationReason { get; set; }
+    public string? ProfilePhotoPath { get; set; }
 
     public Guid? ManagedShippingLineId { get; set; }
     public ShippingLine? ManagedShippingLine { get; set; }

@@ -24,6 +24,7 @@ import type { RootState } from '../../app/store';
 import { useGetEdoPaymentQuery, useValidateEdoPaymentMutation } from '../../app/api';
 import { loadEdoPaymentReceiptBlob } from '../../shared/edoPaymentReceipt';
 import { formatEdoStatus } from '../../shared/formatEdoStatus';
+import { PaymentReceiptInsightsPanel } from './PaymentReceiptInsightsPanel';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { DetailRow } from '../shared/DetailRow';
 import { TableViewLink } from '../shared/TableViewLink';
@@ -59,6 +60,7 @@ export function EdoPaymentReviewPage() {
   const [validatePayment, { isLoading: validating }] = useValidateEdoPaymentMutation();
 
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [receiptContentType, setReceiptContentType] = useState<string | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
 
@@ -80,8 +82,9 @@ export function EdoPaymentReviewPage() {
   }, [payment]);
 
   useEffect(() => {
-    if (!payment?.receiptFilePath || !accessToken || !isPending) {
+    if (!payment?.receiptFilePath || !accessToken) {
       setReceiptUrl(null);
+      setReceiptContentType(null);
       return;
     }
 
@@ -91,13 +94,14 @@ export function EdoPaymentReviewPage() {
     setReceiptError(null);
 
     void loadEdoPaymentReceiptBlob(payment.id, accessToken)
-      .then(({ url }) => {
+      .then(({ url, contentType }) => {
         if (!active) {
           URL.revokeObjectURL(url);
           return;
         }
         objectUrl = url;
         setReceiptUrl(url);
+        setReceiptContentType(contentType);
       })
       .catch(() => {
         if (active) setReceiptError('Could not load payment receipt.');
@@ -110,7 +114,7 @@ export function EdoPaymentReviewPage() {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [payment, accessToken, isPending]);
+  }, [payment, accessToken]);
 
   if (!canValidate) return <Navigate to="/edo/payment-validation" replace />;
   if (error) return <Alert severity="error">Payment not found.</Alert>;
@@ -216,12 +220,26 @@ export function EdoPaymentReviewPage() {
                 variant="outlined"
                 sx={{ height: 520, overflow: 'hidden', borderRadius: 2, bgcolor: 'grey.100' }}
               >
-                <Box
-                  component="iframe"
-                  src={receiptUrl}
-                  title="Payment receipt"
-                  sx={{ width: '100%', height: '100%', border: 0, bgcolor: 'background.paper' }}
-                />
+                {receiptContentType?.startsWith('image/') ? (
+                  <Box
+                    component="img"
+                    src={receiptUrl}
+                    alt="Payment receipt"
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      bgcolor: 'background.paper',
+                    }}
+                  />
+                ) : (
+                  <Box
+                    component="iframe"
+                    src={receiptUrl}
+                    title="Payment receipt"
+                    sx={{ width: '100%', height: '100%', border: 0, bgcolor: 'background.paper' }}
+                  />
+                )}
               </Paper>
             )}
             {!receiptLoading && !receiptUrl && !receiptError && (
@@ -256,8 +274,49 @@ export function EdoPaymentReviewPage() {
                 {payment.validatedByName && (
                   <DetailRow label="Validated by" value={payment.validatedByName} />
                 )}
+                {payment.paymentChannel && (
+                  <DetailRow label="Payment channel" value={payment.paymentChannel} />
+                )}
+                {payment.paymentReference && (
+                  <DetailRow
+                    label="Payment reference"
+                    value={
+                      <Typography component="span" fontFamily="monospace" fontWeight={700}>
+                        {payment.paymentReference}
+                      </Typography>
+                    }
+                  />
+                )}
+                {payment.qrphNumber && (
+                  <DetailRow
+                    label="QR Ph no."
+                    value={
+                      <Typography component="span" fontFamily="monospace" fontWeight={700}>
+                        {payment.qrphNumber}
+                      </Typography>
+                    }
+                  />
+                )}
+                {payment.transactionAt && (
+                  <DetailRow
+                    label="Transaction date"
+                    value={new Date(payment.transactionAt).toLocaleString()}
+                  />
+                )}
               </Stack>
             </WorkflowSection>
+
+            <PaymentReceiptInsightsPanel
+              paymentId={payment.id}
+              receiptUrl={receiptUrl}
+              contentType={receiptContentType}
+              expectedAmount={payment.amount}
+              currency={payment.currency}
+              savedChannel={payment.paymentChannel}
+              savedReference={payment.paymentReference}
+              savedQrphNumber={payment.qrphNumber}
+              savedTransactionAt={payment.transactionAt}
+            />
 
             {isPending && (
               <WorkflowSection title="Decision" subtitle="Approve to move the eDO to pending release.">

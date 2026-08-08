@@ -782,7 +782,7 @@ public class EdoPaymentService : IEdoPaymentService
         }
 
         var fee = await _fees.GetActiveAsync("edo", ct);
-        var amount = request.Amount > 0 ? request.Amount : fee.Amount;
+        var amount = fee.Amount;
         var payment = new EdoPayment
         {
             ManifestId = edo.ManifestId,
@@ -795,6 +795,7 @@ public class EdoPaymentService : IEdoPaymentService
             SubmittedById = actorId
         };
         edo.Status = EdoStatus.PendingValidation;
+        edo.FeeAmount = amount;
         _db.EdoPayments.Add(payment);
         await _db.SaveChangesAsync(ct);
         await _activity.LogAsync(actorId, "edo_payment.submit", nameof(EdoPayment), payment.Id, $"{amount}", ct);
@@ -861,6 +862,43 @@ public class EdoPaymentService : IEdoPaymentService
         return MapDetailed(payment);
     }
 
+    public async Task<EdoPaymentDto> SaveReceiptInsightsAsync(
+        Guid paymentId,
+        SaveEdoPaymentReceiptInsightsRequest request,
+        Guid actorId,
+        string actorRole,
+        CancellationToken ct = default)
+    {
+        if (actorRole is not AppRoles.SystemAdmin)
+        {
+            throw new UnauthorizedAccessException("Only the platform admin can save eDO payment receipt insights.");
+        }
+
+        var payment = await _db.EdoPayments
+            .Include(x => x.Edo)
+            .Include(x => x.Manifest)
+            .Include(x => x.SubmittedBy)
+            .Include(x => x.ValidatedBy)
+            .FirstOrDefaultAsync(x => x.Id == paymentId, ct)
+            ?? throw new KeyNotFoundException("eDO payment not found.");
+
+        payment.PaymentChannel = NormalizeReceiptField(request.PaymentChannel, 50);
+        payment.PaymentReference = NormalizeReceiptField(request.PaymentReference, 100);
+        payment.QrphNumber = NormalizeReceiptField(request.QrphNumber, 100);
+        payment.TransactionAt = request.TransactionAt;
+
+        await _db.SaveChangesAsync(ct);
+        await _activity.LogAsync(actorId, "edo_payment.receipt_insights", nameof(EdoPayment), payment.Id, payment.PaymentReference, ct);
+        return MapDetailed(payment);
+    }
+
+    private static string? NormalizeReceiptField(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
+
     public async Task<IReadOnlyList<EdoPaymentDto>> ListPendingAsync(CancellationToken ct = default)
     {
         var items = await _db.EdoPayments.AsNoTracking()
@@ -888,6 +926,102 @@ public class EdoPaymentService : IEdoPaymentService
         return items.Select(MapDetailed).ToList();
     }
 
+    public async Task<EdoRevenueReportDto> GetRevenueReportAsync(DateOnly? from, DateOnly? to, CancellationToken ct = default)
+    {
+        var toDate = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var fromDate = from ?? toDate.AddDays(-29);
+        if (fromDate > toDate)
+        {
+            (fromDate, toDate) = (toDate, fromDate);
+        }
+
+        var fromUtc = DateTime.SpecifyKind(fromDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var toUtc = DateTime.SpecifyKind(toDate.ToDateTime(new TimeOnly(23, 59, 59)), DateTimeKind.Utc);
+
+        async Task<EdoRevenueBucketDto> BucketAsync(
+            PaymentStatus? status,
+            bool useValidatedAt,
+            bool periodOnly)
+        {
+            var query = _db.EdoPayments.AsNoTracking().AsQueryable();
+            if (status.HasValue)
+            {
+                query = query.Where(x => x.Status == status.Value);
+            }
+
+            if (periodOnly)
+            {
+                query = useValidatedAt
+                    ? query.Where(x => x.ValidatedAt >= fromUtc && x.ValidatedAt <= toUtc)
+                    : query.Where(x => x.CreatedAt >= fromUtc && x.CreatedAt <= toUtc);
+            }
+
+            var count = await query.CountAsync(ct);
+            var amount = count == 0 ? 0m : await query.SumAsync(x => x.Amount, ct);
+            return new EdoRevenueBucketDto(amount, count);
+        }
+
+        var verified = await BucketAsync(PaymentStatus.Verified, useValidatedAt: true, periodOnly: true);
+        var pending = await BucketAsync(PaymentStatus.PendingValidation, useValidatedAt: false, periodOnly: true);
+        var rejected = await BucketAsync(PaymentStatus.Rejected, useValidatedAt: true, periodOnly: true);
+        var lifetime = await BucketAsync(PaymentStatus.Verified, useValidatedAt: false, periodOnly: false);
+
+        var verifiedInPeriod = await _db.EdoPayments.AsNoTracking()
+            .Include(x => x.ShippingLine)
+            .Include(x => x.Edo)
+            .Include(x => x.Manifest)
+            .Include(x => x.SubmittedBy)
+            .Include(x => x.ValidatedBy)
+            .Where(x => x.Status == PaymentStatus.Verified
+                        && x.ValidatedAt >= fromUtc
+                        && x.ValidatedAt <= toUtc)
+            .OrderByDescending(x => x.ValidatedAt)
+            .ToListAsync(ct);
+
+        var dailyRevenue = verifiedInPeriod
+            .GroupBy(x => DateOnly.FromDateTime(x.ValidatedAt!.Value).ToString("yyyy-MM-dd"))
+            .OrderBy(x => x.Key)
+            .Select(g => new EdoRevenueDailyDto(g.Key, g.Sum(p => p.Amount), g.Count()))
+            .ToList();
+
+        var byShippingLine = verifiedInPeriod
+            .GroupBy(x => new { x.ShippingLineId, x.ShippingLine.BrandName })
+            .OrderByDescending(g => g.Sum(p => p.Amount))
+            .Select(g => new EdoRevenueByLineDto(
+                g.Key.ShippingLineId,
+                g.Key.BrandName,
+                g.Sum(p => p.Amount),
+                g.Count()))
+            .ToList();
+
+        var recentVerified = verifiedInPeriod
+            .Take(50)
+            .Select(x => new EdoRevenuePaymentRowDto(
+                x.Id,
+                x.Edo?.EdoNumber,
+                x.Manifest?.ManifestNumber,
+                x.ShippingLine.BrandName,
+                x.SubmittedBy?.FullName,
+                x.ValidatedBy?.FullName,
+                x.Amount,
+                x.Currency,
+                x.Status.ToString(),
+                x.CreatedAt,
+                x.ValidatedAt))
+            .ToList();
+
+        return new EdoRevenueReportDto(
+            fromDate.ToString("yyyy-MM-dd"),
+            toDate.ToString("yyyy-MM-dd"),
+            verified,
+            pending,
+            rejected,
+            lifetime,
+            dailyRevenue,
+            byShippingLine,
+            recentVerified);
+    }
+
     private static EdoPaymentDto MapDetailed(EdoPayment x) =>
         new(
             x.Id,
@@ -906,11 +1040,19 @@ public class EdoPaymentService : IEdoPaymentService
             x.Edo?.Status.ToString(),
             x.SubmittedBy?.FullName,
             x.ValidatedAt,
-            x.ValidatedBy?.FullName);
+            x.ValidatedBy?.FullName,
+            x.PaymentChannel,
+            x.PaymentReference,
+            x.QrphNumber,
+            x.TransactionAt);
 
     private static EdoPaymentDto Map(EdoPayment x, string? edoNumber) =>
         new(x.Id, x.ManifestId, x.EdoId, edoNumber, x.Amount, x.Currency, x.Status.ToString(),
-            x.ReceiptFilePath, x.OfficialReceiptPath, x.RejectionReason, x.CreatedAt);
+            x.ReceiptFilePath, x.OfficialReceiptPath, x.RejectionReason, x.CreatedAt,
+            PaymentChannel: x.PaymentChannel,
+            PaymentReference: x.PaymentReference,
+            QrphNumber: x.QrphNumber,
+            TransactionAt: x.TransactionAt);
 }
 
 public class EdoRenewalService : IEdoRenewalService

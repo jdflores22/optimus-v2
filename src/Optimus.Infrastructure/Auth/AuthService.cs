@@ -218,6 +218,34 @@ public class AuthService : IAuthService
             $"Your verification token: {consignee.EmailVerificationToken}", cancellationToken);
     }
 
+    public async Task RegisterTruckerAsync(RegisterTruckerRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsureEmailAvailableAsync(request.Email, cancellationToken);
+
+        var trucker = new Trucker
+        {
+            Email = request.Email.Trim().ToLowerInvariant(),
+            PasswordHash = _passwordHasher.Hash(request.Password),
+            FirstName = request.FirstName.Trim(),
+            LastName = request.LastName.Trim(),
+            CompanyName = string.IsNullOrWhiteSpace(request.CompanyName) ? null : request.CompanyName.Trim(),
+            PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
+            LicenseNumber = string.IsNullOrWhiteSpace(request.LicenseNumber) ? null : request.LicenseNumber.Trim(),
+            TruckPlateNumber = string.IsNullOrWhiteSpace(request.TruckPlateNumber) ? null : request.TruckPlateNumber.Trim(),
+            Role = AppRoles.Trucker,
+            UserType = UserType.Trucker,
+            Status = AccountStatus.EmailUnverified,
+            EmailVerified = false
+        };
+
+        SetEmailVerification(trucker);
+        _db.Truckers.Add(trucker);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _emailSender.SendAsync(trucker.Email, "Verify your Optimus V2 email",
+            $"Your verification token: {trucker.EmailVerificationToken}", cancellationToken);
+    }
+
     public async Task RequestPasswordResetAsync(RequestPasswordResetRequest request, CancellationToken cancellationToken = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -337,7 +365,36 @@ public class AuthService : IAuthService
 
     public static UserDto MapUser(User user, Guid? activeShippingLineId = null, Guid? workspaceId = null)
     {
-        string? businessName = user is Consignee c ? c.BusinessName : null;
+        string? businessName = null;
+        string? businessAddress = null;
+        string? department = null;
+        string? phoneNumber = null;
+        string? licenseNumber = null;
+        string? companyName = null;
+        string? truckPlateNumber = null;
+
+        switch (user)
+        {
+            case Consignee consignee:
+                businessName = consignee.BusinessName;
+                break;
+            case Broker broker:
+                businessAddress = broker.BusinessAddress;
+                break;
+            case StaffUser staff:
+                department = staff.Department;
+                break;
+            case TerminalTeamUser terminal:
+                department = terminal.Department;
+                break;
+            case Trucker trucker:
+                phoneNumber = trucker.PhoneNumber;
+                licenseNumber = trucker.LicenseNumber;
+                companyName = trucker.CompanyName;
+                truckPlateNumber = trucker.TruckPlateNumber;
+                break;
+        }
+
         return new UserDto(
             user.Id,
             user.Email,
@@ -350,7 +407,14 @@ public class AuthService : IAuthService
             user.ManagedShippingLineId,
             activeShippingLineId ?? user.ShippingLinePreference?.LastSelectedShippingLineId ?? user.ManagedShippingLineId,
             workspaceId,
-            businessName);
+            businessName,
+            businessAddress,
+            department,
+            phoneNumber,
+            licenseNumber,
+            companyName,
+            truckPlateNumber,
+            user.ProfilePhotoPath);
     }
 
     private async Task EnsureEmailAvailableAsync(string email, CancellationToken cancellationToken)

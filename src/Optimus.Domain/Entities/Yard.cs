@@ -14,6 +14,7 @@ public class Terminal : BaseEntity
     public string? City { get; set; }
     public int DailyCapacity { get; set; } = 100;
     public bool IsActive { get; set; } = true;
+    public string? LogoPath { get; set; }
 
     public ICollection<TerminalSlot> Slots { get; set; } = new List<TerminalSlot>();
     public ICollection<ShippingLineTerminalAllocation> Allocations { get; set; } = new List<ShippingLineTerminalAllocation>();

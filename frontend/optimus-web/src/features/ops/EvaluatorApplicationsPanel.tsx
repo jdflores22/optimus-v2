@@ -290,6 +290,7 @@ export function EvaluatorApplicationsPanel({ submissions, onRefresh }: Props) {
               <TableCell>Application</TableCell>
               <TableCell>Applicant</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>SAS ID</TableCell>
               <TableCell>Evaluator</TableCell>
               <TableCell>Submitted</TableCell>
               <TableCell align="right">{TABLE_ACTIONS_HEADER}</TableCell>
@@ -298,7 +299,7 @@ export function EvaluatorApplicationsPanel({ submissions, onRefresh }: Props) {
           <TableBody>
             {submissions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6}>
+                <TableCell colSpan={7}>
                   <Typography variant="body2" color="text.secondary">
                     No applications yet.
                   </Typography>
@@ -343,6 +344,17 @@ export function EvaluatorApplicationsPanel({ submissions, onRefresh }: Props) {
                         label={statusLabel(s.status)}
                         color={statusChipColor(s.status)}
                       />
+                    </TableCell>
+                    <TableCell>
+                      {s.sasIdNumber ? (
+                        <Typography variant="body2" fontWeight={700} fontFamily="monospace">
+                          {s.sasIdNumber}
+                        </Typography>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          {s.status === 'Approved' ? 'Pending' : '—'}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       {s.evaluatedAt ? (

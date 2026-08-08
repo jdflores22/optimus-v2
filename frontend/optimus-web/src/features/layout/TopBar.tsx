@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   AppBar,
-  Avatar,
   Badge,
   Box,
   Chip,
@@ -31,6 +30,9 @@ import {
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
 import { relativeTime } from '../../shared/dateTime';
 import { formatRoleLabel } from '../../shared/roleLabels';
+import { resolveUploadUrl } from '../../shared/types';
+import { ProfileAvatar } from '../../shared/ProfileAvatar';
+import { ShippingLineLogoAvatar } from '../../shared/ShippingLineLogoAvatar';
 import { OptimusLogo } from '../../shared/OptimusLogo';
 import { ColorModeToggle } from '../../shared/ColorModeToggle';
 import { DRAWER_WIDTH } from './navConfig';
@@ -66,6 +68,7 @@ export function TopBar({ isDesktop, onOpenNav }: TopBarProps) {
 
   const lineLabel = shippingLine?.brandName ?? 'Shipping line';
   const roleLabel = formatRoleLabel(user?.role);
+  const profilePhotoUrl = resolveUploadUrl(user?.profilePhotoPath);
   const contextLabel =
     user?.role === 'ShippingLinesAdmin'
       ? roleLabel
@@ -130,6 +133,14 @@ export function TopBar({ isDesktop, onOpenNav }: TopBarProps) {
           }}
         >
           <OptimusLogo size="xs" />
+          {shippingLine && (
+            <ShippingLineLogoAvatar
+              logoPath={shippingLine.logoPath}
+              brandName={shippingLine.brandName}
+              brandColor={shippingLine.brandColor}
+              size={28}
+            />
+          )}
           <Typography
             component="span"
             sx={{
@@ -321,17 +332,18 @@ export function TopBar({ isDesktop, onOpenNav }: TopBarProps) {
               pr: { xs: 0.5, sm: 1.25 },
             }}
           >
-            <Avatar
+            <ProfileAvatar
+              src={profilePhotoUrl}
+              photoPath={user?.profilePhotoPath}
               sx={{
                 width: 32,
                 height: 32,
-                bgcolor: 'primary.main',
                 fontSize: 13,
                 fontWeight: 600,
               }}
             >
               {initials(user?.fullName)}
-            </Avatar>
+            </ProfileAvatar>
             <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'left', minWidth: 0 }}>
               <Typography variant="body2" fontWeight={600} noWrap sx={{ maxWidth: 140, lineHeight: 1.2 }}>
                 {user?.fullName}

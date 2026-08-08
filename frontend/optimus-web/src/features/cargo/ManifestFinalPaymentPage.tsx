@@ -49,7 +49,7 @@ export function ManifestFinalPaymentPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const canPay = user?.role === 'Broker' || user?.role === 'Consignee' || user?.role === 'SystemAdmin';
+  const canPay = user?.role === 'Broker' || user?.role === 'Consignee';
   const { data, error, isLoading } = useGetManifestQuery(id, { skip: !id });
   const { data: payments = [] } = useGetPaymentsByManifestQuery(id, { skip: !id });
   const [submitPayment] = useSubmitPaymentMutation();

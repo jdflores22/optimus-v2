@@ -96,6 +96,9 @@ public class DocumentTemplateConfigurationEntity : IEntityTypeConfiguration<Docu
         builder.Property(x => x.DocumentType).HasMaxLength(40);
         builder.Property(x => x.Name).HasMaxLength(120);
         builder.Property(x => x.BodyHtml).HasColumnType("longtext");
+        builder.Property(x => x.LayoutJson).HasColumnType("longtext");
+        builder.Property(x => x.PaperSize).HasMaxLength(20);
+        builder.Property(x => x.Orientation).HasMaxLength(20);
         builder.HasIndex(x => new { x.DocumentType, x.Version });
         builder.HasOne(x => x.UpdatedBy).WithMany().HasForeignKey(x => x.UpdatedById).OnDelete(DeleteBehavior.SetNull);
     }

@@ -29,7 +29,9 @@ public record AccreditationDto(
     string? ComplianceFieldIdsJson,
     DateTime SubmittedAt,
     DateTime? EvaluatedAt,
-    DateTime? ApprovedAt);
+    DateTime? ApprovedAt,
+    string? SasIdNumber,
+    string? CertificatePdfPath);
 
 public record SubmitAccreditationRequest(string SubmittedDataJson, Guid? ShippingLineId = null);
 public record EvaluatorActionRequest(string Action, string? Notes, string? ComplianceFieldIdsJson);

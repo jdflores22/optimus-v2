@@ -22,8 +22,10 @@ public interface IEdoPaymentService
     Task<EdoPaymentDto> SubmitAsync(Guid edoId, SubmitEdoPaymentRequest request, string? receiptPath, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<EdoPaymentDto> GetAsync(Guid paymentId, CancellationToken ct = default);
     Task<EdoPaymentDto> ValidateAsync(Guid paymentId, ValidateEdoPaymentRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
+    Task<EdoPaymentDto> SaveReceiptInsightsAsync(Guid paymentId, SaveEdoPaymentReceiptInsightsRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<IReadOnlyList<EdoPaymentDto>> ListPendingAsync(CancellationToken ct = default);
     Task<IReadOnlyList<EdoPaymentDto>> ListReviewedAsync(CancellationToken ct = default);
+    Task<EdoRevenueReportDto> GetRevenueReportAsync(DateOnly? from, DateOnly? to, CancellationToken ct = default);
 }
 
 public interface IEdoRenewalService

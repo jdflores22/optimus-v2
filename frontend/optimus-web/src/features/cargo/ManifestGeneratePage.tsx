@@ -53,7 +53,7 @@ export function ManifestGeneratePage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
+  const isStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
   const { data, error, isLoading } = useGetManifestQuery(id, { skip: !id });
   const { data: containers = [] } = useGetContainersQuery();
   const [generateBl] = useGenerateBlMutation();

@@ -44,15 +44,26 @@ public class TerminalService : ITerminalService
 
         entity.Name = request.Name.Trim();
         entity.Code = request.Code.Trim().ToUpperInvariant();
-        entity.Identity = Enum.Parse<TerminalIdentity>(request.Identity, true);
-        entity.Kind = Enum.Parse<TerminalKind>(request.Kind, true);
+        entity.Identity = ParseTerminalIdentity(request.Identity);
+        if (entity.Identity == TerminalIdentity.ContainerYard)
+        {
+            entity.Kind = TerminalKind.Cy;
+        }
+        else
+        {
+            entity.Kind = Enum.Parse<TerminalKind>(request.Kind, true);
+            if (entity.Kind == TerminalKind.Cy)
+            {
+                throw new InvalidOperationException("Port terminals require an operator (ATI or ICTSI).");
+            }
+        }
         entity.Location = request.Location;
         entity.Region = request.Region;
         entity.City = request.City;
-        entity.DailyCapacity = Math.Max(1, request.DailyCapacity);
+        entity.DailyCapacity = Math.Max(0, request.DailyCapacity);
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync(ct);
-        await _activity.LogAsync(actorId, "terminal.upsert", nameof(Terminal), entity.Id, entity.Code, ct);
+        await _activity.LogAsync(actorId, id.HasValue ? "terminal.updated" : "terminal.created", nameof(Terminal), entity.Id, entity.Code, ct);
         return Map(entity);
     }
 
@@ -62,6 +73,80 @@ public class TerminalService : ITerminalService
         if (activeOnly == true) q = q.Where(x => x.IsActive);
         var items = await q.OrderBy(x => x.Name).ToListAsync(ct);
         return items.Select(Map).ToList();
+    }
+
+    public async Task<TerminalDetailDto> GetDetailAsync(Guid id, CancellationToken ct = default)
+    {
+        var terminal = await _db.Terminals.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
+                       ?? throw new KeyNotFoundException("Terminal not found.");
+
+        var allocations = await _db.ShippingLineTerminalAllocations.AsNoTracking()
+            .Include(x => x.ShippingLine)
+            .Include(x => x.Containers).ThenInclude(c => c.ContainerSize)
+            .Where(x => x.TerminalId == id)
+            .OrderBy(x => x.ShippingLine.BrandName)
+            .ToListAsync(ct);
+
+        var rows = allocations.Select(x =>
+        {
+            var used = x.Containers
+                .Where(c => c.AllocationStatus is AllocationStatus.PreForecast or AllocationStatus.Allocated)
+                .Sum(c => c.ContainerSize?.TeuValue ?? 1m);
+            return new TerminalAllocationRowDto(
+                x.Id,
+                x.ShippingLineId,
+                x.ShippingLine.BrandName,
+                x.AllocatedCapacityTeu,
+                x.Capacity20Ft,
+                x.Capacity40Ft,
+                (int)Math.Ceiling(used),
+                x.CreatedAt);
+        }).ToList();
+
+        var totalAllocated = rows.Sum(x => x.AllocatedCapacityTeu);
+        var totalUsed = rows.Sum(x => x.UsedTeu);
+        var available = Math.Max(0, totalAllocated - totalUsed);
+        var utilization = totalAllocated > 0
+            ? Math.Round((decimal)totalUsed / totalAllocated * 100m, 1)
+            : 0m;
+
+        return new TerminalDetailDto(Map(terminal), totalAllocated, available, utilization, rows);
+    }
+
+    public async Task<TerminalDto> ToggleStatusAsync(Guid id, Guid actorId, CancellationToken ct = default)
+    {
+        var entity = await _db.Terminals.FirstOrDefaultAsync(x => x.Id == id, ct)
+                     ?? throw new KeyNotFoundException("Terminal not found.");
+        entity.IsActive = !entity.IsActive;
+        await _db.SaveChangesAsync(ct);
+        await _activity.LogAsync(actorId, "terminal.status_changed", nameof(Terminal), entity.Id, entity.IsActive.ToString(), ct);
+        return Map(entity);
+    }
+
+    public async Task DeleteAsync(Guid id, Guid actorId, CancellationToken ct = default)
+    {
+        var entity = await _db.Terminals.FirstOrDefaultAsync(x => x.Id == id, ct)
+                     ?? throw new KeyNotFoundException("Terminal not found.");
+
+        if (await _db.PreAdviceRequests.AnyAsync(x => x.TerminalId == id, ct))
+        {
+            throw new InvalidOperationException(
+                "Cannot delete terminal with existing pre-advice requests. Please deactivate instead.");
+        }
+
+        _db.Terminals.Remove(entity);
+        await _db.SaveChangesAsync(ct);
+        await _activity.LogAsync(actorId, "terminal.deleted", nameof(Terminal), id, entity.Code, ct);
+    }
+
+    public async Task<TerminalDto> UploadLogoAsync(Guid id, string relativePath, Guid actorId, CancellationToken ct = default)
+    {
+        var entity = await _db.Terminals.FirstOrDefaultAsync(x => x.Id == id, ct)
+                     ?? throw new KeyNotFoundException("Terminal not found.");
+        entity.LogoPath = relativePath;
+        await _db.SaveChangesAsync(ct);
+        await _activity.LogAsync(actorId, "terminal.logo_updated", nameof(Terminal), entity.Id, entity.Code, ct);
+        return Map(entity);
     }
 
     public async Task<TerminalSlotDto> UpsertSlotAsync(UpsertSlotRequest request, Guid actorId, CancellationToken ct = default)
@@ -92,7 +177,18 @@ public class TerminalService : ITerminalService
     }
 
     private static TerminalDto Map(Terminal x) =>
-        new(x.Id, x.Name, x.Code, x.Identity.ToString(), x.Kind.ToString(), x.Location, x.Region, x.City, x.DailyCapacity, x.IsActive);
+        new(x.Id, x.Name, x.Code, x.Identity.ToString(), x.Kind.ToString(), x.Location, x.Region, x.City, x.DailyCapacity, x.IsActive, x.LogoPath);
+
+    private static TerminalIdentity ParseTerminalIdentity(string value)
+    {
+        if (string.Equals(value, "Terminal", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "PortTerminal", StringComparison.OrdinalIgnoreCase))
+        {
+            return TerminalIdentity.PortTerminal;
+        }
+
+        return Enum.Parse<TerminalIdentity>(value, true);
+    }
 }
 
 public class ContainerCatalogService : IContainerCatalogService
@@ -118,6 +214,16 @@ public class ContainerCatalogService : IContainerCatalogService
         entity.Name = request.Name.Trim();
         entity.Code = request.Code.Trim().ToUpperInvariant();
         entity.Description = request.Description;
+
+        var duplicate = await _db.ContainerTypes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == entity.Code && x.Id != entity.Id, ct);
+        if (duplicate is not null)
+        {
+            throw new InvalidOperationException(duplicate.IsActive
+                ? "A container type with this code already exists."
+                : "A container type with this code exists but is inactive. Reactivate it instead.");
+        }
+
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync(ct);
         return new ContainerTypeDto(entity.Id, entity.Name, entity.Code, entity.Description, entity.IsActive);
@@ -147,6 +253,16 @@ public class ContainerCatalogService : IContainerCatalogService
         entity.Code = request.Code.Trim().ToUpperInvariant();
         entity.TeuValue = request.TeuValue <= 0 ? 1 : request.TeuValue;
         entity.Description = request.Description;
+
+        var duplicate = await _db.ContainerSizes.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == entity.Code && x.Id != entity.Id, ct);
+        if (duplicate is not null)
+        {
+            throw new InvalidOperationException(duplicate.IsActive
+                ? "A container size with this code already exists."
+                : "A container size with this code exists but is inactive. Reactivate it instead.");
+        }
+
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync(ct);
         return new ContainerSizeDto(entity.Id, entity.Name, entity.Code, entity.TeuValue, entity.Description, entity.IsActive);
@@ -172,30 +288,70 @@ public class CyAllocationService : ICyAllocationService
 
     public async Task<CyAllocationDto> UpsertAsync(Guid? id, UpsertCyAllocationRequest request, Guid actorId, CancellationToken ct = default)
     {
+        if (request.ShippingLineId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Shipping line is required.");
+        }
+
+        if (request.TerminalId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Terminal or container yard is required.");
+        }
+
+        var terminal = await _db.Terminals.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == request.TerminalId, ct)
+            ?? throw new InvalidOperationException("Terminal or container yard not found.");
+
+        var shippingLineExists = await _db.ShippingLines.AsNoTracking()
+            .AnyAsync(x => x.Id == request.ShippingLineId, ct);
+        if (!shippingLineExists)
+        {
+            throw new InvalidOperationException("Shipping line not found.");
+        }
+
         ShippingLineTerminalAllocation entity;
         if (id.HasValue)
         {
             entity = await _db.ShippingLineTerminalAllocations.FirstOrDefaultAsync(x => x.Id == id, ct)
-                     ?? throw new KeyNotFoundException("CY allocation not found.");
+                     ?? throw new KeyNotFoundException("Contract TEU allocation not found.");
         }
         else
         {
+            var duplicate = await _db.ShippingLineTerminalAllocations.AsNoTracking()
+                .AnyAsync(x =>
+                    x.ShippingLineId == request.ShippingLineId
+                    && x.TerminalId == request.TerminalId
+                    && x.StaffUserId == request.StaffUserId, ct);
+            if (duplicate)
+            {
+                throw new InvalidOperationException(
+                    "This shipping line already has a contract allocation at the selected terminal or CY.");
+            }
+
             entity = new ShippingLineTerminalAllocation();
             _db.ShippingLineTerminalAllocations.Add(entity);
         }
 
-        entity.ShippingLineId = await SoleShippingLine.RequireIdAsync(_db, ct);
+        var allocatedTeu = Math.Max(0, request.AllocatedCapacityTeu);
+
+        entity.ShippingLineId = request.ShippingLineId;
         entity.TerminalId = request.TerminalId;
         entity.StaffUserId = request.StaffUserId;
-        entity.AllocatedCapacityTeu = Math.Max(0, request.AllocatedCapacityTeu);
+        entity.AllocatedCapacityTeu = allocatedTeu;
         entity.Capacity20Ft = Math.Max(0, request.Capacity20Ft);
         entity.Capacity40Ft = Math.Max(0, request.Capacity40Ft);
         await _db.SaveChangesAsync(ct);
         await _activity.LogAsync(actorId, "cy_allocation.upsert", nameof(ShippingLineTerminalAllocation), entity.Id, null, ct);
-        return (await ListAsync(entity.ShippingLineId, request.TerminalId, ct)).First(x => x.Id == entity.Id);
+        return (await ListAsync(entity.ShippingLineId, request.TerminalId, activeTerminalsOnly: false, containerYardsOnly: false, ct))
+            .First(x => x.Id == entity.Id);
     }
 
-    public async Task<IReadOnlyList<CyAllocationDto>> ListAsync(Guid? shippingLineId, Guid? terminalId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CyAllocationDto>> ListAsync(
+        Guid? shippingLineId,
+        Guid? terminalId,
+        bool activeTerminalsOnly = true,
+        bool containerYardsOnly = true,
+        CancellationToken ct = default)
     {
         var q = _db.ShippingLineTerminalAllocations.AsNoTracking()
             .Include(x => x.ShippingLine)
@@ -204,6 +360,8 @@ public class CyAllocationService : ICyAllocationService
             .AsQueryable();
         if (shippingLineId.HasValue) q = q.Where(x => x.ShippingLineId == shippingLineId);
         if (terminalId.HasValue) q = q.Where(x => x.TerminalId == terminalId);
+        if (activeTerminalsOnly) q = q.Where(x => x.Terminal.IsActive);
+        if (containerYardsOnly) q = q.Where(x => x.Terminal.Identity == TerminalIdentity.ContainerYard);
         var items = await q.ToListAsync(ct);
         return items.Select(x =>
         {
@@ -503,12 +661,36 @@ public class ContainerInventoryService : IContainerInventoryService
         return await GetAsync(id, ct);
     }
 
-    public async Task<IReadOnlyList<UtilizationReportDto>> UtilizationReportAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<UtilizationReportDto>> UtilizationReportAsync(
+        string? terminalIdentity = null,
+        Guid? shippingLineId = null,
+        CancellationToken ct = default)
     {
-        var allocations = await _db.ShippingLineTerminalAllocations.AsNoTracking()
+        TerminalIdentity? identityFilter = null;
+        if (!string.IsNullOrWhiteSpace(terminalIdentity))
+        {
+            identityFilter = terminalIdentity.Equals("Terminal", StringComparison.OrdinalIgnoreCase)
+                             || terminalIdentity.Equals("PortTerminal", StringComparison.OrdinalIgnoreCase)
+                ? TerminalIdentity.PortTerminal
+                : TerminalIdentity.ContainerYard;
+        }
+
+        var allocationsQ = _db.ShippingLineTerminalAllocations.AsNoTracking()
             .Include(x => x.Terminal)
             .Include(x => x.Containers).ThenInclude(c => c.ContainerSize)
-            .ToListAsync(ct);
+            .Where(x => x.Terminal.IsActive);
+        if (shippingLineId.HasValue)
+        {
+            allocationsQ = allocationsQ.Where(x => x.ShippingLineId == shippingLineId);
+        }
+
+        var allocations = await allocationsQ.ToListAsync(ct);
+
+        if (identityFilter.HasValue)
+        {
+            allocations = allocations.Where(x => x.Terminal.Identity == identityFilter.Value).ToList();
+        }
+
         var pendingPa = await _db.PreAdviceRequests.AsNoTracking()
             .Where(x => x.Status == PreAdviceStatus.Pending)
             .GroupBy(x => x.TerminalId)
@@ -516,7 +698,7 @@ public class ContainerInventoryService : IContainerInventoryService
             .ToDictionaryAsync(x => x.TerminalId, x => x.Count, ct);
 
         return allocations
-            .GroupBy(x => new { x.TerminalId, x.Terminal.Name })
+            .GroupBy(x => new { x.TerminalId, x.Terminal.Name, x.Terminal.Identity, x.Terminal.Kind })
             .Select(g =>
             {
                 var allocated = g.Sum(x => x.AllocatedCapacityTeu);
@@ -527,24 +709,48 @@ public class ContainerInventoryService : IContainerInventoryService
                 var atTerminal = g.SelectMany(x => x.Containers).Count(c => c.Status == ContainerStatus.AtTerminal);
                 var pct = allocated == 0 ? 0 : Math.Round((decimal)used / allocated * 100m, 1);
                 pendingPa.TryGetValue(g.Key.TerminalId, out var pending);
-                return new UtilizationReportDto(g.Key.TerminalId, g.Key.Name, allocated, used, pct, available, atTerminal, pending);
+                var op = g.Key.Identity == TerminalIdentity.PortTerminal ? g.Key.Kind.ToString() : null;
+                return new UtilizationReportDto(
+                    g.Key.TerminalId,
+                    g.Key.Name,
+                    g.Key.Identity.ToString(),
+                    op,
+                    allocated,
+                    used,
+                    pct,
+                    available,
+                    atTerminal,
+                    pending);
             })
             .OrderBy(x => x.TerminalName)
             .ToList();
     }
 
-    public async Task<(string Csv, string PdfPath)> ExportUtilizationAsync(CancellationToken ct = default)
+    public async Task<(string Csv, string PdfPath)> ExportUtilizationAsync(
+        string? terminalIdentity = null,
+        Guid? shippingLineId = null,
+        CancellationToken ct = default)
     {
-        var rows = await UtilizationReportAsync(ct);
+        var rows = await UtilizationReportAsync(terminalIdentity, shippingLineId, ct);
         var sb = new StringBuilder();
-        sb.AppendLine("Terminal,AllocatedTEU,UsedTEU,Utilization%,AvailableForReturn,AtTerminal,PendingPreAdvice");
+        sb.AppendLine("Terminal,Identity,Operator,AllocatedTEU,UsedTEU,Utilization%,AvailableForReturn,AtTerminal,PendingPreAdvice");
         foreach (var r in rows)
         {
-            sb.AppendLine($"{r.TerminalName},{r.AllocatedTeu},{r.UsedTeu},{r.UtilizationPercent},{r.AvailableForReturn},{r.AtTerminal},{r.PendingPreAdvice}");
+            sb.AppendLine($"{r.TerminalName},{r.TerminalIdentity},{r.TerminalOperator},{r.AllocatedTeu},{r.UsedTeu},{r.UtilizationPercent},{r.AvailableForReturn},{r.AtTerminal},{r.PendingPreAdvice}");
         }
 
-        var pdf = _docs.CreatePlaceholderPdf("reports", "CY Utilization", sb.ToString());
+        var title = identityFilterLabel(terminalIdentity);
+        var pdf = _docs.CreatePlaceholderPdf("reports", $"{title} Utilization", sb.ToString());
         return (sb.ToString(), pdf);
+
+        static string identityFilterLabel(string? terminalIdentity) =>
+            terminalIdentity is not null && (
+                terminalIdentity.Equals("PortTerminal", StringComparison.OrdinalIgnoreCase)
+                || terminalIdentity.Equals("Terminal", StringComparison.OrdinalIgnoreCase))
+                ? "Port"
+                : terminalIdentity is not null && terminalIdentity.Equals("ContainerYard", StringComparison.OrdinalIgnoreCase)
+                    ? "CY"
+                    : "Terminal";
     }
 
     private IQueryable<Container> Query() =>
@@ -596,7 +802,7 @@ public class ContainerInventoryService : IContainerInventoryService
             else total40++;
 
             var identity = c.CyAllocation?.Terminal?.Identity;
-            if (identity == TerminalIdentity.Terminal) terminalCount++;
+            if (identity == TerminalIdentity.PortTerminal) terminalCount++;
             else if (identity == TerminalIdentity.ContainerYard) yardCount++;
         }
 
@@ -613,7 +819,7 @@ public class ContainerInventoryService : IContainerInventoryService
         var yard40 = 0;
         foreach (var a in allocations)
         {
-            if (a.Terminal.Identity == TerminalIdentity.Terminal)
+            if (a.Terminal.Identity == TerminalIdentity.PortTerminal)
             {
                 term20 += a.Capacity20Ft;
                 term40 += a.Capacity40Ft;

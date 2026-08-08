@@ -2,14 +2,17 @@ namespace Optimus.Domain.Enums;
 
 public enum TerminalIdentity
 {
-    Terminal = 0,
+    PortTerminal = 0,
     ContainerYard = 1
 }
 
 public enum TerminalKind
 {
+    /** Container yard marker — used only when identity is ContainerYard. */
     Cy = 0,
+    /** Port terminal operator — used only when identity is PortTerminal. */
     Ati = 1,
+    /** Port terminal operator — used only when identity is PortTerminal. */
     Ictsi = 2
 }
 

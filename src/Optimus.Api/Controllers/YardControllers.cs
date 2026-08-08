@@ -6,6 +6,8 @@ using Optimus.Application.Cargo.Interfaces;
 using Optimus.Application.Yard.Dtos;
 using Optimus.Application.Yard.Interfaces;
 using Optimus.Application.Security;
+using Optimus.Infrastructure.Storage;
+using Optimus.Shared.Constants;
 
 namespace Optimus.Api.Controllers;
 
@@ -15,12 +17,23 @@ namespace Optimus.Api.Controllers;
 public class TerminalsController : ControllerBase
 {
     private readonly ITerminalService _terminals;
-    public TerminalsController(ITerminalService terminals) => _terminals = terminals;
+    private readonly IUploadRootProvider _uploads;
+
+    public TerminalsController(ITerminalService terminals, IUploadRootProvider uploads)
+    {
+        _terminals = terminals;
+        _uploads = uploads;
+    }
+
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<TerminalDto>>> List([FromQuery] bool? activeOnly, CancellationToken ct)
         => Ok(await _terminals.ListAsync(activeOnly ?? true, ct));
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<TerminalDetailDto>> Get(Guid id, CancellationToken ct)
+        => Ok(await _terminals.GetDetailAsync(id, ct));
 
     [HttpPost]
     [Authorize(Policy = "ShippingAdmin")]
@@ -31,6 +44,38 @@ public class TerminalsController : ControllerBase
     [Authorize(Policy = "ShippingAdmin")]
     public async Task<ActionResult<TerminalDto>> Update(Guid id, [FromBody] UpsertTerminalRequest request, CancellationToken ct)
         => Ok(await _terminals.UpsertAsync(id, request, UserId, ct));
+
+    [HttpPost("{id:guid}/toggle-status")]
+    [Authorize(Policy = "ShippingAdmin")]
+    public async Task<ActionResult<TerminalDto>> ToggleStatus(Guid id, CancellationToken ct)
+        => Ok(await _terminals.ToggleStatusAsync(id, UserId, ct));
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "ShippingAdmin")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await _terminals.DeleteAsync(id, UserId, ct);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/logo")]
+    [Authorize(Policy = "ShippingAdmin")]
+    public async Task<ActionResult<TerminalDto>> UploadLogo(Guid id, IFormFile file, CancellationToken ct)
+    {
+        UploadGuard.Validate(file, ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg");
+
+        var uploads = Path.Combine(_uploads.RootDirectory, "terminal-logos");
+        Directory.CreateDirectory(uploads);
+        var fileName = $"{id:N}{Path.GetExtension(file.FileName).ToLowerInvariant()}";
+        var fullPath = Path.Combine(uploads, fileName);
+        await using (var stream = System.IO.File.Create(fullPath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        var relative = $"/uploads/terminal-logos/{fileName}";
+        return Ok(await _terminals.UploadLogoAsync(id, relative, UserId, ct));
+    }
 
     [HttpGet("{id:guid}/slots")]
     public async Task<ActionResult<IReadOnlyList<TerminalSlotDto>>> Slots(Guid id, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
@@ -77,10 +122,26 @@ public class CyAllocationsController : ControllerBase
     private readonly ICyAllocationService _cy;
     public CyAllocationsController(ICyAllocationService cy) => _cy = cy;
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private string Role => User.FindFirstValue(ClaimTypes.Role)!;
+    private Guid? ActiveShippingLineId =>
+        Guid.TryParse(User.FindFirstValue("shipping_line_id"), out var id) ? id : null;
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<CyAllocationDto>>> List([FromQuery] Guid? shippingLineId, [FromQuery] Guid? terminalId, CancellationToken ct)
-        => Ok(await _cy.ListAsync(shippingLineId, terminalId, ct));
+    public async Task<ActionResult<IReadOnlyList<CyAllocationDto>>> List(
+        [FromQuery] Guid? shippingLineId,
+        [FromQuery] Guid? terminalId,
+        [FromQuery] bool activeTerminalsOnly = true,
+        [FromQuery] bool containerYardsOnly = true,
+        CancellationToken ct = default)
+    {
+        var lineId = shippingLineId;
+        if (!lineId.HasValue && !string.Equals(Role, AppRoles.SystemAdmin, StringComparison.Ordinal))
+        {
+            lineId = ActiveShippingLineId;
+        }
+
+        return Ok(await _cy.ListAsync(lineId, terminalId, activeTerminalsOnly, containerYardsOnly, ct));
+    }
 
     [HttpPost]
     [Authorize(Policy = "ShippingAdmin")]
@@ -150,14 +211,34 @@ public class ContainersController : ControllerBase
 
     [HttpGet("utilization")]
     [Authorize(Policy = "YardAdmin")]
-    public async Task<ActionResult<IReadOnlyList<UtilizationReportDto>>> Utilization(CancellationToken ct)
-        => Ok(await _containers.UtilizationReportAsync(ct));
+    public async Task<ActionResult<IReadOnlyList<UtilizationReportDto>>> Utilization(
+        [FromQuery] string? terminalIdentity,
+        [FromQuery] Guid? shippingLineId,
+        CancellationToken ct)
+    {
+        var lineId = shippingLineId;
+        if (!lineId.HasValue && !string.Equals(Role, AppRoles.SystemAdmin, StringComparison.Ordinal))
+        {
+            lineId = ActiveShippingLineId;
+        }
+
+        return Ok(await _containers.UtilizationReportAsync(terminalIdentity, lineId, ct));
+    }
 
     [HttpGet("utilization/export")]
     [Authorize(Policy = "YardAdmin")]
-    public async Task<ActionResult<object>> Export(CancellationToken ct)
+    public async Task<ActionResult<object>> Export(
+        [FromQuery] string? terminalIdentity,
+        [FromQuery] Guid? shippingLineId,
+        CancellationToken ct)
     {
-        var (csv, pdf) = await _containers.ExportUtilizationAsync(ct);
+        var lineId = shippingLineId;
+        if (!lineId.HasValue && !string.Equals(Role, AppRoles.SystemAdmin, StringComparison.Ordinal))
+        {
+            lineId = ActiveShippingLineId;
+        }
+
+        var (csv, pdf) = await _containers.ExportUtilizationAsync(terminalIdentity, lineId, ct);
         return Ok(new { csv, pdfPath = pdf });
     }
 

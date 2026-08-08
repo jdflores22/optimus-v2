@@ -22,6 +22,7 @@ import {
   useGetTerminalsQuery,
 } from '../../app/api';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
+import { isContainerYardTerminal, isPortTerminal } from '../../shared/terminalTaxonomy';
 import { pageActionsStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
@@ -38,11 +39,11 @@ export function RepositioningCreatePage() {
   const [create] = useCreateRepositioningMutation();
 
   const cyTerminals = useMemo(
-    () => terminals.filter((t) => t.identity === 'ContainerYard' && t.isActive),
+    () => terminals.filter((t) => isContainerYardTerminal(t.identity) && t.isActive),
     [terminals],
   );
   const portTerminals = useMemo(
-    () => terminals.filter((t) => t.identity === 'Terminal' && t.isActive),
+    () => terminals.filter((t) => isPortTerminal(t.identity) && t.isActive),
     [terminals],
   );
 
@@ -218,7 +219,7 @@ export function RepositioningCreatePage() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {[c.sizeCode, c.typeCode].filter(Boolean).join(' / ') || 'â€”'}
+                      {[c.sizeCode, c.typeCode].filter(Boolean).join(' / ') || '—'}
                     </TableCell>
                     <TableCell>{c.depotName}</TableCell>
                     <TableCell>
@@ -231,7 +232,7 @@ export function RepositioningCreatePage() {
                             day: 'numeric',
                             year: 'numeric',
                           })
-                        : 'â€”'}
+                        : '—'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -277,7 +278,7 @@ export function RepositioningCreatePage() {
             }
           }}
         >
-          {busy ? 'Submittingâ€¦' : `Submit request (${selected.length})`}
+          {busy ? 'Submitting…' : `Submit request (${selected.length})`}
         </Button>
       </Stack>
     </WorkflowPage>

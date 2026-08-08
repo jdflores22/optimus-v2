@@ -69,6 +69,9 @@ public class DocumentTemplate : BaseEntity
     public string Name { get; set; } = string.Empty;
     public int Version { get; set; } = 1;
     public string BodyHtml { get; set; } = string.Empty;
+    public string? LayoutJson { get; set; }
+    public string PaperSize { get; set; } = "A4";
+    public string Orientation { get; set; } = "portrait";
     public bool IsActive { get; set; } = true;
     public Guid? UpdatedById { get; set; }
     public User? UpdatedBy { get; set; }

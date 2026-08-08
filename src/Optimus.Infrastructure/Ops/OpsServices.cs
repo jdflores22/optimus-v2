@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Optimus.Application.Auth.Interfaces;
+using Optimus.Application.Cargo.Dtos;
 using Optimus.Application.Cargo.Interfaces;
 using Optimus.Application.Ops.Dtos;
 using Optimus.Application.Ops.Interfaces;
@@ -144,17 +145,20 @@ public class AccreditationService : IAccreditationService
     private readonly INotificationService _notifications;
     private readonly IActivityLogService _activity;
     private readonly IEmailSender _email;
+    private readonly IDocumentStore _docs;
 
     public AccreditationService(
         OptimusDbContext db,
         INotificationService notifications,
         IActivityLogService activity,
-        IEmailSender email)
+        IEmailSender email,
+        IDocumentStore docs)
     {
         _db = db;
         _notifications = notifications;
         _activity = activity;
         _email = email;
+        _docs = docs;
     }
 
     public async Task<AccreditationDto> SubmitAsync(SubmitAccreditationRequest request, Guid applicantId, string applicantRole, CancellationToken ct = default)
@@ -171,16 +175,6 @@ public class AccreditationService : IAccreditationService
                    ?? throw new InvalidOperationException($"No active {formType} form configured.");
 
         ValidateSubmissionAgainstForm(form.FieldsJson, request.SubmittedDataJson);
-
-        if (applicantRole == AppRoles.Consignee)
-        {
-            var hasBroker = await _db.ConsigneeBrokerRelationships.AnyAsync(
-                x => x.ConsigneeId == applicantId && x.Status == RelationshipStatus.Active, ct);
-            if (!hasBroker)
-            {
-                throw new InvalidOperationException("Consignee must have an active broker relationship before SAS.");
-            }
-        }
 
         var soleLineId = await SoleShippingLine.RequireIdAsync(_db, ct);
         var existing = await _db.AccreditationSubmissions
@@ -210,6 +204,7 @@ public class AccreditationService : IAccreditationService
         existing.ComplianceFieldIdsJson = null;
         existing.EvaluatedAt = null;
         existing.ApprovedAt = null;
+        existing.SasIdNumber = null;
         await _db.SaveChangesAsync(ct);
 
         var evaluators = await _db.Users.AsNoTracking().Where(x => x.Role == AppRoles.Evaluator).Select(x => x.Id).Take(5).ToListAsync(ct);
@@ -457,7 +452,11 @@ public class AccreditationService : IAccreditationService
             throw new UnauthorizedAccessException("Shipping admin required.");
         }
 
-        var entity = await _db.AccreditationSubmissions.Include(x => x.Applicant).FirstOrDefaultAsync(x => x.Id == id, ct)
+        var entity = await _db.AccreditationSubmissions
+            .Include(x => x.Applicant)
+            .Include(x => x.ShippingLine)
+            .Include(x => x.FormConfiguration)
+            .FirstOrDefaultAsync(x => x.Id == id, ct)
                      ?? throw new KeyNotFoundException("Submission not found.");
         if (entity.Status != AccreditationStatus.AwaitingFinalApproval)
         {
@@ -470,6 +469,12 @@ public class AccreditationService : IAccreditationService
         {
             entity.Status = AccreditationStatus.Approved;
             entity.Applicant.Status = AccountStatus.Approved;
+            if (string.IsNullOrWhiteSpace(entity.SasIdNumber))
+            {
+                entity.SasIdNumber = await GenerateSasIdNumberAsync(entity.Applicant.Role, ct);
+            }
+
+            entity.CertificatePdfPath = CreateAccreditationCertificate(entity);
         }
         else
         {
@@ -480,9 +485,80 @@ public class AccreditationService : IAccreditationService
 
         await _db.SaveChangesAsync(ct);
         await _notifications.NotifyAsync(entity.ApplicantId, "SAS final decision",
-            request.Approve ? "Accreditation approved." : entity.DenialReason!,
+            request.Approve
+                ? $"Accreditation approved. Your SAS ID is {entity.SasIdNumber}. Download your accreditation certificate from SAS."
+                : entity.DenialReason!,
             "sas", nameof(AccreditationSubmission), entity.Id, ct);
         return await GetAsync(id, ct);
+    }
+
+    public async Task<string> EnsureCertificateAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default)
+    {
+        var entity = await _db.AccreditationSubmissions
+            .Include(x => x.Applicant)
+            .Include(x => x.ShippingLine)
+            .Include(x => x.FormConfiguration)
+            .FirstOrDefaultAsync(x => x.Id == id, ct)
+            ?? throw new KeyNotFoundException("Submission not found.");
+
+        if (entity.Status != AccreditationStatus.Approved)
+        {
+            throw new InvalidOperationException("Accreditation certificate is available only for approved submissions.");
+        }
+
+        var canAccess = actorRole is AppRoles.Evaluator or AppRoles.ShippingLinesAdmin or AppRoles.SystemAdmin or AppRoles.SlStaff
+                        || entity.ApplicantId == actorId;
+        if (!canAccess)
+        {
+            throw new UnauthorizedAccessException("You cannot access this accreditation certificate.");
+        }
+
+        entity.CertificatePdfPath = CreateAccreditationCertificate(entity);
+        await _db.SaveChangesAsync(ct);
+
+        return entity.CertificatePdfPath!;
+    }
+
+    private string CreateAccreditationCertificate(AccreditationSubmission entity)
+    {
+        var roleLabel = entity.Applicant.Role == AppRoles.Consignee ? "Consignee" : "Broker";
+        var submitted = entity.SubmittedDataJson;
+        var request = new AccreditationCertificatePdfRequest(
+            ShippingLineName: entity.ShippingLine.BrandName,
+            ShippingLineLogoPath: entity.ShippingLine.LogoPath,
+            BrandColorHex: entity.ShippingLine.BrandColor,
+            SasIdNumber: entity.SasIdNumber ?? entity.Id.ToString("N")[..12].ToUpperInvariant(),
+            ApplicantName: entity.Applicant.FullName,
+            RoleLabel: roleLabel,
+            FormName: entity.FormConfiguration.Name,
+            FormVersion: entity.FormConfiguration.Version,
+            ApprovedAt: entity.ApprovedAt ?? DateTime.UtcNow,
+            SubmittedAt: entity.SubmittedAt,
+            BusinessName: AccreditationSubmissionFormatter.ExtractBusinessOrBrokerName(submitted, roleLabel),
+            Tin: AccreditationSubmissionFormatter.ExtractField(submitted, "tin", "tax_id", "taxId"),
+            BusinessAddress: AccreditationSubmissionFormatter.ExtractField(submitted, "address", "business_address", "businessAddress"),
+            VerificationCode: entity.Id.ToString("N")[..10].ToUpperInvariant());
+
+        return _docs.CreateAccreditationCertificatePdf(request);
+    }
+
+    private async Task<string> GenerateSasIdNumberAsync(string applicantRole, CancellationToken ct)
+    {
+        var roleCode = applicantRole == AppRoles.Consignee ? "CNS" : "BRK";
+        var year = DateTime.UtcNow.Year;
+        var prefix = $"SAS-{roleCode}-{year}-";
+
+        var existing = await _db.AccreditationSubmissions.AsNoTracking()
+            .Where(x => x.SasIdNumber != null && x.SasIdNumber.StartsWith(prefix))
+            .Select(x => x.SasIdNumber!)
+            .ToListAsync(ct);
+
+        var seq = existing
+            .Select(n => int.TryParse(n.AsSpan(prefix.Length), out var value) ? value : 0)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        return $"{prefix}{seq:D5}";
     }
 
     public async Task<AccreditationDto> GetAsync(Guid id, CancellationToken ct = default)
@@ -513,7 +589,7 @@ public class AccreditationService : IAccreditationService
     private static AccreditationDto Map(AccreditationSubmission x) =>
         new(x.Id, x.ApplicantId, x.Applicant.FullName, x.Applicant.Role, x.ShippingLineId, x.ShippingLine.BrandName,
             x.FormConfigurationId, x.Status.ToString(), x.SubmittedDataJson, x.DenialReason, x.ComplianceNotes,
-            x.ComplianceFieldIdsJson, x.SubmittedAt, x.EvaluatedAt, x.ApprovedAt);
+            x.ComplianceFieldIdsJson, x.SubmittedAt, x.EvaluatedAt, x.ApprovedAt, x.SasIdNumber, x.CertificatePdfPath);
 }
 
 public class BrokerTransferService : IBrokerTransferService
@@ -595,9 +671,9 @@ public class BrokerTransferService : IBrokerTransferService
 
     public async Task<TransferDto> ReviewAsync(Guid id, ReviewTransferRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
     {
-        if (actorRole is not (AppRoles.SlStaff or AppRoles.ShippingLinesAdmin or AppRoles.SystemAdmin))
+        if (actorRole is not (AppRoles.SlStaff or AppRoles.ShippingLinesAdmin))
         {
-            throw new UnauthorizedAccessException("Staff required.");
+            throw new UnauthorizedAccessException("Shipping line staff required.");
         }
 
         var entity = await _db.BrokerTransferRequests.Include(x => x.Manifest).FirstOrDefaultAsync(x => x.Id == id, ct)

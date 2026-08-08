@@ -230,7 +230,7 @@ export function ManifestPaymentHistoryTimeline({
                     Official receipt
                   </Button>
                 )}
-                {user?.role === 'Accounting' || user?.role === 'SystemAdmin' ? (
+                {user?.role === 'Accounting' ? (
                   /pending/i.test(payment.status) ? (
                     <Button
                       size="small"

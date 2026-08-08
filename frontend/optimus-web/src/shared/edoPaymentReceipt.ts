@@ -1,5 +1,13 @@
 import { API_BASE_URL } from './types';
 
+export const EDO_PAYMENT_RECEIPT_ACCEPT =
+  '.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg';
+
+export function isEdoPaymentReceiptFile(file: File): boolean {
+  if (/\.(pdf|png|jpe?g)$/i.test(file.name)) return true;
+  return /^(application\/pdf|image\/(png|jpeg|jpg))$/i.test(file.type);
+}
+
 export async function loadEdoPaymentReceiptBlob(
   paymentId: string,
   accessToken: string,

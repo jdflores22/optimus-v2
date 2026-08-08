@@ -48,8 +48,10 @@ export function parseAddressValue(raw: string | undefined | null): AddressValue 
       street: String(parsed.street ?? ''),
     };
   } catch {
-    // Legacy plain-text address — keep as street only
-    return { ...EMPTY, street: String(raw) };
+    const s = String(raw).trim();
+    // Truncated or invalid JSON stored in DB — do not surface as street text.
+    if (s.startsWith('{')) return { ...EMPTY };
+    return { ...EMPTY, street: s };
   }
 }
 
@@ -87,7 +89,8 @@ export function AddressPicker({ label, required, value, onChange, disabled, help
   const { data: barangaysRes, isFetching: barangaysLoading } = useGetBarangaysQuery(address.city_id, {
     skip: !address.city_id,
   });
-  const barangays = barangaysRes?.barangays ?? [];
+  const barangays =
+    address.city_id && barangaysRes?.barangays && !barangaysLoading ? barangaysRes.barangays : [];
 
   const emit = (next: AddressValue) => onChange(serializeAddressValue(next));
 
@@ -212,11 +215,12 @@ export function AddressPicker({ label, required, value, onChange, disabled, help
             ))}
           </TextField>
           <TextField
+            key={address.city_id || 'no-city'}
             select
             label="Barangay"
             required={required}
             disabled={disabled || !address.city_id || barangaysLoading}
-            value={address.barangay_id}
+            value={barangaysLoading ? '' : address.barangay_id}
             onChange={(e) => setBarangay(e.target.value)}
             fullWidth
             size="small"

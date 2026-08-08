@@ -52,6 +52,11 @@ public interface IDocumentTemplateService
     Task<IReadOnlyList<DocumentTemplateDto>> ListAsync(CancellationToken ct = default);
     Task<DocumentTemplateDto> UpsertAsync(UpsertDocumentTemplateRequest request, Guid actorId, CancellationToken ct = default);
     Task<DocumentTemplateDto?> GetActiveAsync(string documentType, CancellationToken ct = default);
+    Task<DocumentTemplateDto> ActivateAsync(Guid id, CancellationToken ct = default);
+    Task<DocumentTemplateDto> CloneVersionAsync(Guid id, Guid actorId, CancellationToken ct = default);
+    Task<DocumentTemplateDto> SaveLayoutAsync(Guid id, SaveDocumentTemplateLayoutRequest request, Guid actorId, CancellationToken ct = default);
+    Task<string> UploadImageAsync(Guid id, Stream stream, string fileName, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
 public interface IScheduledReportService

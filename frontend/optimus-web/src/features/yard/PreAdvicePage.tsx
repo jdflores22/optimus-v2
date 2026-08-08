@@ -33,8 +33,8 @@ import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function PreAdvicePage() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isTrucker = user?.role === 'Trucker' || user?.role === 'SystemAdmin';
-  const isTerminal = ['TerminalTeam', 'SystemAdmin', 'ShippingLinesAdmin'].includes(user?.role ?? '');
+  const isTrucker = user?.role === 'Trucker';
+  const isTerminal = ['TerminalTeam', 'ShippingLinesAdmin', 'SlStaff'].includes(user?.role ?? '');
 
   const { data: list = [], refetch } = useGetPreAdvicesQuery(
     isTerminal && !isTrucker ? { status: 'Pending' } : undefined,

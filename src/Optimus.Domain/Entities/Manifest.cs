@@ -86,7 +86,7 @@ public class Payment : BaseEntity
 
 public class PaymentFeeConfiguration : BaseEntity
 {
-    public string FeeType { get; set; } = "manifest_access";
+    public string FeeType { get; set; } = "edo";
     public decimal Amount { get; set; }
     public Guid ConfiguredById { get; set; }
     public User ConfiguredBy { get; set; } = null!;

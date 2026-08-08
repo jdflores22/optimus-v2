@@ -37,6 +37,52 @@ export type RecentManifestDto = {
   createdAt: string;
 };
 
+export type PartnerNoaListItemDto = {
+  id: string;
+  noaNumber: string;
+  manifestId: string;
+  manifestNumber: string;
+  vesselName?: string | null;
+  eta?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+export type PartnerManifestListItemDto = {
+  id: string;
+  manifestNumber: string;
+  workflowState: string;
+  noaNumber?: string | null;
+  blNumber?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  edoTotalCount: number;
+  edoReleasedCount: number;
+};
+
+export type PartnerContainerListItemDto = {
+  id: string;
+  containerNumber: string;
+  manifestId?: string | null;
+  manifestNumber?: string | null;
+  typeCode?: string | null;
+  sizeCode?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+export type PartnerEdoListItemDto = {
+  id: string;
+  edoNumber: string;
+  manifestId: string;
+  manifestNumber: string;
+  containerNumber?: string | null;
+  status: string;
+  generatedAt: string;
+  updatedAt?: string | null;
+};
+
 export type PartnerAccreditationDto = {
   id: string;
   formConfigurationId: string;
@@ -49,18 +95,25 @@ export type PartnerAccreditationDto = {
   submittedAt: string;
   approvedAt?: string | null;
   evaluatedAt?: string | null;
+  sasIdNumber?: string | null;
+  certificatePdfPath?: string | null;
 };
 
 export type ShippingAdminConsigneeDetailDto = {
   consignee: ShippingAdminConsigneeDto;
   edoCount: number;
-  recentManifests: RecentManifestDto[];
+  noas: PartnerNoaListItemDto[];
+  manifests: PartnerManifestListItemDto[];
+  containers: PartnerContainerListItemDto[];
+  edos: PartnerEdoListItemDto[];
   accreditation?: PartnerAccreditationDto | null;
 };
 
 export type ShippingAdminBrokerDetailDto = {
   broker: ShippingAdminBrokerDto;
   containerCount: number;
-  recentManifests: RecentManifestDto[];
+  manifests: PartnerManifestListItemDto[];
+  containers: PartnerContainerListItemDto[];
+  edos: PartnerEdoListItemDto[];
   accreditation?: PartnerAccreditationDto | null;
 };

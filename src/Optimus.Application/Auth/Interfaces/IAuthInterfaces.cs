@@ -10,6 +10,7 @@ public interface IAuthService
     Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default);
     Task RegisterBrokerAsync(RegisterBrokerRequest request, CancellationToken cancellationToken = default);
     Task RegisterConsigneeAsync(RegisterConsigneeRequest request, CancellationToken cancellationToken = default);
+    Task RegisterTruckerAsync(RegisterTruckerRequest request, CancellationToken cancellationToken = default);
     Task RequestPasswordResetAsync(RequestPasswordResetRequest request, CancellationToken cancellationToken = default);
     Task ResetPasswordWithOtpAsync(VerifyOtpResetRequest request, CancellationToken cancellationToken = default);
     Task VerifyEmailAsync(VerifyEmailRequest request, CancellationToken cancellationToken = default);
@@ -52,6 +53,7 @@ public interface IShippingLineService
     Task SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
     Task AssignAdminAsync(Guid id, Guid adminUserId, CancellationToken cancellationToken = default);
     Task UploadLogoAsync(Guid id, string relativePath, CancellationToken cancellationToken = default);
+    Task ClearLogoAsync(Guid id, CancellationToken cancellationToken = default);
     Task<AuthResponse> SwitchShippingLineAsync(Guid userId, SwitchShippingLineRequest request, string? ipAddress, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RolePermissionDto>> GetPermissionsAsync(Guid shippingLineId, CancellationToken cancellationToken = default);
     Task UpsertPermissionsAsync(UpsertRolePermissionsRequest request, CancellationToken cancellationToken = default);
@@ -66,6 +68,8 @@ public interface IWorkspaceService
 public interface IHierarchyService
 {
     Task<IReadOnlyList<UserDto>> ListUsersAsync(Guid? actorId = null, string? actorRole = null, CancellationToken cancellationToken = default);
+    Task<UserDto?> GetUserByIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<UserDto> UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default);
     Task UnlockUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<byte[]> ExportUsersCsvAsync(CancellationToken cancellationToken = default);
 }

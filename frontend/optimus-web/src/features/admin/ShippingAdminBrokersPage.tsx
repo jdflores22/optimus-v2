@@ -11,9 +11,9 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
 import { useGetShippingAdminBrokersQuery } from '../../app/api';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
+import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function ShippingAdminBrokersPage() {
@@ -63,20 +63,14 @@ export function ShippingAdminBrokersPage() {
                 <TableCell align="center">Manifests</TableCell>
                 <TableCell align="center">eDOs</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell align="right">{TABLE_ACTIONS_HEADER}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {data.map((b) => (
                 <TableRow key={b.id} hover>
                   <TableCell>
-                    <Stack
-                      component={RouterLink}
-                      to={`/shipping-admin/brokers/${b.id}`}
-                      direction="row"
-                      spacing={1.25}
-                      alignItems="center"
-                      sx={{ textDecoration: 'none', color: 'inherit' }}
-                    >
+                    <Stack direction="row" spacing={1.25} alignItems="center">
                       <Avatar sx={{ width: 36, height: 36, bgcolor: 'secondary.main', fontSize: 13 }}>
                         {b.fullName.slice(0, 2).toUpperCase()}
                       </Avatar>
@@ -114,6 +108,9 @@ export function ShippingAdminBrokersPage() {
                       label={b.isActive ? 'Active' : 'Inactive'}
                       color={b.isActive ? 'success' : 'default'}
                     />
+                  </TableCell>
+                  <TableCell align="right">
+                    <TableViewLink to={`/shipping-admin/brokers/${b.id}`} />
                   </TableCell>
                 </TableRow>
               ))}

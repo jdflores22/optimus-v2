@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { UserDto } from '../shared/types';
+import { clearLastActivityPath } from '../shared/authReturnPath';
 
 type AuthState = {
   accessToken: string | null;
@@ -36,14 +37,21 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       localStorage.setItem(storageKey, JSON.stringify(state));
     },
-    logout: (state) => {
+    logout: (state, action: PayloadAction<{ clearReturnPath?: boolean } | undefined>) => {
       state.accessToken = null;
       state.refreshToken = null;
       state.user = null;
       localStorage.removeItem(storageKey);
+      if (action.payload?.clearReturnPath !== false) {
+        clearLastActivityPath();
+      }
+    },
+    setUser: (state, action: PayloadAction<UserDto>) => {
+      state.user = action.payload;
+      localStorage.setItem(storageKey, JSON.stringify(state));
     },
   },
 });
 
-export const { setCredentials, logout } = authSlice.actions;
+export const { setCredentials, logout, setUser } = authSlice.actions;
 export default authSlice.reducer;

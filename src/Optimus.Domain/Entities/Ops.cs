@@ -35,6 +35,10 @@ public class AccreditationSubmission : BaseEntity
     public string? DenialReason { get; set; }
     public string? ComplianceNotes { get; set; }
     public string? ComplianceFieldIdsJson { get; set; }
+    /// <summary>Permanent SAS accreditation number assigned on final approval (e.g. SAS-BRK-2026-00001).</summary>
+    public string? SasIdNumber { get; set; }
+    /// <summary>Generated accreditation certificate PDF path on final approval.</summary>
+    public string? CertificatePdfPath { get; set; }
 }
 
 public class BrokerTransferRequest : BaseEntity

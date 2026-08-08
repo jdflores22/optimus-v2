@@ -103,7 +103,7 @@ function stageForManifest(
 
 export function ManifestsPage() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isAccounting = ['Accounting', 'SystemAdmin'].includes(user?.role ?? '');
+  const isAccounting = user?.role === 'Accounting';
   const isBroker = user?.role === 'Broker';
   const isConsignee = user?.role === 'Consignee';
 
@@ -111,7 +111,7 @@ export function ManifestsPage() {
   const { data: edos = [] } = useGetEdosQuery();
   const { data: pendingPayments = [] } = useGetPendingPaymentsQuery(undefined, { skip: !isAccounting });
   const { shippingLineId } = useDefaultShippingLine();
-  const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
+  const isStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
   const { data: users = [] } = useGetHierarchyUsersQuery(undefined, { skip: !isStaff });
   const { data: accreditedConsignees = [] } = useGetAccreditedConsigneesQuery(undefined, {
     skip: !isStaff,

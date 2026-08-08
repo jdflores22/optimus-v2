@@ -8,6 +8,9 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import PeopleOutlineOutlinedIcon from '@mui/icons-material/PeopleOutlineOutlined';
+import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import { Link as RouterLink } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../app/store';
@@ -23,13 +26,18 @@ import {
   useGetPendingPaymentsQuery,
   useGetPreAdvicesQuery,
   useGetRepositioningQuery,
+  useGetShippingAdminBrokersQuery,
+  useGetShippingAdminConsigneesQuery,
   useGetTerminalsQuery,
   useGetUtilizationQuery,
-  useMarkNotificationsReadMutation,
 } from '../../app/api';
 import { getQuickActions } from '../layout/navConfig';
+import { ContractTeuLocationCard } from './ContractTeuLocationCard';
+import { isContainerYardTerminal, isPortTerminal } from '../../shared/terminalTaxonomy';
+import { formatTerminalAddressSummary } from '../../shared/terminalAddressHelpers';
+import { computeContractTeu } from '../../shared/teuUtils';
+import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
 import { WorkflowPage, WorkflowSection, type WorkflowStat } from '../shared/WorkflowPage';
-import { metricGrid4Sx } from '../../shared/responsiveLayout';
 
 function greetingForNow(): string {
   const h = new Date().getHours();
@@ -62,7 +70,6 @@ export function DashboardPage() {
   const isEvaluator = role === 'Evaluator' || role === 'SystemAdmin' || isShippingAdmin;
 
   const { data: notifications = [] } = useGetNotificationsQuery();
-  const [markRead] = useMarkNotificationsReadMutation();
   const unread = useMemo(() => notifications.filter((n) => !n.isRead), [notifications]);
 
   const { data: manifests = [], refetch: refetchManifests } = useGetManifestsQuery(undefined, {
@@ -84,18 +91,29 @@ export function DashboardPage() {
   const { data: accreditations = [] } = useGetAccreditationsQuery(undefined, {
     skip: !isEvaluator,
   });
+  const { data: shippingAdminConsignees = [] } = useGetShippingAdminConsigneesQuery(undefined, {
+    skip: !isShippingAdmin,
+  });
+  const { data: shippingAdminBrokers = [] } = useGetShippingAdminBrokersQuery(undefined, {
+    skip: !isShippingAdmin,
+  });
+  const { shippingLineId } = useDefaultShippingLine();
   const { data: terminals = [], refetch: refetchTerminals } = useGetTerminalsQuery(undefined, {
     skip: !isLocationDashboard,
   });
-  const { data: allocations = [], refetch: refetchAllocations } = useGetCyAllocationsQuery(undefined, {
-    skip: !isLocationDashboard,
-  });
+  const { data: contractAllocations = [], refetch: refetchAllocations } = useGetCyAllocationsQuery(
+    shippingLineId
+      ? { shippingLineId, containerYardsOnly: false, activeTerminalsOnly: true }
+      : undefined,
+    { skip: !isLocationDashboard || !shippingLineId },
+  );
   const { data: containers = [], refetch: refetchContainers } = useGetContainersQuery(undefined, {
     skip: !isLocationDashboard,
   });
-  const { data: utilization = [], refetch: refetchUtilization } = useGetUtilizationQuery(undefined, {
-    skip: !isLocationDashboard,
-  });
+  const { data: utilization = [], refetch: refetchUtilization } = useGetUtilizationQuery(
+    shippingLineId ? { shippingLineId } : undefined,
+    { skip: !isLocationDashboard || !shippingLineId },
+  );
   const { data: repositioning = [], refetch: refetchRepositioning } = useGetRepositioningQuery(undefined, {
     skip: !isLocationDashboard,
   });
@@ -249,102 +267,111 @@ export function DashboardPage() {
     const manifestsWeek = manifests.filter((m) => new Date(m.createdAt) >= startOfWeek);
     const manifestsMonth = manifests.filter((m) => new Date(m.createdAt) >= startOfMonth);
 
-    const portTerminals = terminals.filter((t) => !/cy|containeryard/i.test(`${t.kind}${t.identity}`));
-    const cyTerminals = terminals.filter((t) => /cy|containeryard/i.test(`${t.kind}${t.identity}`));
-    const totalAtPort = utilization.reduce((sum, row) => sum + row.atTerminal, 0);
-    const totalPreForecast = utilization.reduce((sum, row) => sum + row.pendingPreAdvice, 0);
-    const totalUsedTeu = utilization.reduce((sum, row) => sum + row.usedTeu, 0);
-    const totalAllocatedTeu = utilization.reduce((sum, row) => sum + row.allocatedTeu, 0);
-    const containersAtCy = containers.filter((c) => Boolean(c.cyAllocationId || c.cyTerminalName));
+    const terminalById = new Map(terminals.map((t) => [t.id, t]));
     const outboundRequests = repositioning.filter((r) => !/completed|rejected/i.test(r.status));
     const pendingOutbound = repositioning.filter((r) => /pending/i.test(r.status)).length;
     const inTransitOutbound = repositioning.filter((r) => /transit/i.test(r.status)).length;
     const readyEdos = edos.filter((e) => /generated|ready|active/i.test(e.status)).length;
-    const unreadAlerts = unread.length;
 
-    const locationNotes = {
-      port: 'Port cards use current V2 terminal, utilization, container, and repositioning data to approximate the V1 port view.',
-      cy: 'CY cards use live allocation, container, and utilization data, so this section is closer to the V1 dashboard behavior.',
+    type ContractLocationCard = {
+      id: string;
+      terminalId: string;
+      name: string;
+      code: string;
+      logoPath?: string | null;
+      location?: string;
+      usedTeu: number;
+      capacityTeu: number;
+      capacity20: number;
+      capacity40: number;
+      allocated20: number;
+      allocated40: number;
+      pending20: number;
+      pending40: number;
+      utilizationPct: number;
+      inbound: number;
+      atPort: number;
+      outbound: number;
     };
 
-    const portCards = portTerminals.map((terminal) => {
-      const utilizationRow = utilization.find((row) => row.terminalId === terminal.id || row.terminalName === terminal.name);
+    const contractPortCards: ContractLocationCard[] = [];
+    const contractCyCards: ContractLocationCard[] = [];
+
+    for (const allocation of contractAllocations) {
+      const terminal = terminalById.get(allocation.terminalId);
+      if (!terminal?.isActive) continue;
+
+      const utilRow = utilization.find((row) => row.terminalId === allocation.terminalId);
+      const capacityTeu = computeContractTeu(allocation.capacity20Ft, allocation.capacity40Ft);
+      const usedTeu = utilRow?.usedTeu ?? allocation.usedTeu;
       const localContainers = containers.filter(
         (c) =>
+          c.cyAllocationId === allocation.id ||
+          c.cyTerminalName === allocation.terminalName ||
           (c.currentLocation ?? '').toLowerCase().includes(terminal.name.toLowerCase()) ||
           (c.currentLocation ?? '').toLowerCase().includes(terminal.code.toLowerCase()),
       );
-      const small = localContainers.filter((c) => c.sizeCode?.includes('20'));
-      const large = localContainers.filter((c) => c.sizeCode?.includes('40'));
+      const allocated20 = localContainers.filter((c) => c.sizeCode?.includes('20')).length;
+      const allocated40 = localContainers.filter((c) => c.sizeCode?.includes('40')).length;
+      const pendingPreAdvice = utilRow?.pendingPreAdvice ?? 0;
+      const pending20 = Math.round(pendingPreAdvice / 2);
+      const pending40 = Math.max(pendingPreAdvice - pending20, 0);
       const inboundTotal = manifests.filter((m) => !m.billingId).length;
       const outboundTotal = outboundRequests
         .filter((r) => r.destinationTerminalName === terminal.name)
         .reduce((sum, r) => sum + r.containerCount, 0);
-      const inbound20 = splitCount(inboundTotal, 0.55);
-      const inbound40 = Math.max(inboundTotal - inbound20, 0);
-      const outbound20 = splitCount(outboundTotal, 0.5);
-      const outbound40 = Math.max(outboundTotal - outbound20, 0);
-      const available20 = Math.max(Math.round(terminal.dailyCapacity / 2) - small.length, 0);
-      const available40 = Math.max(Math.round(terminal.dailyCapacity / 2) - large.length, 0);
-      return {
-        id: terminal.id,
+
+      const card: ContractLocationCard = {
+        id: allocation.id,
+        terminalId: terminal.id,
         name: terminal.name,
         code: terminal.code,
-        inbound: manifests.filter((m) => !m.billingId).length,
-        atPort: utilizationRow?.atTerminal ?? localContainers.length,
-        outbound: outboundRequests.filter((r) => r.destinationTerminalName === terminal.name).reduce((sum, r) => sum + r.containerCount, 0),
-        available: Math.max(terminal.dailyCapacity - (utilizationRow?.atTerminal ?? 0), 0),
-        utilizationPct: terminal.dailyCapacity ? Math.round((((utilizationRow?.atTerminal ?? 0) / terminal.dailyCapacity) * 100) * 10) / 10 : 0,
-        twenty: {
-          inbound: inbound20,
-          atPort: small.length,
-          outbound: outbound20,
-          available: available20,
-          utilizationPct: available20 + small.length ? Math.round((small.length / (available20 + small.length)) * 1000) / 10 : 0,
-        },
-        forty: {
-          inbound: inbound40,
-          atPort: large.length,
-          outbound: outbound40,
-          available: available40,
-          utilizationPct: available40 + large.length ? Math.round((large.length / (available40 + large.length)) * 1000) / 10 : 0,
-        },
-      };
-    });
-
-    const cyCards = allocations.map((allocation) => {
-      const utilizationRow = utilization.find(
-        (row) => row.terminalId === allocation.terminalId || row.terminalName === allocation.terminalName,
-      );
-      const terminalMeta = cyTerminals.find(
-        (terminal) => terminal.id === allocation.terminalId || terminal.name === allocation.terminalName,
-      );
-      const localContainers = containers.filter((c) => c.cyAllocationId === allocation.id || c.cyTerminalName === allocation.terminalName);
-      const twentyAllocated = localContainers.filter((c) => c.sizeCode?.includes('20')).length;
-      const fortyAllocated = localContainers.filter((c) => c.sizeCode?.includes('40')).length;
-      return {
-        id: allocation.id,
-        name: allocation.terminalName,
-        location: [terminalMeta?.city, terminalMeta?.region].filter(Boolean).join(', '),
+        logoPath: terminal.logoPath,
+        location: formatTerminalAddressSummary(terminal.location) || terminal.city || undefined,
+        usedTeu,
+        capacityTeu,
         capacity20: allocation.capacity20Ft,
         capacity40: allocation.capacity40Ft,
-        allocated20: twentyAllocated,
-        allocated40: fortyAllocated,
-        preForecast: utilizationRow?.pendingPreAdvice ?? 0,
-        usedTeu: allocation.usedTeu,
-        capacityTeu: allocation.allocatedCapacityTeu,
-        available20: Math.max(allocation.capacity20Ft - twentyAllocated, 0),
-        available40: Math.max(allocation.capacity40Ft - fortyAllocated, 0),
-        utilizationPct: allocation.allocatedCapacityTeu ? Math.round((allocation.usedTeu / allocation.allocatedCapacityTeu) * 1000) / 10 : 0,
+        allocated20,
+        allocated40,
+        pending20: isContainerYardTerminal(terminal.identity) ? pending20 : 0,
+        pending40: isContainerYardTerminal(terminal.identity) ? pending40 : 0,
+        utilizationPct: capacityTeu ? Math.round((usedTeu / capacityTeu) * 1000) / 10 : 0,
+        inbound: inboundTotal,
+        atPort: utilRow?.atTerminal ?? allocated20 + allocated40,
+        outbound: outboundTotal,
       };
-    });
+
+      if (isPortTerminal(terminal.identity)) {
+        contractPortCards.push(card);
+      } else if (isContainerYardTerminal(terminal.identity)) {
+        contractCyCards.push(card);
+      }
+    }
+
+    const contractTerminalIds = new Set(
+      [...contractPortCards, ...contractCyCards].map((card) => card.terminalId),
+    );
+    const scopedUtilization = utilization.filter((row) => contractTerminalIds.has(row.terminalId));
+    const totalAtPort = scopedUtilization.reduce((sum, row) => sum + row.atTerminal, 0);
+    const totalPreForecast = scopedUtilization.reduce((sum, row) => sum + row.pendingPreAdvice, 0);
+    const totalUsedTeu = scopedUtilization.reduce((sum, row) => sum + row.usedTeu, 0);
+    const totalAllocatedTeu = [...contractPortCards, ...contractCyCards].reduce(
+      (sum, card) => sum + card.capacityTeu,
+      0,
+    );
+    const containersAtCy = containers.filter(
+      (c) =>
+        Boolean(c.cyAllocationId || c.cyTerminalName) &&
+        contractCyCards.some(
+          (yard) => yard.id === c.cyAllocationId || yard.name === c.cyTerminalName,
+        ),
+    );
 
     return {
       manifestsToday,
       manifestsWeek,
       manifestsMonth,
-      portTerminals,
-      cyTerminals,
       totalAtPort,
       totalPreForecast,
       totalUsedTeu,
@@ -354,12 +381,19 @@ export function DashboardPage() {
       pendingOutbound,
       inTransitOutbound,
       readyEdos,
-      unreadAlerts,
-      portCards,
-      cyCards,
-      locationNotes,
+      contractPortCards,
+      contractCyCards,
     };
-  }, [isLocationDashboard, manifests, terminals, utilization, containers, allocations, repositioning, edos, unread]);
+  }, [
+    isLocationDashboard,
+    manifests,
+    terminals,
+    utilization,
+    containers,
+    contractAllocations,
+    repositioning,
+    edos,
+  ]);
 
   if (isLocationDashboard && slStaffDashboard) {
     const awaitingFinal = accreditations.filter((a) => a.status === 'AwaitingFinalApproval').length;
@@ -390,9 +424,17 @@ export function DashboardPage() {
               NOA List
             </Button>
             {isShippingAdmin && (
-              <Button component={RouterLink} to="/approvals" variant="outlined">
-                Accreditations
-              </Button>
+              <>
+                <Button component={RouterLink} to="/approvals" variant="outlined">
+                  Accreditations
+                </Button>
+                <Button component={RouterLink} to="/shipping-admin/consignees" variant="outlined">
+                  Consignees
+                </Button>
+                <Button component={RouterLink} to="/shipping-admin/brokers" variant="outlined">
+                  Brokers
+                </Button>
+              </>
             )}
             <Button variant="outlined" onClick={refreshDashboard}>
               Refresh
@@ -411,7 +453,7 @@ export function DashboardPage() {
           <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' } }}>
             <SummaryCard
               label="Port terminals"
-              value={slStaffDashboard.portTerminals.length}
+              value={slStaffDashboard.contractPortCards.length}
               hint="Discharge locations"
               icon={<DirectionsBoatOutlinedIcon fontSize="small" />}
               tone="primary"
@@ -421,7 +463,7 @@ export function DashboardPage() {
               value={manifests.filter((m) => !m.billingId).length}
               hint="Laden expected - ETA today onward"
               detail={`${manifests.filter((m) => !m.billingId && m.blNumber).length}x with BL · ${manifests.filter((m) => !m.billingId && !m.blNumber).length}x awaiting BL`}
-              badges={slStaffDashboard.portCards.slice(0, 2).map((terminal) => `${terminal.code} ${terminal.inbound}`)}
+              badges={slStaffDashboard.contractPortCards.slice(0, 2).map((terminal) => `${terminal.code} ${terminal.inbound}`)}
               icon={<DirectionsBoatOutlinedIcon fontSize="small" />}
               tone="info"
             />
@@ -430,7 +472,7 @@ export function DashboardPage() {
               value={slStaffDashboard.totalAtPort}
               hint="Import + export/repo at terminal"
               detail={`${containers.filter((c) => c.currentDwellDays > 0).length} with dwell tracking`}
-              badges={slStaffDashboard.portCards.slice(0, 2).map((terminal) => `${terminal.code} ${terminal.atPort}`)}
+              badges={slStaffDashboard.contractPortCards.slice(0, 2).map((terminal) => `${terminal.code} ${terminal.atPort} used`)}
               icon={<PlaceOutlinedIcon fontSize="small" />}
               tone="success"
             />
@@ -439,7 +481,7 @@ export function DashboardPage() {
               value={slStaffDashboard.outboundRequests.reduce((sum, item) => sum + item.containerCount, 0)}
               hint={`${slStaffDashboard.inTransitOutbound} in transit · ${slStaffDashboard.pendingOutbound} pending approval`}
               detail="CY to port repositioning"
-              badges={slStaffDashboard.portCards.slice(0, 2).map((terminal) => `${terminal.code} ${terminal.outbound}`)}
+              badges={slStaffDashboard.contractPortCards.slice(0, 2).map((terminal) => `${terminal.code} ${terminal.utilizationPct}%`)}
               icon={<LocalShippingOutlinedIcon fontSize="small" />}
               tone="warning"
             />
@@ -450,7 +492,7 @@ export function DashboardPage() {
           <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' } }}>
             <SummaryCard
               label="Container yards"
-              value={Math.max(slStaffDashboard.cyCards.length, slStaffDashboard.cyTerminals.length)}
+              value={slStaffDashboard.contractCyCards.length}
               hint="Empty return locations"
               icon={<WarehouseOutlinedIcon fontSize="small" />}
               tone="primary"
@@ -459,8 +501,8 @@ export function DashboardPage() {
               label="At CY"
               value={slStaffDashboard.containersAtCy.length}
               hint="Physically allocated at yard"
-              detail={`${containers.filter((c) => c.sizeCode?.includes('20')).length}x20ft · ${containers.filter((c) => c.sizeCode?.includes('40')).length}x40ft`}
-              badges={slStaffDashboard.cyCards.slice(0, 2).map((yard) => `${yard.name} ${yard.allocated20 + yard.allocated40}`)}
+              detail={`${slStaffDashboard.containersAtCy.filter((c) => c.sizeCode?.includes('20')).length}x20ft · ${slStaffDashboard.containersAtCy.filter((c) => c.sizeCode?.includes('40')).length}x40ft`}
+              badges={slStaffDashboard.contractCyCards.slice(0, 2).map((yard) => `${yard.code} ${yard.usedTeu} TEU`)}
               icon={<Inventory2OutlinedIcon fontSize="small" />}
               tone="success"
             />
@@ -469,7 +511,7 @@ export function DashboardPage() {
               value={slStaffDashboard.totalPreForecast}
               hint="Announced - pending arrival"
               detail={`${slStaffDashboard.pendingOutbound} tied to outbound movement`}
-              badges={slStaffDashboard.cyCards.slice(0, 2).map((yard) => `${yard.name} ${yard.preForecast}`)}
+              badges={slStaffDashboard.contractCyCards.slice(0, 2).map((yard) => `${yard.code} ${yard.pending20 + yard.pending40}`)}
               icon={<ScheduleOutlinedIcon fontSize="small" />}
               tone="warning"
             />
@@ -478,7 +520,7 @@ export function DashboardPage() {
               value={`${slStaffDashboard.totalUsedTeu} / ${slStaffDashboard.totalAllocatedTeu || 0} TEUs`}
               hint={`${slStaffDashboard.totalAllocatedTeu ? Math.round((slStaffDashboard.totalUsedTeu / slStaffDashboard.totalAllocatedTeu) * 1000) / 10 : 0}% full`}
               detail={`${slStaffDashboard.containersAtCy.length} at yard · ${slStaffDashboard.totalPreForecast} pre-forecast`}
-              badges={slStaffDashboard.cyCards.slice(0, 2).map((yard) => `${yard.name} ${yard.utilizationPct}%`)}
+              badges={slStaffDashboard.contractCyCards.slice(0, 2).map((yard) => `${yard.code} ${yard.utilizationPct}%`)}
               icon={<QueryStatsOutlinedIcon fontSize="small" />}
               tone="info"
             />
@@ -486,172 +528,116 @@ export function DashboardPage() {
         </WorkflowSection>
 
         <WorkflowSection
-          title="Port / Terminal Locations"
-          subtitle="Laden inbound, at-port, and CY-to-port outbound volume by discharge terminal."
+          title="Port terminals"
+          subtitle="Contract TEU per discharge terminal — capacity, utilization, and unit limits."
           actions={
             <Stack direction="row" spacing={1} alignItems="center">
-              <Chip size="small" label={`${slStaffDashboard.portCards.length} Ports`} color="primary" />
+              <Chip size="small" label={`${slStaffDashboard.contractPortCards.length} Ports`} color="primary" />
               <Button component={RouterLink} to="/repositioning" size="small" variant="outlined">
                 Outbound Requests
               </Button>
             </Stack>
           }
         >
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
-            {slStaffDashboard.portCards.map((terminal) => (
-              <Paper key={terminal.id} elevation={0} sx={{ p: 1.75, border: 1, borderColor: 'divider', borderRadius: 2.5 }}>
-                <Stack direction="row" spacing={1.25} alignItems="flex-start" mb={1.5}>
-                  <Box
-                    sx={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: 2,
-                      bgcolor: 'rgba(103, 80, 164, 0.10)',
-                      color: 'primary.main',
-                      display: 'grid',
-                      placeItems: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <DirectionsBoatOutlinedIcon fontSize="small" />
-                  </Box>
-                  <Box minWidth={0} flex={1}>
-                    <Typography fontWeight={800} fontSize="1.05rem" lineHeight={1.2}>
-                      {terminal.name}
-                    </Typography>
-                    <Stack direction="row" spacing={0.75} alignItems="center" mt={0.5}>
-                      <Chip
-                        size="small"
-                        label="TERMINAL"
-                        sx={{
-                          height: 18,
-                          bgcolor: 'primary.main',
-                          color: 'primary.contrastText',
-                          '& .MuiChip-label': { px: 0.85, fontSize: 9, fontWeight: 700 },
-                        }}
-                      />
-                      <Typography variant="caption" color="text.secondary">
-                        {terminal.code}
-                      </Typography>
-                    </Stack>
-                  </Box>
-                </Stack>
-
-                <TerminalSizeBlock
-                  label="20ft Containers"
-                  badge="20ft"
-                  inbound={terminal.twenty.inbound}
-                  atPort={terminal.twenty.atPort}
-                  outbound={terminal.twenty.outbound}
-                  available={terminal.twenty.available}
-                  utilizationPct={terminal.twenty.utilizationPct}
+          {slStaffDashboard.contractPortCards.length === 0 ? (
+            <Alert severity="info" variant="outlined">
+              No active port terminal contracts for your shipping line.
+            </Alert>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+              {slStaffDashboard.contractPortCards.map((terminal) => (
+                <ContractTeuLocationCard
+                  key={terminal.id}
+                  name={terminal.name}
+                  subtitle={terminal.name}
+                  code={terminal.code}
+                  logoPath={terminal.logoPath}
+                  kind="port"
+                  typeLabel="PORT TERMINAL"
+                  usedTeu={terminal.usedTeu}
+                  capacityTeu={terminal.capacityTeu}
+                  capacity20={terminal.capacity20}
+                  capacity40={terminal.capacity40}
+                  allocated20={terminal.allocated20}
+                  allocated40={terminal.allocated40}
+                  unitLimit20Label="20ft Units"
+                  unitLimit40Label="40ft Units"
                 />
-
-                <Box sx={{ my: 1.5 }} />
-
-                <TerminalSizeBlock
-                  label="40ft Containers"
-                  badge="40ft"
-                  inbound={terminal.forty.inbound}
-                  atPort={terminal.forty.atPort}
-                  outbound={terminal.forty.outbound}
-                  available={terminal.forty.available}
-                  utilizationPct={terminal.forty.utilizationPct}
-                />
-              </Paper>
-            ))}
-          </Box>
-          <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
-            {slStaffDashboard.locationNotes.port}
-          </Alert>
+              ))}
+            </Box>
+          )}
         </WorkflowSection>
 
         <WorkflowSection
-          title="CY Empty Return Locations"
-          subtitle="Container yard capacity for empty returns - CY type only, excludes port terminals."
+          title="Container yards"
+          subtitle="Contract TEU per CY — empty return capacity and unit limits."
           actions={
-            <Chip size="small" label={`${slStaffDashboard.cyCards.length} CY`} color="primary" />
+            <Chip size="small" label={`${slStaffDashboard.contractCyCards.length} CY`} color="primary" />
           }
         >
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
-            {slStaffDashboard.cyCards.map((yard) => (
-              <Paper key={yard.id} elevation={0} sx={{ p: 1.75, border: 1, borderColor: 'divider', borderRadius: 2.5 }}>
-                <Stack direction="row" justifyContent="space-between" spacing={1} mb={1.5} alignItems="flex-start">
-                  <Stack direction="row" spacing={1.25} alignItems="flex-start" minWidth={0}>
-                    <Box
-                      sx={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 2,
-                        bgcolor: 'rgba(55, 71, 79, 0.08)',
-                        color: 'text.secondary',
-                        display: 'grid',
-                        placeItems: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <WarehouseOutlinedIcon fontSize="small" />
-                    </Box>
-                    <Box minWidth={0}>
-                      <Typography fontWeight={800} fontSize="1.05rem" lineHeight={1.2}>
-                        {yard.name}
-                      </Typography>
-                      <Stack direction="row" spacing={0.75} alignItems="center" mt={0.5}>
-                        <Chip
-                          size="small"
-                          label="CONTAINER YARD"
-                          sx={{
-                            height: 18,
-                            bgcolor: 'text.primary',
-                            color: 'background.paper',
-                            '& .MuiChip-label': { px: 0.85, fontSize: 9, fontWeight: 700 },
-                          }}
-                        />
-                      </Stack>
-                      <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                        {yard.location || 'Return location'}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  <Chip
-                    size="small"
-                    label={yard.utilizationPct >= 90 ? 'Near capacity' : 'Available'}
-                    color={yard.utilizationPct >= 90 ? 'warning' : 'success'}
-                  />
-                </Stack>
-
-                <CySizeBlock
-                  label="20ft Containers"
-                  badge="20ft"
-                  capacity={yard.capacity20}
-                  allocated={yard.allocated20}
-                  preForecast={Math.round(yard.preForecast / 2)}
-                  available={yard.available20}
-                  utilizationPct={yard.capacity20 ? Math.round((yard.allocated20 / yard.capacity20) * 1000) / 10 : 0}
+          {slStaffDashboard.contractCyCards.length === 0 ? (
+            <Alert severity="info" variant="outlined">
+              No active container yard contracts for your shipping line.
+            </Alert>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+              {slStaffDashboard.contractCyCards.map((yard) => (
+                <ContractTeuLocationCard
+                  key={yard.id}
+                  name={yard.name}
+                  subtitle={yard.location || yard.name}
+                  code={yard.code}
+                  logoPath={yard.logoPath}
+                  kind="cy"
+                  typeLabel="CONTAINER YARD"
+                  usedTeu={yard.usedTeu}
+                  capacityTeu={yard.capacityTeu}
+                  capacity20={yard.capacity20}
+                  capacity40={yard.capacity40}
+                  allocated20={yard.allocated20}
+                  allocated40={yard.allocated40}
+                  pending20={yard.pending20}
+                  pending40={yard.pending40}
+                  footerAction={{ label: 'Request Export / Repo', to: '/repositioning' }}
                 />
-
-                <Box sx={{ my: 1.5 }} />
-
-                <CySizeBlock
-                  label="40ft Containers"
-                  badge="40ft"
-                  capacity={yard.capacity40}
-                  allocated={yard.allocated40}
-                  preForecast={Math.max(yard.preForecast - Math.round(yard.preForecast / 2), 0)}
-                  available={yard.available40}
-                  utilizationPct={yard.capacity40 ? Math.round((yard.allocated40 / yard.capacity40) * 1000) / 10 : 0}
-                />
-
-                <Button component={RouterLink} to="/repositioning" variant="outlined" size="small" fullWidth sx={{ mt: 1.5 }}>
-                  Request Export / Repo
-                </Button>
-              </Paper>
-            ))}
-          </Box>
-          <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
-            {slStaffDashboard.locationNotes.cy}
-          </Alert>
+              ))}
+            </Box>
+          )}
         </WorkflowSection>
+
+        {isShippingAdmin && (
+          <WorkflowSection
+            title="Partners"
+            subtitle="Review new registrations and browse accredited consignee and broker profiles on your shipping line."
+          >
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' } }}>
+              <PartnerLinkCard
+                to="/approvals"
+                icon={<AssignmentOutlinedIcon fontSize="small" />}
+                title="Accreditations"
+                hint="New registrations awaiting review"
+                detail={`${accreditations.filter((a) => a.status === 'AwaitingFinalApproval').length} awaiting final approval`}
+                tone="warning.main"
+              />
+              <PartnerLinkCard
+                to="/shipping-admin/consignees"
+                icon={<PeopleOutlineOutlinedIcon fontSize="small" />}
+                title="Consignees"
+                hint="Approved consignees on your line"
+                detail={`${shippingAdminConsignees.length} accredited · use View for profile`}
+                tone="primary.main"
+              />
+              <PartnerLinkCard
+                to="/shipping-admin/brokers"
+                icon={<BusinessOutlinedIcon fontSize="small" />}
+                title="Brokers"
+                hint="Approved brokers on your line"
+                detail={`${shippingAdminBrokers.length} accredited · use View for profile`}
+                tone="info.main"
+              />
+            </Box>
+          </WorkflowSection>
+        )}
 
         <WorkflowSection title="Operational follow-up" subtitle="Fast links back into the core workflow queues used by SL Staff.">
           <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' } }}>
@@ -671,41 +657,6 @@ export function DashboardPage() {
               );
             })}
           </Box>
-        </WorkflowSection>
-
-        <WorkflowSection title="Unread alerts" subtitle="Keep exceptions and release-related updates visible from the dashboard.">
-          {unread.length === 0 ? (
-            <Alert severity="success" variant="outlined">
-              No unread alerts right now.
-            </Alert>
-          ) : (
-            <Stack spacing={1.25}>
-              {unread.slice(0, 5).map((n) => (
-                <Paper
-                  key={n.id}
-                  elevation={0}
-                  sx={{ p: 1.75, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.default' }}
-                >
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between">
-                    <Box component={RouterLink} to={`/notifications/${n.id}`} sx={{ textDecoration: 'none', color: 'inherit', minWidth: 0 }}>
-                      <Typography fontWeight={700}>{n.title}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {n.message}
-                      </Typography>
-                    </Box>
-                    <Button
-                      size="small"
-                      onClick={async () => {
-                        await markRead({ notificationId: n.id });
-                      }}
-                    >
-                      Mark read
-                    </Button>
-                  </Stack>
-                </Paper>
-              ))}
-            </Stack>
-          )}
         </WorkflowSection>
       </WorkflowPage>
     );
@@ -772,41 +723,6 @@ export function DashboardPage() {
               ))}
             </Box>
           </WorkflowSection>
-
-          <WorkflowSection title="Unread alerts" subtitle="Escalations, failed actions, and workflow updates needing attention.">
-            {unread.length === 0 ? (
-              <Alert severity="success" variant="outlined">
-                You are caught up. No unread shipping alerts right now.
-              </Alert>
-            ) : (
-              <Stack spacing={1.25}>
-                {unread.slice(0, 5).map((n) => (
-                  <Paper
-                    key={n.id}
-                    elevation={0}
-                    sx={{ p: 1.75, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.default' }}
-                  >
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between">
-                      <Box component={RouterLink} to={`/notifications/${n.id}`} sx={{ textDecoration: 'none', color: 'inherit', minWidth: 0 }}>
-                        <Typography fontWeight={700}>{n.title}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {n.message}
-                        </Typography>
-                      </Box>
-                      <Button
-                        size="small"
-                        onClick={async () => {
-                          await markRead({ notificationId: n.id });
-                        }}
-                      >
-                        Mark read
-                      </Button>
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-            )}
-          </WorkflowSection>
         </Stack>
 
         <Stack spacing={3}>
@@ -844,6 +760,53 @@ export function DashboardPage() {
         </Stack>
       </Box>
     </WorkflowPage>
+  );
+}
+
+function PartnerLinkCard({
+  to,
+  icon,
+  title,
+  hint,
+  detail,
+  tone,
+}: {
+  to: string;
+  icon: ReactNode;
+  title: string;
+  hint: string;
+  detail: string;
+  tone: string;
+}) {
+  return (
+    <Paper
+      component={RouterLink}
+      to={to}
+      elevation={0}
+      sx={{
+        p: 2,
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 2,
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+        '&:hover': { borderColor: tone, boxShadow: 1 },
+      }}
+    >
+      <Stack direction="row" spacing={1.25} alignItems="flex-start">
+        <Box sx={{ color: tone, mt: 0.25 }}>{icon}</Box>
+        <Box minWidth={0}>
+          <Typography fontWeight={800}>{title}</Typography>
+          <Typography variant="body2" color="text.secondary" mt={0.35}>
+            {hint}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" mt={0.75}>
+            {detail}
+          </Typography>
+        </Box>
+      </Stack>
+    </Paper>
   );
 }
 
@@ -991,155 +954,4 @@ function SummaryCard({
       </Stack>
     </Paper>
   );
-}
-
-function TerminalSizeBlock({
-  label,
-  badge,
-  inbound,
-  atPort,
-  outbound,
-  available,
-  utilizationPct,
-}: {
-  label: string;
-  badge: string;
-  inbound: number;
-  atPort: number;
-  outbound: number;
-  available: number;
-  utilizationPct: number;
-}) {
-  return (
-    <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-        <Typography fontWeight={700} fontSize="0.95rem">
-          {label}
-        </Typography>
-        <Chip
-          size="small"
-          label={badge}
-          sx={{
-            height: 22,
-            borderRadius: 999,
-            bgcolor: 'text.primary',
-            color: 'background.paper',
-            '& .MuiChip-label': { px: 0.9, fontSize: 10, fontWeight: 700 },
-          }}
-        />
-      </Stack>
-      <Box sx={metricGrid4Sx}>
-        <MetricColumn label="Inbound" value={inbound} color="info.main" />
-        <MetricColumn label="At Port" value={atPort} color="success.main" />
-        <MetricColumn label="Outbound" value={outbound} color="warning.main" />
-        <MetricColumn label="Avail." value={available} color="text.primary" />
-      </Box>
-      <Typography variant="caption" color="text.secondary" display="block" mt={1.25}>
-        Utilization
-      </Typography>
-      <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
-        <Box sx={{ flex: 1, height: 10, borderRadius: 999, bgcolor: 'rgba(18,18,18,0.75)', overflow: 'hidden' }}>
-          <Box
-            sx={{
-              width: `${Math.max(Math.min(utilizationPct, 100), 0)}%`,
-              height: '100%',
-              borderRadius: 999,
-              bgcolor: 'primary.main',
-            }}
-          />
-        </Box>
-        <Typography variant="body2" fontWeight={700} color="text.secondary">
-          {utilizationPct}%
-        </Typography>
-      </Stack>
-    </Box>
-  );
-}
-
-function MetricColumn({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: string;
-}) {
-  return (
-    <Box textAlign="center">
-      <Typography variant="caption" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography fontWeight={800} color={color} fontSize="1.1rem" lineHeight={1.1} mt={0.25}>
-        {value}
-      </Typography>
-    </Box>
-  );
-}
-
-function CySizeBlock({
-  label,
-  badge,
-  capacity,
-  allocated,
-  preForecast,
-  available,
-  utilizationPct,
-}: {
-  label: string;
-  badge: string;
-  capacity: number;
-  allocated: number;
-  preForecast: number;
-  available: number;
-  utilizationPct: number;
-}) {
-  return (
-    <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-        <Typography fontWeight={700} fontSize="0.95rem">
-          {label}
-        </Typography>
-        <Chip
-          size="small"
-          label={badge}
-          sx={{
-            height: 22,
-            borderRadius: 999,
-            bgcolor: 'text.primary',
-            color: 'background.paper',
-            '& .MuiChip-label': { px: 0.9, fontSize: 10, fontWeight: 700 },
-          }}
-        />
-      </Stack>
-      <Box sx={metricGrid4Sx}>
-        <MetricColumn label="Capacity" value={capacity} color="text.primary" />
-        <MetricColumn label="Allocated" value={allocated} color="info.main" />
-        <MetricColumn label="Pre-Forecast" value={preForecast} color="warning.main" />
-        <MetricColumn label="Available" value={available} color="success.main" />
-      </Box>
-      <Typography variant="caption" color="text.secondary" display="block" mt={1.25}>
-        Utilization
-      </Typography>
-      <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
-        <Box sx={{ flex: 1, height: 10, borderRadius: 999, bgcolor: 'rgba(18,18,18,0.75)', overflow: 'hidden' }}>
-          <Box
-            sx={{
-              width: `${Math.max(Math.min(utilizationPct, 100), 0)}%`,
-              height: '100%',
-              borderRadius: 999,
-              bgcolor: 'success.main',
-            }}
-          />
-        </Box>
-        <Typography variant="body2" fontWeight={700} color="text.secondary">
-          {utilizationPct}%
-        </Typography>
-      </Stack>
-    </Box>
-  );
-}
-
-function splitCount(total: number, ratio: number): number {
-  return Math.max(Math.round(total * ratio), 0);
 }

@@ -17,16 +17,20 @@ import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined';
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../app/store';
-import { useGetEdoAuditQuery, useGetEdoQuery } from '../../app/api';
+import { useGetEdoAuditQuery, useGetEdoQuery, useGetActivePaymentFeeQuery } from '../../app/api';
 import { openEdoFile } from '../../shared/edoDownload';
+import { resolveEdoFeeAmount } from '../../shared/paymentFees';
 import {
   edoCanDownload,
   edoDownloadBlockedMessage,
   edoNeedsPayment,
+  edoPaymentRejected,
+  edoPaymentSubmitted,
   formatEdoStatus,
 } from '../../shared/formatEdoStatus';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { DetailRow } from '../shared/DetailRow';
+import { EdoActivityTimeline } from './EdoActivityTimeline';
 
 type TabKey = 'overview' | 'payment' | 'files' | 'activity';
 
@@ -66,7 +70,8 @@ export function EdoDetailPage() {
   const { user, accessToken } = useSelector((state: RootState) => state.auth);
 
   const { data: edo, isLoading, error } = useGetEdoQuery(id, { skip: !id });
-  const { data: audit = [] } = useGetEdoAuditQuery(id, { skip: !id });
+  const { data: audit = [], isLoading: auditLoading } = useGetEdoAuditQuery(id, { skip: !id });
+  const { data: edoFee } = useGetActivePaymentFeeQuery('edo');
 
   const backPath =
     from === 'release'
@@ -75,7 +80,7 @@ export function EdoDetailPage() {
         ? '/edo/payment-validation'
         : '/edo';
 
-  const canPay = ['Broker', 'Consignee', 'SystemAdmin'].includes(user?.role ?? '');
+  const canPay = ['Broker', 'Consignee'].includes(user?.role ?? '');
   const canDownload = edo ? edoCanDownload(edo.status, user?.role) : false;
   const needsPayment = edo ? edoNeedsPayment(edo.status, edo.currentPaymentStatus) : false;
 
@@ -114,6 +119,11 @@ export function EdoDetailPage() {
       </Alert>
     );
   }
+
+  const feeAmount = resolveEdoFeeAmount(edoFee, edo.feeAmount, {
+    lockSnapshot:
+      edoPaymentSubmitted(edo.currentPaymentStatus) && !edoPaymentRejected(edo.currentPaymentStatus),
+  });
 
   return (
     <WorkflowPage
@@ -234,7 +244,7 @@ export function EdoDetailPage() {
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                 <DetailRow
                   label="Fee amount"
-                  value={edo.feeAmount != null ? money(edo.feeAmount) : '—'}
+                  value={money(feeAmount)}
                 />
                 <DetailRow label="Payment status" value={edo.currentPaymentStatus ?? '—'} />
                 <DetailRow label="Submitted" value={formatWhen(edo.paymentSubmittedAt)} />
@@ -297,37 +307,11 @@ export function EdoDetailPage() {
           )}
 
           {tab === 'activity' && (
-            <WorkflowSection title="Activity trail" subtitle="Generation, payment, and release events.">
-              {audit.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" py={2}>
-                  No activity recorded yet.
-                </Typography>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                  <Stack spacing={1.5}>
-                    {audit.map((entry, index) => (
-                      <Box
-                        key={`${entry.at}-${index}`}
-                        sx={{
-                          pb: 1.5,
-                          borderBottom: index < audit.length - 1 ? 1 : 0,
-                          borderColor: 'divider',
-                        }}
-                      >
-                        <Typography variant="body2" fontWeight={700}>
-                          {entry.event}
-                          {entry.to ? ` → ${entry.to}` : ''}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatWhen(entry.at)}
-                          {entry.actor ? ` · ${entry.actor}` : ''}
-                          {entry.notes ? ` · ${entry.notes}` : ''}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                </Paper>
-              )}
+            <WorkflowSection
+              title="Activity trail"
+              subtitle="Chronological log of generation, payments, document access, and release decisions."
+            >
+              <EdoActivityTimeline audit={audit} isLoading={auditLoading} />
             </WorkflowSection>
           )}
         </Box>

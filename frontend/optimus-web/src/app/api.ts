@@ -21,6 +21,7 @@ import type {
   EdoPaymentDto,
   EdoReleaseQueueDto,
   EdoReleaseRecordDto,
+  EdoRevenueReportDto,
   ExchangeRateDto,
   FinalPaymentListResponse,
   GenerationSessionDto,
@@ -37,10 +38,12 @@ import type {
   RepositioningEligibleContainerDto,
   ShippingLineDto,
   TerminalDto,
+  TerminalDetailDto,
   TerminalSlotDto,
   TransferDto,
   TruckerTokenDto,
   UserDto,
+  UpdateProfileRequest,
   WorkspaceDto,
   UtilizationReportDto,
   WelcomeContentDto,
@@ -103,10 +106,10 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
         );
         result = await rawBaseQuery(args, api, extraOptions);
       } else {
-        api.dispatch(logout());
+        api.dispatch(logout({ clearReturnPath: false }));
       }
     } else if (!url.includes('/api/auth/login')) {
-      api.dispatch(logout());
+      api.dispatch(logout({ clearReturnPath: false }));
     }
   }
 
@@ -179,6 +182,21 @@ export const api = createApi({
     >({
       query: (body) => ({ url: '/api/auth/register/consignee', method: 'POST', body }),
     }),
+    registerTrucker: builder.mutation<
+      { message: string },
+      {
+        email: string;
+        password: string;
+        firstName: string;
+        lastName: string;
+        companyName?: string;
+        phoneNumber?: string;
+        licenseNumber?: string;
+        truckPlateNumber?: string;
+      }
+    >({
+      query: (body) => ({ url: '/api/auth/register/trucker', method: 'POST', body }),
+    }),
     requestOtp: builder.mutation<{ message: string }, { email: string }>({
       query: (body) => ({ url: '/api/auth/password/request-otp', method: 'POST', body }),
     }),
@@ -199,6 +217,22 @@ export const api = createApi({
     }),
     hello: builder.query<HelloResponse, void>({
       query: () => '/api/hello',
+    }),
+    getMe: builder.query<UserDto, void>({
+      query: () => '/api/me',
+    }),
+    uploadProfilePhoto: builder.mutation<UserDto, File>({
+      query: (file) => {
+        const form = new FormData();
+        form.append('file', file);
+        return { url: '/api/me/profile-photo', method: 'POST', body: form };
+      },
+    }),
+    removeProfilePhoto: builder.mutation<UserDto, void>({
+      query: () => ({ url: '/api/me/profile-photo', method: 'DELETE' }),
+    }),
+    updateProfile: builder.mutation<UserDto, UpdateProfileRequest>({
+      query: (body) => ({ url: '/api/me', method: 'PUT', body }),
     }),
     getShippingLines: builder.query<ShippingLineDto[], void>({
       query: () => '/api/shipping-lines',
@@ -223,6 +257,18 @@ export const api = createApi({
         url: `/api/shipping-lines/${id}/${active ? 'activate' : 'deactivate'}`,
         method: 'POST',
       }),
+      invalidatesTags: ['ShippingLines'],
+    }),
+    uploadShippingLineLogo: builder.mutation<{ logoPath: string }, { id: string; file: File }>({
+      query: ({ id, file }) => {
+        const form = new FormData();
+        form.append('file', file);
+        return { url: `/api/shipping-lines/${id}/logo`, method: 'POST', body: form };
+      },
+      invalidatesTags: ['ShippingLines'],
+    }),
+    deleteShippingLineLogo: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/shipping-lines/${id}/logo`, method: 'DELETE' }),
       invalidatesTags: ['ShippingLines'],
     }),
     switchShippingLine: builder.mutation<AuthResponse, { shippingLineId: string }>({
@@ -457,6 +503,10 @@ export const api = createApi({
       }),
       invalidatesTags: ['Payments', 'Manifests'],
     }),
+    getPaymentFees: builder.query<PaymentFeeDto[], void>({
+      query: () => '/api/payment-fees',
+      providesTags: ['PaymentFees'],
+    }),
     getActivePaymentFee: builder.query<PaymentFeeDto, string>({
       query: (feeType) => `/api/payment-fees/active/${feeType}`,
       providesTags: ['PaymentFees'],
@@ -558,6 +608,19 @@ export const api = createApi({
       query: () => '/api/edo-payments/reviewed',
       providesTags: ['EdoPayments'],
     }),
+    getEdoRevenueReport: builder.query<
+      EdoRevenueReportDto,
+      { from?: string; to?: string } | void
+    >({
+      query: (params) => {
+        const qs = new URLSearchParams();
+        if (params?.from) qs.set('from', params.from);
+        if (params?.to) qs.set('to', params.to);
+        const q = qs.toString();
+        return `/api/edo-payments/revenue${q ? `?${q}` : ''}`;
+      },
+      providesTags: ['EdoPayments'],
+    }),
     getEdoPayment: builder.query<EdoPaymentDto, string>({
       query: (id) => `/api/edo-payments/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'EdoPayments', id }],
@@ -572,6 +635,23 @@ export const api = createApi({
         body,
       }),
       invalidatesTags: ['EdoPayments', 'Edos'],
+    }),
+    saveEdoPaymentReceiptInsights: builder.mutation<
+      EdoPaymentDto,
+      {
+        id: string;
+        paymentChannel?: string | null;
+        paymentReference?: string | null;
+        qrphNumber?: string | null;
+        transactionAt?: string | null;
+      }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/edo-payments/${id}/receipt-insights`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'EdoPayments', id }, 'EdoPayments'],
     }),
     getEdoRenewals: builder.query<RenewalDto[], void>({
       query: () => '/api/edo-renewals',
@@ -603,9 +683,16 @@ export const api = createApi({
     verifyDocument: builder.query<DocumentVerifyDto, string>({
       query: (token) => `/api/verify/document/${token}`,
     }),
-    getTerminals: builder.query<TerminalDto[], void>({
-      query: () => '/api/terminals',
+    getTerminals: builder.query<TerminalDto[], { activeOnly?: boolean } | void>({
+      query: (arg) => {
+        const activeOnly = arg?.activeOnly ?? true;
+        return `/api/terminals?activeOnly=${activeOnly}`;
+      },
       providesTags: ['Terminals'],
+    }),
+    getTerminalDetail: builder.query<TerminalDetailDto, string>({
+      query: (id) => `/api/terminals/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'Terminals', id }],
     }),
     upsertTerminal: builder.mutation<
       TerminalDto,
@@ -622,6 +709,40 @@ export const api = createApi({
       }
     >({
       query: (body) => ({ url: '/api/terminals', method: 'POST', body }),
+      invalidatesTags: ['Terminals'],
+    }),
+    updateTerminal: builder.mutation<
+      TerminalDto,
+      {
+        id: string;
+        name: string;
+        code: string;
+        identity: string;
+        kind: string;
+        dailyCapacity: number;
+        location?: string;
+        region?: string;
+        city?: string;
+        isActive: boolean;
+      }
+    >({
+      query: ({ id, ...body }) => ({ url: `/api/terminals/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['Terminals'],
+    }),
+    toggleTerminalStatus: builder.mutation<TerminalDto, string>({
+      query: (id) => ({ url: `/api/terminals/${id}/toggle-status`, method: 'POST' }),
+      invalidatesTags: ['Terminals'],
+    }),
+    deleteTerminal: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/terminals/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Terminals'],
+    }),
+    uploadTerminalLogo: builder.mutation<TerminalDto, { id: string; file: File }>({
+      query: ({ id, file }) => {
+        const form = new FormData();
+        form.append('file', file);
+        return { url: `/api/terminals/${id}/logo`, method: 'POST', body: form };
+      },
       invalidatesTags: ['Terminals'],
     }),
     getTerminalSlots: builder.query<TerminalSlotDto[], string>({
@@ -668,9 +789,46 @@ export const api = createApi({
       }),
       invalidatesTags: ['ContainerCatalog'],
     }),
-    getCyAllocations: builder.query<CyAllocationDto[], void>({
-      query: () => '/api/cy-allocations',
+    getCyAllocations: builder.query<
+      CyAllocationDto[],
+      {
+        shippingLineId?: string;
+        terminalId?: string;
+        activeTerminalsOnly?: boolean;
+        containerYardsOnly?: boolean;
+      } | void
+    >({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        if (arg?.shippingLineId) params.set('shippingLineId', arg.shippingLineId);
+        if (arg?.terminalId) params.set('terminalId', arg.terminalId);
+        const activeTerminalsOnly = arg?.activeTerminalsOnly ?? true;
+        const containerYardsOnly = arg?.containerYardsOnly ?? true;
+        params.set('activeTerminalsOnly', String(activeTerminalsOnly));
+        params.set('containerYardsOnly', String(containerYardsOnly));
+        const qs = params.toString();
+        return `/api/cy-allocations?${qs}`;
+      },
       providesTags: ['CyAllocations'],
+    }),
+    upsertCyAllocation: builder.mutation<
+      CyAllocationDto,
+      {
+        id?: string;
+        shippingLineId: string;
+        terminalId: string;
+        staffUserId?: string | null;
+        allocatedCapacityTeu: number;
+        capacity20Ft: number;
+        capacity40Ft: number;
+      }
+    >({
+      query: ({ id, ...body }) => ({
+        url: id ? `/api/cy-allocations/${id}` : '/api/cy-allocations',
+        method: id ? 'PUT' : 'POST',
+        body,
+      }),
+      invalidatesTags: ['CyAllocations', 'Terminals'],
     }),
     getContainers: builder.query<ContainerDto[], void>({
       query: () => '/api/containers',
@@ -734,11 +892,27 @@ export const api = createApi({
       query: (id) => ({ url: `/api/containers/${id}/available-for-return`, method: 'POST' }),
       invalidatesTags: ['Containers'],
     }),
-    getUtilization: builder.query<UtilizationReportDto[], void>({
-      query: () => '/api/containers/utilization',
+    getUtilization: builder.query<
+      UtilizationReportDto[],
+      { terminalIdentity?: string; shippingLineId?: string } | void
+    >({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        if (arg?.terminalIdentity) params.set('terminalIdentity', arg.terminalIdentity);
+        if (arg?.shippingLineId) params.set('shippingLineId', arg.shippingLineId);
+        const qs = params.toString();
+        return qs ? `/api/containers/utilization?${qs}` : '/api/containers/utilization';
+      },
+      providesTags: ['Containers'],
     }),
-    exportUtilization: builder.mutation<{ csv: string; pdfPath: string }, void>({
-      query: () => ({ url: '/api/containers/utilization/export', method: 'GET' }),
+    exportUtilization: builder.mutation<{ csv: string; pdfPath: string }, { terminalIdentity?: string } | void>({
+      query: (arg) => {
+        const identity = arg?.terminalIdentity;
+        const url = identity
+          ? `/api/containers/utilization/export?terminalIdentity=${encodeURIComponent(identity)}`
+          : '/api/containers/utilization/export';
+        return { url, method: 'GET' };
+      },
     }),
     getDwellConfig: builder.query<DwellConfigDto, void>({
       query: () => '/api/dwell/config',
@@ -959,6 +1133,9 @@ export const api = createApi({
       }),
       invalidatesTags: ['Accreditation', 'Notifications'],
     }),
+    getAccreditationCertificate: builder.query<{ path: string }, string>({
+      query: (id) => `/api/accreditation/${id}/certificate`,
+    }),
     getTransfers: builder.query<TransferDto[], void>({
       query: () => '/api/transfers',
       providesTags: ['Transfers'],
@@ -1161,6 +1338,21 @@ export const api = createApi({
       query: (body) => ({ url: '/api/rate-limits', method: 'POST', body }),
       invalidatesTags: ['RateLimits'],
     }),
+    updateRateLimit: builder.mutation<
+      RateLimitRuleDto,
+      {
+        id: string;
+        name: string;
+        pathPrefix: string;
+        role?: string | null;
+        permitLimit: number;
+        windowSeconds: number;
+        isActive: boolean;
+      }
+    >({
+      query: ({ id, ...body }) => ({ url: `/api/rate-limits/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['RateLimits'],
+    }),
     getMessageTemplates: builder.query<MessageTemplateDto[], void>({
       query: () => '/api/message-templates',
       providesTags: ['MessageTemplates'],
@@ -1185,9 +1377,29 @@ export const api = createApi({
     }),
     upsertDocumentTemplate: builder.mutation<
       DocumentTemplateDto,
-      { documentType: string; name: string; bodyHtml: string; isActive: boolean }
+      {
+        documentType: string;
+        name: string;
+        bodyHtml: string;
+        layoutJson?: string | null;
+        paperSize?: string;
+        orientation?: string;
+        isActive: boolean;
+      }
     >({
       query: (body) => ({ url: '/api/document-templates', method: 'POST', body }),
+      invalidatesTags: ['DocumentTemplates'],
+    }),
+    activateDocumentTemplate: builder.mutation<DocumentTemplateDto, string>({
+      query: (id) => ({ url: `/api/document-templates/${id}/activate`, method: 'POST' }),
+      invalidatesTags: ['DocumentTemplates'],
+    }),
+    cloneDocumentTemplate: builder.mutation<DocumentTemplateDto, string>({
+      query: (id) => ({ url: `/api/document-templates/${id}/clone`, method: 'POST' }),
+      invalidatesTags: ['DocumentTemplates'],
+    }),
+    deleteDocumentTemplate: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/document-templates/${id}`, method: 'DELETE' }),
       invalidatesTags: ['DocumentTemplates'],
     }),
     getScheduledReports: builder.query<ScheduledReportDto[], void>({
@@ -1241,15 +1453,22 @@ export const {
   useLoginMutation,
   useRegisterBrokerMutation,
   useRegisterConsigneeMutation,
+  useRegisterTruckerMutation,
   useRequestOtpMutation,
   useResetPasswordMutation,
   useVerifyEmailMutation,
   useGetInvitationQuery,
   useAcceptInvitationMutation,
   useHelloQuery,
+  useGetMeQuery,
+  useUploadProfilePhotoMutation,
+  useRemoveProfilePhotoMutation,
+  useUpdateProfileMutation,
   useGetShippingLinesQuery,
   useCreateShippingLineMutation,
   useUpdateShippingLineMutation,
+  useUploadShippingLineLogoMutation,
+  useDeleteShippingLineLogoMutation,
   useSetShippingLineActiveMutation,
   useSwitchShippingLineMutation,
   useGetHierarchyUsersQuery,
@@ -1280,6 +1499,7 @@ export const {
   useGetPaymentsByManifestQuery,
   useSubmitPaymentMutation,
   useValidatePaymentMutation,
+  useGetPaymentFeesQuery,
   useGetActivePaymentFeeQuery,
   useUpsertPaymentFeeMutation,
   useGetExchangeRateQuery,
@@ -1295,8 +1515,10 @@ export const {
   useSubmitEdoPaymentMutation,
   useGetPendingEdoPaymentsQuery,
   useGetReviewedEdoPaymentsQuery,
+  useGetEdoRevenueReportQuery,
   useGetEdoPaymentQuery,
   useValidateEdoPaymentMutation,
+  useSaveEdoPaymentReceiptInsightsMutation,
   useGetEdoRenewalsQuery,
   useCreateEdoRenewalMutation,
   useReviewEdoRenewalMutation,
@@ -1304,12 +1526,18 @@ export const {
   useGenerateRenewedEdoMutation,
   useVerifyDocumentQuery,
   useGetTerminalsQuery,
+  useGetTerminalDetailQuery,
   useUpsertTerminalMutation,
+  useUpdateTerminalMutation,
+  useToggleTerminalStatusMutation,
+  useDeleteTerminalMutation,
+  useUploadTerminalLogoMutation,
   useGetTerminalSlotsQuery,
   useGetContainerCatalogQuery,
   useUpsertContainerTypeMutation,
   useUpsertContainerSizeMutation,
   useGetCyAllocationsQuery,
+  useUpsertCyAllocationMutation,
   useGetContainersQuery,
   useGetContainerInventoryQuery,
   useGetContainerInventoryDepotsQuery,
@@ -1349,6 +1577,7 @@ export const {
   useUploadFileMutation,
   useGetAccreditationsQuery,
   useGetAccreditationQuery,
+  useLazyGetAccreditationCertificateQuery,
   useSubmitAccreditationMutation,
   useEvaluatorAccreditationMutation,
   useFinalAccreditationMutation,
@@ -1384,10 +1613,14 @@ export const {
   useUpsertSystemSettingMutation,
   useGetRateLimitsQuery,
   useUpsertRateLimitMutation,
+  useUpdateRateLimitMutation,
   useGetMessageTemplatesQuery,
   useUpsertMessageTemplateMutation,
   useGetDocumentTemplatesQuery,
   useUpsertDocumentTemplateMutation,
+  useActivateDocumentTemplateMutation,
+  useCloneDocumentTemplateMutation,
+  useDeleteDocumentTemplateMutation,
   useGetScheduledReportsQuery,
   useProcessScheduledReportsMutation,
   useGetEdoReleaseMetricsQuery,

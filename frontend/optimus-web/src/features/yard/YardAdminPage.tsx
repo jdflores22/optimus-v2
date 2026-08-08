@@ -25,18 +25,23 @@ import {
 } from '../../app/api';
 import type { RootState } from '../../app/store';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
+import { terminalOperatorForDisplay, terminalTypeLabel } from '../../shared/terminalTaxonomy';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function YardAdminPage() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isAdmin = ['SystemAdmin', 'ShippingLinesAdmin'].includes(user?.role ?? '');
-  const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
+  const isAdmin = user?.role === 'ShippingLinesAdmin';
+  const isStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
+
+  const { shippingLineId } = useDefaultShippingLine();
 
   const { data: terminals = [], refetch: refetchTerminals } = useGetTerminalsQuery();
   const { data: containers = [], refetch } = useGetContainersQuery();
-  const { data: allocations = [] } = useGetCyAllocationsQuery();
+  const { data: allocations = [] } = useGetCyAllocationsQuery(
+    shippingLineId ? { shippingLineId } : undefined,
+    { skip: !shippingLineId },
+  );
   const { data: catalog } = useGetContainerCatalogQuery();
-  const { shippingLineId } = useDefaultShippingLine();
   const [upsertTerminal] = useUpsertTerminalMutation();
   const [createContainer] = useCreateContainerMutation();
   const [allocate] = useAllocateContainerMutation();
@@ -119,7 +124,8 @@ export function YardAdminPage() {
             <TableRow>
               <TableCell>Code</TableCell>
               <TableCell>Name</TableCell>
-              <TableCell>Kind</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Operator</TableCell>
               <TableCell>Capacity</TableCell>
               <TableCell>Active</TableCell>
             </TableRow>
@@ -129,7 +135,8 @@ export function YardAdminPage() {
               <TableRow key={t.id}>
                 <TableCell>{t.code}</TableCell>
                 <TableCell>{t.name}</TableCell>
-                <TableCell>{t.kind}</TableCell>
+                <TableCell>{terminalTypeLabel(t.identity)}</TableCell>
+                <TableCell>{terminalOperatorForDisplay(t) ?? '—'}</TableCell>
                 <TableCell>{t.dailyCapacity}</TableCell>
                 <TableCell>{t.isActive ? 'Yes' : 'No'}</TableCell>
               </TableRow>

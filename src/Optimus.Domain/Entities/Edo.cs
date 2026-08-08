@@ -76,6 +76,10 @@ public class EdoPayment : BaseEntity
     public User? ValidatedBy { get; set; }
     public DateTime? ValidatedAt { get; set; }
     public string? RejectionReason { get; set; }
+    public string? PaymentChannel { get; set; }
+    public string? PaymentReference { get; set; }
+    public string? QrphNumber { get; set; }
+    public DateTime? TransactionAt { get; set; }
     public int Version { get; set; } = 1;
 }
 

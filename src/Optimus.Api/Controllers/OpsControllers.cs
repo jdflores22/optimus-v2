@@ -92,6 +92,13 @@ public class AccreditationController : ControllerBase
     [Authorize(Policy = "ShippingAdmin")]
     public async Task<ActionResult<AccreditationDto>> Final(Guid id, [FromBody] FinalApprovalRequest request, CancellationToken ct)
         => Ok(await _sas.FinalDecisionAsync(id, request, UserId, Role, ct));
+
+    [HttpGet("{id:guid}/certificate")]
+    public async Task<ActionResult<object>> Certificate(Guid id, CancellationToken ct)
+    {
+        var path = await _sas.EnsureCertificateAsync(id, UserId, Role, ct);
+        return Ok(new { path });
+    }
 }
 
 [ApiController]
@@ -186,7 +193,7 @@ public class AppealsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/review")]
-    [Authorize(Policy = "SystemAdmin")]
+    [Authorize(Policy = "ShippingLineManagement")]
     public async Task<ActionResult<AppealDto>> Review(Guid id, [FromBody] ReviewAppealRequest request, CancellationToken ct)
         => Ok(await _appeals.ReviewAsync(id, request, UserId, ct));
 }

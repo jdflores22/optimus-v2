@@ -30,6 +30,9 @@ public class AccreditationSubmissionConfiguration : IEntityTypeConfiguration<Acc
         builder.Property(x => x.DenialReason).HasMaxLength(1000);
         builder.Property(x => x.ComplianceNotes).HasMaxLength(2000);
         builder.Property(x => x.ComplianceFieldIdsJson).HasColumnType("longtext");
+        builder.Property(x => x.SasIdNumber).HasMaxLength(30);
+        builder.Property(x => x.CertificatePdfPath).HasMaxLength(500);
+        builder.HasIndex(x => x.SasIdNumber).IsUnique();
         builder.HasIndex(x => new { x.ApplicantId, x.ShippingLineId }).IsUnique();
         builder.HasOne(x => x.Applicant).WithMany().HasForeignKey(x => x.ApplicantId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.Cascade);

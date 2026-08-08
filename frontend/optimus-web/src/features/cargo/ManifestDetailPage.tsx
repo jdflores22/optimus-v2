@@ -189,11 +189,11 @@ export function ManifestDetailPage() {
   const location = useLocation();
   const flash = (location.state as { flash?: string } | null)?.flash;
   const { user, accessToken } = useSelector((state: RootState) => state.auth);
-  const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
-  const isBroker = user?.role === 'Broker' || user?.role === 'SystemAdmin';
-  const isConsignee = user?.role === 'Consignee' || user?.role === 'SystemAdmin';
+  const isStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
+  const isBroker = user?.role === 'Broker';
+  const isConsignee = user?.role === 'Consignee';
   const canPayEdo = isBroker || isConsignee;
-  const isAccounting = user?.role === 'Accounting' || user?.role === 'SystemAdmin';
+  const isAccounting = user?.role === 'Accounting';
   const { data, error } = useGetManifestQuery(id, { skip: !id });
   const { data: history = [] } = useGetManifestHistoryQuery(id, { skip: !id });
   const {
@@ -271,7 +271,7 @@ export function ManifestDetailPage() {
     isBroker &&
     data?.workflowState === 'BlGenerated' &&
     !data.blFilePath &&
-    (user?.role === 'SystemAdmin' || !data.brokerId || data.brokerId === user?.id);
+    (user?.role === 'Broker' && (!data.brokerId || data.brokerId === user?.id));
 
   const waitingForBlUpload =
     !isBroker &&

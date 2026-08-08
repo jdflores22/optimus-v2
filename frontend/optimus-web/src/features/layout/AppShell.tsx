@@ -15,11 +15,13 @@ import { useTheme } from '@mui/material/styles';
 import { useSelector } from 'react-redux';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { RootState } from '../../app/store';
+import { RouteAccessGuard } from '../auth/RouteAccessGuard';
 import { formatRoleLabel } from '../../shared/roleLabels';
 import { DRAWER_WIDTH, getBottomNavItems } from './navConfig';
 import { SideNav } from './SideNav';
 import { SidebarBrandHeader } from './SidebarBrandHeader';
 import { TopBar } from './TopBar';
+import { useBrokerAccreditation } from '../../shared/useBrokerAccreditation';
 
 function initials(name?: string | null): string {
   if (!name) return '?';
@@ -34,7 +36,9 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
-  const bottomItems = getBottomNavItems(user?.role);
+  const { isBroker, brokerAccredited } = useBrokerAccreditation();
+  const navOptions = isBroker ? { brokerAccredited } : undefined;
+  const bottomItems = getBottomNavItems(user?.role, navOptions);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -154,7 +158,9 @@ export function AppShell() {
       >
         <Toolbar />
         <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3 }, pb: { xs: 10, md: 3 }, px: { xs: 2, sm: 3 } }}>
-          <Outlet />
+          <RouteAccessGuard>
+            <Outlet />
+          </RouteAccessGuard>
         </Container>
       </Box>
 

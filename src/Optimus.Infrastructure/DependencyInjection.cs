@@ -79,6 +79,7 @@ public static class DependencyInjection
         {
             options.AddPolicy("SystemAdmin", p => p.RequireRole(AppRoles.SystemAdmin));
             options.AddPolicy("ShippingAdmin", p => p.RequireRole(AppRoles.SystemAdmin, AppRoles.ShippingLinesAdmin));
+            options.AddPolicy("ShippingLineManagement", p => p.RequireRole(AppRoles.ShippingLinesAdmin));
             options.AddPolicy("StaffHierarchy", p => p.RequireRole(
                 AppRoles.SystemAdmin,
                 AppRoles.ShippingLinesAdmin,

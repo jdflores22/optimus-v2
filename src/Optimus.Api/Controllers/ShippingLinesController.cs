@@ -84,6 +84,14 @@ public class ShippingLinesController : ControllerBase
         return Ok(new { logoPath = relative });
     }
 
+    [HttpDelete("{id:guid}/logo")]
+    [Authorize(Policy = "ShippingAdmin")]
+    public async Task<IActionResult> DeleteLogo(Guid id, CancellationToken cancellationToken)
+    {
+        await _service.ClearLogoAsync(id, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost("switch")]
     public async Task<ActionResult<AuthResponse>> Switch([FromBody] SwitchShippingLineRequest request, CancellationToken cancellationToken)
     {

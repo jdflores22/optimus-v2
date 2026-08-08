@@ -6,6 +6,10 @@ export function edoPaymentRejected(paymentStatus?: string | null): boolean {
   return /rejected/i.test(paymentStatus ?? '');
 }
 
+export function edoPaymentVerified(paymentStatus?: string | null): boolean {
+  return /verified/i.test(paymentStatus ?? '');
+}
+
 export function formatEdoStatus(status: string, paymentStatus?: string | null): string {
   if (/pendingvalidation/i.test(status) && edoPaymentSubmitted(paymentStatus)) {
     return 'Submitted';

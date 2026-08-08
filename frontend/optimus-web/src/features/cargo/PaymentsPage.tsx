@@ -12,37 +12,29 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { useSelector } from 'react-redux';
 import {
   useGetManifestsQuery,
-  useGetActivePaymentFeeQuery,
   useSubmitPaymentMutation,
-  useUpsertPaymentFeeMutation,
   useGetExchangeRateQuery,
 } from '../../app/api';
 import type { RootState } from '../../app/store';
-import { formRowStackProps } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { AccountingFinalPaymentsPage } from './AccountingFinalPaymentsPage';
 
 export function PaymentsPage() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isBroker = ['Broker', 'Consignee', 'SystemAdmin'].includes(user?.role ?? '');
+  const isBroker = ['Broker', 'Consignee'].includes(user?.role ?? '');
   const isAccounting = user?.role === 'Accounting';
-  const isSystemAdmin = user?.role === 'SystemAdmin';
 
   const { data: manifests = [], refetch: refetchManifests } = useGetManifestsQuery(undefined, {
     skip: isAccounting,
   });
-  const { data: accessFee } = useGetActivePaymentFeeQuery('manifest_access', { skip: isAccounting });
   const { data: fx } = useGetExchangeRateQuery(undefined, { skip: isAccounting });
   const [submitPayment] = useSubmitPaymentMutation();
-  const [upsertFee] = useUpsertPaymentFeeMutation();
 
   const [submit, setSubmit] = useState({
     manifestId: '',
-    paymentType: 'FinalPayment',
     amount: 1250,
     currency: 'USD',
   });
-  const [feeAmount, setFeeAmount] = useState(500);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,59 +44,19 @@ export function PaymentsPage() {
 
   const payableManifests = manifests.filter((m) => /billing|payment|generated/i.test(m.workflowState));
 
-  if (isSystemAdmin) {
-    return (
-      <Stack spacing={3}>
-        <AccountingFinalPaymentsPage />
-        <WorkflowPage
-          eyebrow="Administration"
-          title="Fee Configuration"
-          subtitle="Maintain the manifest access fee used by the payment workflow."
-        >
-          {message && <Alert severity="success">{message}</Alert>}
-          <WorkflowSection title="Manifest access fee" subtitle="Used for manifest access payments.">
-            <Stack {...formRowStackProps}>
-              <TextField
-                label="Manifest access fee"
-                type="number"
-                value={feeAmount}
-                onChange={(e) => setFeeAmount(Number(e.target.value))}
-              />
-              <Button
-                variant="contained"
-                onClick={async () => {
-                  await upsertFee({ feeType: 'manifest_access', amount: feeAmount }).unwrap();
-                  setMessage('Fee updated.');
-                }}
-              >
-                Save fee
-              </Button>
-            </Stack>
-          </WorkflowSection>
-        </WorkflowPage>
-      </Stack>
-    );
-  }
-
   return (
     <WorkflowPage
       eyebrow="Payment Workflow"
       title="Payments"
-      subtitle="Submit receipts for manifest access or final payment."
-      chips={
-        <>
-          <Chip size="small" color="info" label={`FX ${fx?.rate ?? '-'}`} />
-          <Chip size="small" variant="outlined" label={`Access fee ${accessFee?.amount ?? '-'} PHP`} />
-        </>
-      }
+      subtitle="Submit receipts for manifest final payment after billing is generated."
+      chips={<Chip size="small" color="info" label={`FX ${fx?.rate ?? '-'}`} />}
       actions={
         <Button variant="outlined" startIcon={<ReceiptLongOutlinedIcon />} sx={{ textTransform: 'none', fontWeight: 600 }}>
           Submit payment below
         </Button>
       }
       stats={[
-        { label: 'Payable Manifests', value: payableManifests.length, hint: 'Relevant workflow states', tone: 'info' },
-        { label: 'Access Fee', value: `${accessFee?.amount ?? '-'} PHP`, hint: 'Manifest access', tone: 'primary' },
+        { label: 'Payable Manifests', value: payableManifests.length, hint: 'Billing generated', tone: 'info' },
         { label: 'FX Rate', value: fx?.rate ?? '-', hint: fx?.fromCache ? 'Cached' : 'Live', tone: 'success' },
       ]}
     >
@@ -113,8 +65,8 @@ export function PaymentsPage() {
 
       {isBroker && (
         <WorkflowSection
-          title="Submit Payment"
-          subtitle="Upload a receipt for manifest access or final payment."
+          title="Submit final payment"
+          subtitle="Upload a PDF receipt for the manifest final payment. eDO access fees are paid separately from the manifest documents tab."
         >
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
             <TextField
@@ -131,37 +83,30 @@ export function PaymentsPage() {
               ))}
             </TextField>
             <TextField
-              select
-              label="Type"
-              value={submit.paymentType}
-              onChange={(e) => setSubmit({ ...submit, paymentType: e.target.value })}
-            >
-              <MenuItem value="ManifestAccess">ManifestAccess</MenuItem>
-              <MenuItem value="FinalPayment">FinalPayment</MenuItem>
-            </TextField>
-            <TextField
               label="Amount"
               type="number"
               value={submit.amount}
               onChange={(e) => setSubmit({ ...submit, amount: Number(e.target.value) })}
+              helperText="Final payment amount is validated against billing on submit."
             />
             <Button variant="contained" component="label">
               Submit + receipt
               <input
                 hidden
                 type="file"
+                accept="application/pdf,.pdf"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   setError(null);
                   try {
                     await submitPayment({
                       manifestId: submit.manifestId,
-                      paymentType: submit.paymentType,
+                      paymentType: 'FinalPayment',
                       amount: submit.amount,
                       currency: submit.currency,
                       receipt: file ?? undefined,
                     }).unwrap();
-                    setMessage('Payment submitted.');
+                    setMessage('Final payment submitted.');
                     refetchManifests();
                   } catch {
                     setError('Submit failed. Final payment needs BillingGenerated state.');

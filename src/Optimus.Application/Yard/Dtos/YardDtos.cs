@@ -10,7 +10,8 @@ public record TerminalDto(
     string? Region,
     string? City,
     int DailyCapacity,
-    bool IsActive);
+    bool IsActive,
+    string? LogoPath);
 
 public record UpsertTerminalRequest(
     string Name,
@@ -22,6 +23,23 @@ public record UpsertTerminalRequest(
     string? City,
     int DailyCapacity,
     bool IsActive = true);
+
+public record TerminalAllocationRowDto(
+    Guid Id,
+    Guid ShippingLineId,
+    string ShippingLineName,
+    int AllocatedCapacityTeu,
+    int Capacity20Ft,
+    int Capacity40Ft,
+    int UsedTeu,
+    DateTime CreatedAt);
+
+public record TerminalDetailDto(
+    TerminalDto Terminal,
+    int TotalAllocatedTeu,
+    int AvailableCapacityTeu,
+    decimal UtilizationPercent,
+    IReadOnlyList<TerminalAllocationRowDto> Allocations);
 
 public record TerminalSlotDto(
     Guid Id,
@@ -167,6 +185,8 @@ public record TruckerTokenDto(string ApiToken, DateTime ExpiresAt);
 public record UtilizationReportDto(
     Guid TerminalId,
     string TerminalName,
+    string TerminalIdentity,
+    string? TerminalOperator,
     int AllocatedTeu,
     int UsedTeu,
     decimal UtilizationPercent,

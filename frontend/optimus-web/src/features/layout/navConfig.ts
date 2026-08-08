@@ -1,4 +1,5 @@
 import type { SvgIconComponent } from '@mui/icons-material';
+import type { NavAccessOptions } from '../../shared/brokerAccreditation';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
@@ -12,7 +13,7 @@ import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined';
 import GavelOutlinedIcon from '@mui/icons-material/GavelOutlined';
 import MoveUpOutlinedIcon from '@mui/icons-material/MoveUpOutlined';
-import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
+import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
 import PeopleOutlineOutlinedIcon from '@mui/icons-material/PeopleOutlineOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined';
@@ -30,7 +31,6 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import AnchorOutlinedIcon from '@mui/icons-material/AnchorOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
-import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
 
 export const ALL_ROLES = [
   'SystemAdmin',
@@ -57,8 +57,8 @@ export type NavItem = {
   badgeKey?:
     | 'awaitingFinalApprovals'
     | 'pendingPayments'
+    | 'pendingEdoPayments'
     | 'pendingEdoRelease'
-    | 'notifications'
     | 'pendingAppeals'
     | 'pendingTransfers';
 };
@@ -69,18 +69,18 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-const STAFF = ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Accounting'];
+const STAFF = ['ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Accounting'];
 const RELEASE = ['SlStaff', 'ShippingLinesAdmin', 'TerminalTeam', 'SystemAdmin'];
 const PAYMENT_ADMIN = ['SystemAdmin'];
 const ADMIN = ['SystemAdmin', 'ShippingLinesAdmin'];
 const HIERARCHY = ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Accounting'];
-const YARD = ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Trucker'];
-const OPS = ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Broker', 'Consignee', 'TerminalTeam'];
+const YARD = ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Trucker'];
+const OPS = ['ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Broker', 'Consignee', 'TerminalTeam'];
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    id: 'main',
-    label: 'Main',
+    id: 'home',
+    label: 'Home',
     items: [
       {
         id: 'dashboard',
@@ -99,14 +99,14 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'manifests',
         label: 'Manifests',
         path: '/manifests',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Accounting', 'Broker', 'Consignee'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'Accounting', 'Broker', 'Consignee'],
         icon: DescriptionOutlinedIcon,
       },
       {
         id: 'payments',
         label: 'Payments',
         path: '/payments',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'Accounting', 'Broker', 'Consignee'],
+        roles: ['ShippingLinesAdmin', 'Accounting', 'Broker', 'Consignee'],
         icon: PaymentsOutlinedIcon,
         badgeKey: 'pendingPayments',
       },
@@ -120,7 +120,7 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'edo',
         label: 'eDO / CRO',
         path: '/edo',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Accounting', 'Broker', 'Consignee', 'TerminalTeam'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'Accounting', 'Broker', 'Consignee', 'TerminalTeam'],
         icon: LocalShippingOutlinedIcon,
         exact: true,
       },
@@ -128,7 +128,7 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'renewals',
         label: 'Renewals',
         path: '/edo/renewals',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Accounting', 'Broker', 'Consignee'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'Accounting', 'Broker', 'Consignee'],
         icon: ReplayOutlinedIcon,
       },
       {
@@ -137,6 +137,7 @@ const NAV_GROUPS: NavGroup[] = [
         path: '/edo/payment-validation',
         roles: PAYMENT_ADMIN,
         icon: FactCheckOutlinedIcon,
+        badgeKey: 'pendingEdoPayments',
       },
       {
         id: 'edo-release',
@@ -155,21 +156,21 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'container-inventory',
         label: 'Container Inventory',
         path: '/container-inventory',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Accounting', 'TerminalTeam'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'Accounting', 'TerminalTeam'],
         icon: WarehouseOutlinedIcon,
       },
       {
         id: 'yard',
         label: 'Yard admin',
         path: '/yard',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'],
         icon: WarehouseOutlinedIcon,
       },
       {
         id: 'dwell',
         label: 'Dwell',
         path: '/dwell',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'],
         icon: TimerOutlinedIcon,
       },
       {
@@ -183,7 +184,7 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'utilization',
         label: 'Utilization',
         path: '/reports/utilization',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'],
         icon: AssessmentOutlinedIcon,
       },
     ],
@@ -203,28 +204,28 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'transfers',
         label: 'Transfers',
         path: '/transfers',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Consignee', 'Broker'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'Consignee', 'Broker'],
         icon: SwapHorizOutlinedIcon,
       },
       {
         id: 'appeals',
         label: 'Appeals',
         path: '/appeals',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'Broker', 'Consignee'],
+        roles: ['ShippingLinesAdmin', 'Broker', 'Consignee'],
         icon: GavelOutlinedIcon,
       },
       {
         id: 'repositioning',
         label: 'Reposition',
         path: '/repositioning',
-        roles: ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Broker'],
+        roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Broker'],
         icon: MoveUpOutlinedIcon,
       },
     ],
   },
   {
     id: 'reports',
-    label: 'Oversight',
+    label: 'Reports & Audit',
     items: [
       {
         id: 'audit-reports',
@@ -265,19 +266,18 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 function canAccess(roles: string[], role: string): boolean {
-  if (role === 'SystemAdmin') return true;
   return roles.includes(role);
 }
 
-export function getNavGroups(role: string | undefined | null): NavGroup[] {
+export function getNavGroups(role: string | undefined | null, options?: NavAccessOptions): NavGroup[] {
   const r = role ?? '';
 
   // Broker portal: workspace switcher lives in sidebar header
   if (r === 'Broker') {
-    return [
+    const groups: NavGroup[] = [
       {
-        id: 'dashboards',
-        label: 'Dashboards',
+        id: 'home',
+        label: 'Home',
         items: [
           {
             id: 'dashboard',
@@ -289,26 +289,32 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
         ],
       },
       {
-        id: 'my-work',
-        label: 'My Work',
+        id: 'accreditation',
+        label: 'Accreditation',
         items: [
           {
             id: 'sas',
-            label: 'Accreditation',
+            label: 'SAS Application',
             path: '/sas',
             roles: ['Broker'],
             icon: AssignmentOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'cargo',
+        label: 'My Cargo',
+        items: [
           {
             id: 'manifests',
-            label: 'My Manifests',
+            label: 'Manifests',
             path: '/manifests',
             roles: ['Broker'],
             icon: DescriptionOutlinedIcon,
           },
           {
             id: 'edo',
-            label: 'My eDOs',
+            label: 'eDO / CRO',
             path: '/edo',
             roles: ['Broker'],
             icon: LocalShippingOutlinedIcon,
@@ -328,16 +334,22 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['Broker'],
             icon: ReplayOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'requests',
+        label: 'Requests',
+        items: [
           {
             id: 'transfers',
-            label: 'Transfers',
+            label: 'Broker Transfers',
             path: '/transfers',
             roles: ['Broker'],
             icon: SwapHorizOutlinedIcon,
           },
           {
             id: 'appeals',
-            label: 'Appeals',
+            label: 'Suspension Appeals',
             path: '/appeals',
             roles: ['Broker'],
             icon: GavelOutlinedIcon,
@@ -345,14 +357,19 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
         ],
       },
     ];
+
+    if (options?.brokerAccredited === false) {
+      return groups.filter((group) => group.id === 'home' || group.id === 'accreditation');
+    }
+
+    return groups;
   }
 
-  // Old consignee portal: Dashboard + My Account
   if (r === 'Consignee') {
     return [
       {
-        id: 'main',
-        label: 'Main',
+        id: 'home',
+        label: 'Home',
         items: [
           {
             id: 'dashboard',
@@ -364,7 +381,7 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
         ],
       },
       {
-        id: 'my-account',
+        id: 'account',
         label: 'My Account',
         items: [
           {
@@ -375,18 +392,24 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             icon: AssignmentOutlinedIcon,
           },
           {
-            id: 'manifests',
-            label: 'My Manifests',
-            path: '/manifests',
-            roles: ['Consignee'],
-            icon: DescriptionOutlinedIcon,
-          },
-          {
             id: 'brokers',
-            label: 'Brokers',
+            label: 'My Brokers',
             path: '/brokers',
             roles: ['Consignee'],
             icon: PeopleOutlineOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'cargo',
+        label: 'Cargo & Billing',
+        items: [
+          {
+            id: 'manifests',
+            label: 'Manifests',
+            path: '/manifests',
+            roles: ['Consignee'],
+            icon: DescriptionOutlinedIcon,
           },
           {
             id: 'edo',
@@ -403,9 +426,15 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['Consignee'],
             icon: PaymentsOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'requests',
+        label: 'Requests',
+        items: [
           {
             id: 'transfers',
-            label: 'Transfers',
+            label: 'Broker Transfers',
             path: '/transfers',
             roles: ['Consignee'],
             icon: SwapHorizOutlinedIcon,
@@ -418,8 +447,8 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
   if (r === 'ShippingLinesAdmin') {
     return [
       {
-        id: 'main',
-        label: 'Main',
+        id: 'home',
+        label: 'Home',
         items: [
           {
             id: 'dashboard',
@@ -442,6 +471,13 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             icon: DescriptionOutlinedIcon,
           },
           {
+            id: 'edo-release',
+            label: 'Release eDO / CRO',
+            path: '/edo/release',
+            roles: ['ShippingLinesAdmin'],
+            icon: VerifiedOutlinedIcon,
+          },
+          {
             id: 'yard',
             label: 'Container Inventory',
             path: '/container-inventory',
@@ -455,18 +491,11 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['ShippingLinesAdmin'],
             icon: MoveUpOutlinedIcon,
           },
-          {
-            id: 'hierarchy',
-            label: 'My Team',
-            path: '/admin/hierarchy',
-            roles: ['ShippingLinesAdmin'],
-            icon: AccountTreeOutlinedIcon,
-          },
         ],
       },
       {
-        id: 'management',
-        label: 'Management',
+        id: 'partners',
+        label: 'Partners',
         items: [
           {
             id: 'approvals',
@@ -492,14 +521,49 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
           },
         ],
       },
+      {
+        id: 'queues',
+        label: 'Review Queues',
+        items: [
+          {
+            id: 'suspension-appeals',
+            label: 'Suspension Appeals',
+            path: '/shipping-admin/appeals',
+            roles: ['ShippingLinesAdmin'],
+            icon: GavelOutlinedIcon,
+            badgeKey: 'pendingAppeals',
+          },
+          {
+            id: 'transfer-requests',
+            label: 'Transfer Requests',
+            path: '/shipping-admin/transfers',
+            roles: ['ShippingLinesAdmin'],
+            icon: SwapHorizOutlinedIcon,
+            badgeKey: 'pendingTransfers',
+          },
+        ],
+      },
+      {
+        id: 'team',
+        label: 'Team',
+        items: [
+          {
+            id: 'hierarchy',
+            label: 'My Team',
+            path: '/admin/hierarchy',
+            roles: ['ShippingLinesAdmin'],
+            icon: AccountTreeOutlinedIcon,
+          },
+        ],
+      },
     ];
   }
 
   if (r === 'SystemAdmin') {
     return [
       {
-        id: 'overview',
-        label: '',
+        id: 'home',
+        label: 'Home',
         items: [
           {
             id: 'dashboard',
@@ -508,9 +572,23 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['SystemAdmin'],
             icon: DashboardOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'edo-platform',
+        label: 'eDO Platform',
+        items: [
+          {
+            id: 'edo-payment-validation',
+            label: 'Payment Validation',
+            path: '/edo/payment-validation',
+            roles: ['SystemAdmin'],
+            icon: FactCheckOutlinedIcon,
+            badgeKey: 'pendingEdoPayments',
+          },
           {
             id: 'edo-release-queue',
-            label: 'eDO Release Queue',
+            label: 'Release Monitor',
             path: '/admin/edo-release/queue',
             roles: ['SystemAdmin'],
             icon: TaskAltOutlinedIcon,
@@ -518,24 +596,16 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
           },
           {
             id: 'edo-revenue',
-            label: 'eDO Revenue',
+            label: 'Revenue Report',
             path: '/admin/edo-release/revenue',
             roles: ['SystemAdmin'],
             icon: CurrencyExchangeOutlinedIcon,
           },
-          {
-            id: 'notifications',
-            label: 'Notifications',
-            path: '/notifications',
-            roles: ['SystemAdmin'],
-            icon: NotificationsNoneOutlinedIcon,
-            badgeKey: 'notifications',
-          },
         ],
       },
       {
-        id: 'management',
-        label: 'Management',
+        id: 'governance',
+        label: 'Governance',
         items: [
           {
             id: 'user-management',
@@ -543,22 +613,6 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             path: '/admin/users',
             roles: ['SystemAdmin'],
             icon: PeopleOutlineOutlinedIcon,
-          },
-          {
-            id: 'suspension-appeals',
-            label: 'Suspension Appeals',
-            path: '/admin/appeals',
-            roles: ['SystemAdmin'],
-            icon: DescriptionOutlinedIcon,
-            badgeKey: 'pendingAppeals',
-          },
-          {
-            id: 'transfer-requests',
-            label: 'Transfer Requests',
-            path: '/admin/transfers',
-            roles: ['SystemAdmin'],
-            icon: SwapHorizOutlinedIcon,
-            badgeKey: 'pendingTransfers',
           },
           {
             id: 'audit-logs',
@@ -574,11 +628,18 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['SystemAdmin'],
             icon: SearchOutlinedIcon,
           },
+          {
+            id: 'user-hierarchy',
+            label: 'User Hierarchy',
+            path: '/admin/hierarchy',
+            roles: ['SystemAdmin'],
+            icon: AccountTreeOutlinedIcon,
+          },
         ],
       },
       {
-        id: 'configuration',
-        label: 'Configuration',
+        id: 'master-data',
+        label: 'Master Data',
         items: [
           {
             id: 'shipping-lines',
@@ -589,10 +650,17 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
           },
           {
             id: 'terminals',
-            label: 'Terminals',
+            label: 'Terminal & CY',
             path: '/admin/terminals',
             roles: ['SystemAdmin'],
             icon: BusinessOutlinedIcon,
+          },
+          {
+            id: 'teu-contracts',
+            label: 'Contract TEU',
+            path: '/admin/teu-contracts',
+            roles: ['SystemAdmin'],
+            icon: LocalShippingOutlinedIcon,
           },
           {
             id: 'container-types',
@@ -608,13 +676,12 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['SystemAdmin'],
             icon: AspectRatioOutlinedIcon,
           },
-          {
-            id: 'user-hierarchy',
-            label: 'User Hierarchy',
-            path: '/admin/hierarchy',
-            roles: ['SystemAdmin'],
-            icon: AccountTreeOutlinedIcon,
-          },
+        ],
+      },
+      {
+        id: 'templates-fees',
+        label: 'Templates & Fees',
+        items: [
           {
             id: 'form-builder',
             label: 'Form Builder',
@@ -636,6 +703,12 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['SystemAdmin'],
             icon: ReceiptLongOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'reports',
+        label: 'Reports & Metrics',
+        items: [
           {
             id: 'cy-utilization',
             label: 'CY Utilization',
@@ -657,6 +730,12 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['SystemAdmin'],
             icon: InsightsOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'system',
+        label: 'System',
+        items: [
           {
             id: 'system-settings',
             label: 'System Settings',
@@ -672,8 +751,8 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
   if (r === 'SlStaff') {
     return [
       {
-        id: 'main',
-        label: 'Main',
+        id: 'home',
+        label: 'Home',
         items: [
           {
             id: 'dashboard',
@@ -682,18 +761,11 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['SlStaff'],
             icon: DashboardOutlinedIcon,
           },
-          {
-            id: 'notifications',
-            label: 'Notifications',
-            path: '/notifications',
-            roles: ['SlStaff'],
-            icon: NotificationsNoneOutlinedIcon,
-          },
         ],
       },
       {
-        id: 'operations',
-        label: 'Operations',
+        id: 'manifests',
+        label: 'Manifest Workflow',
         items: [
           {
             id: 'manifests',
@@ -702,6 +774,40 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
             roles: ['SlStaff'],
             icon: DescriptionOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'documents',
+        label: 'eDO / CRO',
+        items: [
+          {
+            id: 'edo',
+            label: 'Generation Queue',
+            path: '/edo',
+            roles: ['SlStaff'],
+            icon: LocalShippingOutlinedIcon,
+            exact: true,
+          },
+          {
+            id: 'edo-release',
+            label: 'Release Queue',
+            path: '/edo/release',
+            roles: ['SlStaff'],
+            icon: VerifiedOutlinedIcon,
+          },
+          {
+            id: 'renewals',
+            label: 'Renewal Requests',
+            path: '/edo/renewals',
+            roles: ['SlStaff'],
+            icon: ReplayOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'yard',
+        label: 'Yard & Terminal',
+        items: [
           {
             id: 'yard',
             label: 'Container Inventory',
@@ -711,31 +817,210 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
           },
           {
             id: 'repositioning',
-            label: 'Repositioning Requests',
+            label: 'Repositioning',
             path: '/repositioning',
             roles: ['SlStaff'],
             icon: MoveUpOutlinedIcon,
           },
+        ],
+      },
+      {
+        id: 'queues',
+        label: 'Review Queues',
+        items: [
           {
-            id: 'edo',
-            label: 'eDO Generation',
-            path: '/edo',
+            id: 'transfer-requests',
+            label: 'Transfer Requests',
+            path: '/shipping-admin/transfers',
             roles: ['SlStaff'],
-            icon: LocalShippingOutlinedIcon,
-            exact: true,
+            icon: SwapHorizOutlinedIcon,
+            badgeKey: 'pendingTransfers',
+          },
+        ],
+      },
+    ];
+  }
+
+  if (r === 'Accounting') {
+    return [
+      {
+        id: 'home',
+        label: 'Home',
+        items: [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            path: '/',
+            roles: ['Accounting'],
+            icon: DashboardOutlinedIcon,
           },
         ],
       },
       {
-        id: 'edo-renewals',
-        label: 'eDO Renewals',
+        id: 'finance',
+        label: 'Finance',
         items: [
           {
-            id: 'renewals',
-            label: 'Request eDO',
-            path: '/edo/renewals',
-            roles: ['SlStaff'],
-            icon: ReplayOutlinedIcon,
+            id: 'payments',
+            label: 'Payment Validation',
+            path: '/payments',
+            roles: ['Accounting'],
+            icon: PaymentsOutlinedIcon,
+            badgeKey: 'pendingPayments',
+          },
+          {
+            id: 'manifests',
+            label: 'Manifests',
+            path: '/manifests',
+            roles: ['Accounting'],
+            icon: DescriptionOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'oversight',
+        label: 'Oversight',
+        items: [
+          {
+            id: 'audit-reports',
+            label: 'Reports & Audit',
+            path: '/reports/audit',
+            roles: ['Accounting'],
+            icon: FactCheckOutlinedIcon,
+          },
+          {
+            id: 'hierarchy',
+            label: 'User Hierarchy',
+            path: '/admin/hierarchy',
+            roles: ['Accounting'],
+            icon: AccountTreeOutlinedIcon,
+          },
+        ],
+      },
+    ];
+  }
+
+  if (r === 'Evaluator') {
+    return [
+      {
+        id: 'home',
+        label: 'Home',
+        items: [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            path: '/',
+            roles: ['Evaluator'],
+            icon: DashboardOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'review',
+        label: 'Review Work',
+        items: [
+          {
+            id: 'sas',
+            label: 'SAS Applications',
+            path: '/sas',
+            roles: ['Evaluator'],
+            icon: AssignmentOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'reference',
+        label: 'Reference',
+        items: [
+          {
+            id: 'hierarchy',
+            label: 'User Hierarchy',
+            path: '/admin/hierarchy',
+            roles: ['Evaluator'],
+            icon: AccountTreeOutlinedIcon,
+          },
+          {
+            id: 'audit-reports',
+            label: 'Reports & Audit',
+            path: '/reports/audit',
+            roles: ['Evaluator'],
+            icon: FactCheckOutlinedIcon,
+          },
+        ],
+      },
+    ];
+  }
+
+  if (r === 'TerminalTeam') {
+    return [
+      {
+        id: 'home',
+        label: 'Home',
+        items: [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            path: '/',
+            roles: ['TerminalTeam'],
+            icon: DashboardOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'gate',
+        label: 'Gate Operations',
+        items: [
+          {
+            id: 'pre-advice',
+            label: 'Pre-advice',
+            path: '/pre-advice',
+            roles: ['TerminalTeam'],
+            icon: DirectionsBoatOutlinedIcon,
+          },
+          {
+            id: 'edo-release',
+            label: 'Release eDO / CRO',
+            path: '/edo/release',
+            roles: ['TerminalTeam'],
+            icon: VerifiedOutlinedIcon,
+          },
+          {
+            id: 'dwell',
+            label: 'Dwell Monitoring',
+            path: '/dwell',
+            roles: ['TerminalTeam'],
+            icon: TimerOutlinedIcon,
+          },
+        ],
+      },
+    ];
+  }
+
+  if (r === 'Trucker') {
+    return [
+      {
+        id: 'home',
+        label: 'Home',
+        items: [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            path: '/',
+            roles: ['Trucker'],
+            icon: DashboardOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'gate',
+        label: 'Gate & Pickup',
+        items: [
+          {
+            id: 'pre-advice',
+            label: 'Pre-advice',
+            path: '/pre-advice',
+            roles: ['Trucker'],
+            icon: DirectionsBoatOutlinedIcon,
           },
         ],
       },
@@ -749,30 +1034,32 @@ export function getNavGroups(role: string | undefined | null): NavGroup[] {
 }
 
 /** Primary shortcuts for hub tiles + mobile bottom bar (max ~4). */
-export function getQuickActions(role: string | undefined | null): NavItem[] {
+export function getQuickActions(role: string | undefined | null, options?: NavAccessOptions): NavItem[] {
   const r = role ?? '';
-  const catalog = getNavGroups(r).flatMap((g) => g.items);
+  const catalog = getNavGroups(r, options).flatMap((g) => g.items);
   const byId = (id: string) => catalog.find((i) => i.id === id);
 
   const prefs: Record<string, string[]> = {
-    SystemAdmin: ['dashboard', 'edo-release-queue', 'notifications', 'user-management'],
+    SystemAdmin: ['dashboard', 'edo-payment-validation', 'edo-release-queue', 'user-management'],
     ShippingLinesAdmin: ['dashboard', 'approvals', 'manifests', 'edo-release'],
     SlStaff: ['dashboard', 'manifests', 'edo', 'edo-release'],
-    Evaluator: ['dashboard', 'sas', 'hierarchy', 'notifications'],
-    Accounting: ['dashboard', 'payments', 'notifications'],
+    Evaluator: ['dashboard', 'sas', 'audit-reports', 'hierarchy'],
+    Accounting: ['dashboard', 'payments', 'manifests', 'audit-reports'],
     TerminalTeam: ['dashboard', 'pre-advice', 'edo-release', 'dwell'],
-    Broker: ['dashboard', 'manifests', 'edo', 'payments'],
-    Consignee: ['manifests', 'brokers', 'sas', 'dashboard'],
-    Trucker: ['pre-advice', 'dashboard', 'profile'],
+    Broker: options?.brokerAccredited === false
+      ? ['dashboard', 'sas']
+      : ['dashboard', 'manifests', 'edo', 'payments'],
+    Consignee: ['dashboard', 'manifests', 'brokers', 'payments'],
+    Trucker: ['dashboard', 'pre-advice'],
   };
 
   const ids = prefs[r] ?? ['dashboard', 'profile'];
   return ids.map(byId).filter((x): x is NavItem => Boolean(x)).slice(0, 4);
 }
 
-export function getBottomNavItems(role: string | undefined | null): NavItem[] {
-  const actions = getQuickActions(role);
-  const profile = getNavGroups(role).flatMap((g) => g.items).find((i) => i.id === 'profile');
+export function getBottomNavItems(role: string | undefined | null, options?: NavAccessOptions): NavItem[] {
+  const actions = getQuickActions(role, options);
+  const profile = getNavGroups(role, options).flatMap((g) => g.items).find((i) => i.id === 'profile');
   const merged = [...actions];
   if (profile && !merged.some((i) => i.id === 'profile')) {
     merged.push(profile);

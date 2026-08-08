@@ -1,8 +1,12 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Optimus.Api.Security;
 using Optimus.Application.Auth.Dtos;
 using Optimus.Application.Auth.Interfaces;
+using Optimus.Infrastructure.Persistence;
+using Optimus.Infrastructure.Storage;
 using Optimus.Shared.Constants;
 
 namespace Optimus.Api.Controllers;
@@ -116,18 +120,115 @@ public class WorkspaceController : ControllerBase
 public class MeController : ControllerBase
 {
     private readonly IHierarchyService _hierarchyService;
+    private readonly OptimusDbContext _db;
+    private readonly IUploadRootProvider _uploads;
 
-    public MeController(IHierarchyService hierarchyService)
+    public MeController(
+        IHierarchyService hierarchyService,
+        OptimusDbContext db,
+        IUploadRootProvider uploads)
     {
         _hierarchyService = hierarchyService;
+        _db = db;
+        _uploads = uploads;
     }
+
+    private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
     public async Task<ActionResult<UserDto>> Me(CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var users = await _hierarchyService.ListUsersAsync(cancellationToken: cancellationToken);
-        var me = users.FirstOrDefault(u => u.Id == userId);
+        var me = await _hierarchyService.GetUserByIdAsync(UserId, cancellationToken);
         return me is null ? NotFound() : Ok(me);
+    }
+
+    [HttpPut]
+    public async Task<ActionResult<UserDto>> UpdateProfile(
+        [FromBody] UpdateProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _hierarchyService.UpdateProfileAsync(UserId, request, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [HttpPost("profile-photo")]
+    [RequestSizeLimit(UploadGuard.MaxBytes)]
+    public async Task<ActionResult<UserDto>> UploadProfilePhoto(IFormFile file, CancellationToken cancellationToken)
+    {
+        UploadGuard.Validate(file, ".png", ".jpg", ".jpeg", ".webp", ".gif");
+
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == UserId, cancellationToken);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        await DeleteProfilePhotoFileAsync(user.ProfilePhotoPath);
+
+        var roleFolder = user.Role.ToLowerInvariant();
+        var uploadsDir = Path.Combine(_uploads.RootDirectory, roleFolder, "profile-picture");
+        Directory.CreateDirectory(uploadsDir);
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var fileName = $"{user.Id:N}-{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(uploadsDir, fileName);
+        await using (var input = file.OpenReadStream())
+        {
+            await ProfilePhotoProcessor.SaveAsync(input, fullPath, ext, cancellationToken);
+        }
+
+        user.ProfilePhotoPath = $"/uploads/{roleFolder}/profile-picture/{fileName}";
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var dto = await _hierarchyService.GetUserByIdAsync(UserId, cancellationToken);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    [HttpDelete("profile-photo")]
+    public async Task<ActionResult<UserDto>> RemoveProfilePhoto(CancellationToken cancellationToken)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == UserId, cancellationToken);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(user.ProfilePhotoPath))
+        {
+            return BadRequest(new { message = "No profile photo to remove." });
+        }
+
+        await DeleteProfilePhotoFileAsync(user.ProfilePhotoPath);
+        user.ProfilePhotoPath = null;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var dto = await _hierarchyService.GetUserByIdAsync(UserId, cancellationToken);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    private Task DeleteProfilePhotoFileAsync(string? webPath)
+    {
+        if (string.IsNullOrWhiteSpace(webPath))
+        {
+            return Task.CompletedTask;
+        }
+
+        var fullPath = _uploads.ResolveExistingFile(webPath);
+        if (fullPath is not null && System.IO.File.Exists(fullPath))
+        {
+            System.IO.File.Delete(fullPath);
+        }
+
+        return Task.CompletedTask;
     }
 }

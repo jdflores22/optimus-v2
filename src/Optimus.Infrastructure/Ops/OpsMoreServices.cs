@@ -81,8 +81,12 @@ public class SuspensionAppealService : ISuspensionAppealService
         };
         _db.SuspensionAppeals.Add(entity);
         await _db.SaveChangesAsync(ct);
-        var admins = await _db.Users.AsNoTracking().Where(x => x.Role == AppRoles.SystemAdmin).Select(x => x.Id).Take(3).ToListAsync(ct);
-        foreach (var a in admins)
+        var shippingAdmins = await _db.Users.AsNoTracking()
+            .Where(x => x.Role == AppRoles.ShippingLinesAdmin)
+            .Select(x => x.Id)
+            .Take(5)
+            .ToListAsync(ct);
+        foreach (var a in shippingAdmins)
         {
             await _notifications.NotifyAsync(a, "Suspension appeal", $"{user.FullName} submitted an appeal", "appeal",
                 nameof(SuspensionAppeal), entity.Id, ct);

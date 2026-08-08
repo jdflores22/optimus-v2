@@ -61,54 +61,6 @@ public static class DbSeeder
 
         if (!await db.Regions.AnyAsync())
         {
-            var ncr = new Region
-            {
-                Code = "NCR",
-                Name = "National Capital Region",
-                Provinces =
-                {
-                    new Province
-                    {
-                        Code = "MNL",
-                        Name = "Metro Manila",
-                        Cities =
-                        {
-                            new City
-                            {
-                                Code = "MKT",
-                                Name = "Makati",
-                                Barangays =
-                                {
-                                    new Barangay { Code = "MKT-PBL", Name = "Poblacion" },
-                                    new Barangay { Code = "MKT-BLG", Name = "Bel-Air" },
-                                    new Barangay { Code = "MKT-SND", Name = "San Lorenzo" }
-                                }
-                            },
-                            new City
-                            {
-                                Code = "MNL-CITY",
-                                Name = "Manila",
-                                Barangays =
-                                {
-                                    new Barangay { Code = "MNL-ERM", Name = "Ermita" },
-                                    new Barangay { Code = "MNL-MLT", Name = "Malate" }
-                                }
-                            },
-                            new City
-                            {
-                                Code = "QZN",
-                                Name = "Quezon City",
-                                Barangays =
-                                {
-                                    new Barangay { Code = "QZN-DLM", Name = "Diliman" },
-                                    new Barangay { Code = "QZN-CUB", Name = "Cubao" }
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-
             var calabarzon = new Region
             {
                 Code = "04A",
@@ -154,31 +106,12 @@ public static class DbSeeder
                 }
             };
 
-            db.Regions.AddRange(ncr, calabarzon);
+            db.Regions.AddRange(LocationSeedData.BuildNcrRegion(), calabarzon);
             await db.SaveChangesAsync();
             logger.LogInformation("Seeded sample PH geo hierarchy.");
         }
 
-        if (!await db.PaymentFeeConfigurations.AnyAsync(x => x.FeeType == "manifest_access" && x.IsActive))
-        {
-            var admin = await db.Users.FirstAsync(x => x.Email == "admin@optimus.local");
-            db.PaymentFeeConfigurations.Add(new PaymentFeeConfiguration
-            {
-                FeeType = "manifest_access",
-                Amount = 500m,
-                ConfiguredById = admin.Id,
-                IsActive = true
-            });
-            db.PaymentFeeConfigurations.Add(new PaymentFeeConfiguration
-            {
-                FeeType = "edo",
-                Amount = 750m,
-                ConfiguredById = admin.Id,
-                IsActive = true
-            });
-            await db.SaveChangesAsync();
-            logger.LogInformation("Seeded payment fee configurations.");
-        }
+        await LocationSeedData.EnsureMetroManilaAsync(db, logger);
 
         if (!await db.PaymentFeeConfigurations.AnyAsync(x => x.FeeType == "edo" && x.IsActive))
         {
@@ -450,7 +383,7 @@ public static class DbSeeder
             {
                 Name = "ATI Manila Terminal",
                 Code = "ATI-MNL",
-                Identity = TerminalIdentity.Terminal,
+                Identity = TerminalIdentity.PortTerminal,
                 Kind = TerminalKind.Ati,
                 Location = "Manila North Harbor",
                 Region = "NCR",

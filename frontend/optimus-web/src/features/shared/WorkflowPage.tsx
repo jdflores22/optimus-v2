@@ -9,6 +9,8 @@ export type WorkflowStat = {
   value: string | number;
   hint?: string;
   tone?: 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info';
+  onClick?: () => void;
+  active?: boolean;
 };
 
 function toneColor(tone: WorkflowStat['tone'], mode: 'light' | 'dark') {
@@ -129,28 +131,45 @@ export function WorkflowPage({
             const color = toneColor(tone, mode);
             const valueText = String(stat.value);
             const isNumeric = valueText.length <= 8 && /^[\d,.%+\-]+$/.test(valueText.trim());
+            const clickable = Boolean(stat.onClick);
 
             return (
               <Paper
                 key={stat.label}
                 elevation={0}
+                onClick={stat.onClick}
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onKeyDown={
+                  clickable
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          stat.onClick?.();
+                        }
+                      }
+                    : undefined
+                }
                 sx={{
                   px: { xs: 1.5, sm: 2.25 },
                   py: { xs: 1.35, sm: 1.75 },
                   border: 1,
-                  borderColor: 'divider',
+                  borderColor: stat.active ? 'primary.main' : 'divider',
                   borderRadius: 1,
                   bgcolor: 'background.paper',
                   position: 'relative',
                   overflow: 'hidden',
+                  cursor: clickable ? 'pointer' : 'default',
                   transition: 'border-color 160ms ease, box-shadow 160ms ease',
-                  '&:hover': {
-                    borderColor: 'primary.main',
-                    boxShadow: (t) =>
-                      t.palette.mode === 'dark'
-                        ? '0 1px 2px rgba(0,0,0,0.35)'
-                        : '0 1px 2px rgba(11,61,92,0.06)',
-                  },
+                  '&:hover': clickable
+                    ? {
+                        borderColor: 'primary.main',
+                        boxShadow: (t) =>
+                          t.palette.mode === 'dark'
+                            ? '0 1px 2px rgba(0,0,0,0.35)'
+                            : '0 1px 2px rgba(11,61,92,0.06)',
+                      }
+                    : undefined,
                   '&::before': {
                     content: '""',
                     position: 'absolute',

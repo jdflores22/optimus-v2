@@ -43,7 +43,7 @@ function edoTone(
 
 export function EdosPage() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isGenerationStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
+  const isGenerationStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
 
   if (isGenerationStaff) {
     return <EdoGenerationPage />;
@@ -61,9 +61,9 @@ function EdoDocumentsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const isBroker = ['Broker', 'Consignee', 'SystemAdmin'].includes(user?.role ?? '');
-  const isAdmin = ['SystemAdmin', 'ShippingLinesAdmin'].includes(user?.role ?? '');
-  const isTerminal = user?.role === 'TerminalTeam' || user?.role === 'SystemAdmin';
+  const isBroker = ['Broker', 'Consignee'].includes(user?.role ?? '');
+  const isAdmin = user?.role === 'ShippingLinesAdmin';
+  const isTerminal = user?.role === 'TerminalTeam';
 
   const openEdoDocument = async (edoId: string, kind: 'download' | 'qr') => {
     if (!accessToken) return;

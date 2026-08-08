@@ -58,6 +58,14 @@ public class AuthController : ControllerBase
         return Accepted(new { message = "Consignee registered. Check email/logs for verification token." });
     }
 
+    [HttpPost("register/trucker")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RegisterTrucker([FromBody] RegisterTruckerRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.RegisterTruckerAsync(request, cancellationToken);
+        return Accepted(new { message = "Trucker registered. Check email/logs for verification token." });
+    }
+
     [HttpPost("password/request-otp")]
     [AllowAnonymous]
     public async Task<IActionResult> RequestOtp([FromBody] RequestPasswordResetRequest request, CancellationToken cancellationToken)

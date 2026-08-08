@@ -59,7 +59,7 @@ export function AccountingPaymentReviewPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
-  const isAccounting = user?.role === 'Accounting' || user?.role === 'SystemAdmin';
+  const isAccounting = user?.role === 'Accounting';
 
   const { data: payment, error, isLoading } = useGetPaymentQuery(id, { skip: !id || !isAccounting });
   const manifestId = payment?.manifestId ?? '';

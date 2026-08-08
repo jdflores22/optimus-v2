@@ -35,16 +35,17 @@ import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 export function AppealsReferralsPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const { user } = useSelector((state: RootState) => state.auth);
   const role = user?.role ?? '';
-  const isAdmin = role === 'SystemAdmin' || role === 'ShippingLinesAdmin';
-  const isBroker = !adminOnly && (role === 'Broker' || role === 'SystemAdmin');
-  const isConsignee = !adminOnly && (role === 'Consignee' || role === 'SystemAdmin');
+  const isShippingAdmin = role === 'ShippingLinesAdmin';
+  const canReviewAppeals = isShippingAdmin;
+  const isBroker = !adminOnly && role === 'Broker';
+  const isConsignee = !adminOnly && role === 'Consignee';
 
   const { data: appeals = [], refetch: refetchAppeals } = useGetAppealsQuery();
   const { data: referrals = [], refetch: refetchRefs } = useGetReferralsQuery(undefined, {
     skip: !isConsignee,
   });
   const { data: welcome } = useGetWelcomeQuery();
-  const { data: users = [] } = useGetHierarchyUsersQuery(undefined, { skip: !isAdmin });
+  const { data: users = [] } = useGetHierarchyUsersQuery(undefined, { skip: !canReviewAppeals });
   const brokers = users.filter((u) => u.role === 'Broker');
 
   const [suspend] = useSuspendBrokerMutation();
@@ -64,11 +65,11 @@ export function AppealsReferralsPage({ adminOnly = false }: { adminOnly?: boolea
 
   return (
     <WorkflowPage
-      eyebrow={adminOnly ? 'Management' : 'Appeals And Referrals'}
+      eyebrow={adminOnly ? 'Shipping line management' : 'Appeals And Referrals'}
       title={adminOnly ? 'Suspension Appeals' : 'Appeals, Referrals & Onboarding'}
       subtitle={
         adminOnly
-          ? 'Review broker suspension appeals and restore access after compliance review.'
+          ? 'Review broker suspension appeals and restore access after your shipping line compliance review.'
           : 'Manage broker appeals, consignee referral codes, and onboarding guidance in one operational surface.'
       }
       chips={
@@ -77,12 +78,20 @@ export function AppealsReferralsPage({ adminOnly = false }: { adminOnly?: boolea
           {isConsignee && <Chip size="small" color="info" label={`${referrals.length} referral codes`} />}
         </>
       }
-      stats={[
-        { label: 'Appeals', value: appeals.length, hint: 'All submissions', tone: 'primary' },
-        { label: 'Pending Appeals', value: pendingAppeals.length, hint: 'Awaiting admin review', tone: 'warning' },
-        { label: 'Referral Codes', value: referrals.length, hint: 'Consignee side', tone: 'info' },
-        { label: 'Broker Accounts', value: brokers.length, hint: 'Admin actions', tone: 'success' },
-      ]}
+      stats={
+        adminOnly
+          ? [
+              { label: 'Appeals', value: appeals.length, hint: 'All submissions', tone: 'primary' },
+              { label: 'Pending', value: pendingAppeals.length, hint: 'Awaiting your review', tone: 'warning' },
+              { label: 'Brokers', value: brokers.length, hint: 'Under your line', tone: 'info' },
+            ]
+          : [
+              { label: 'Appeals', value: appeals.length, hint: 'All submissions', tone: 'primary' },
+              { label: 'Pending Appeals', value: pendingAppeals.length, hint: 'Awaiting admin review', tone: 'warning' },
+              { label: 'Referral Codes', value: referrals.length, hint: 'Consignee side', tone: 'info' },
+              { label: 'Broker Accounts', value: brokers.length, hint: 'Admin actions', tone: 'success' },
+            ]
+      }
     >
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="error">{error}</Alert>}
@@ -114,10 +123,10 @@ export function AppealsReferralsPage({ adminOnly = false }: { adminOnly?: boolea
         </WorkflowSection>
       )}
 
-      {isAdmin && (
+      {canReviewAppeals && (
         <WorkflowSection
           title="Broker Suspension"
-          subtitle="Administrative suspension action before any appeal review happens."
+          subtitle="Shipping line action before any appeal review happens."
         >
           <Stack {...formRowStackProps}>
             <TextField
@@ -281,16 +290,32 @@ export function AppealsReferralsPage({ adminOnly = false }: { adminOnly?: boolea
                 </TableCell>
                 <TableCell>{a.appealLetter.slice(0, 60)}</TableCell>
                 <TableCell>
-                  {role === 'SystemAdmin' && a.status === 'Pending' && (
-                    <Button
-                      size="small"
-                      onClick={async () => {
-                        await reviewAppeal({ id: a.id, approve: true }).unwrap();
-                        refetchAppeals();
-                      }}
-                    >
-                      Approve
-                    </Button>
+                  {canReviewAppeals && a.status === 'Pending' && (
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        size="small"
+                        onClick={async () => {
+                          await reviewAppeal({ id: a.id, approve: true }).unwrap();
+                          refetchAppeals();
+                        }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={async () => {
+                          await reviewAppeal({
+                            id: a.id,
+                            approve: false,
+                            notes: 'Appeal rejected after review.',
+                          }).unwrap();
+                          refetchAppeals();
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </Stack>
                   )}
                 </TableCell>
               </TableRow>

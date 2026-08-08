@@ -27,8 +27,8 @@ import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 export function TransfersPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const { user } = useSelector((state: RootState) => state.auth);
-  const isConsignee = !adminOnly && ['Consignee', 'SystemAdmin'].includes(user?.role ?? '');
-  const isStaff = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(user?.role ?? '');
+  const isConsignee = !adminOnly && user?.role === 'Consignee';
+  const isStaff = ['SlStaff', 'ShippingLinesAdmin'].includes(user?.role ?? '');
   const { data: transfers = [], refetch } = useGetTransfersQuery();
   const { data: manifests = [] } = useGetManifestsQuery();
   const { data: users = [] } = useGetHierarchyUsersQuery();
@@ -46,11 +46,11 @@ export function TransfersPage({ adminOnly = false }: { adminOnly?: boolean }) {
 
   return (
     <WorkflowPage
-      eyebrow={adminOnly ? 'Management' : 'Transfer Workflow'}
+      eyebrow={adminOnly ? 'Shipping line management' : 'Transfer Workflow'}
       title={adminOnly ? 'Transfer Requests' : 'Broker Transfers'}
       subtitle={
         adminOnly
-          ? 'Review and approve broker reassignment requests submitted by consignees.'
+          ? 'Review and approve broker reassignment requests submitted by consignees under your shipping line.'
           : 'Request broker reassignment and review transfer approvals across affected manifests.'
       }
       chips={
