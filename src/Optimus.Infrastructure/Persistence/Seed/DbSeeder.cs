@@ -18,6 +18,7 @@ public static class DbSeeder
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
+        await MigrationHistoryBaseline.EnsureAsync(db, logger);
         await db.Database.MigrateAsync();
 
         ShippingLine? demoLine = null;
