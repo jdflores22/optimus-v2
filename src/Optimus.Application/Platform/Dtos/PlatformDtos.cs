@@ -40,6 +40,19 @@ public record UpsertSystemSettingRequest(string Key, string Value, string? Descr
 public record RateLimitRuleDto(Guid Id, string Name, string PathPrefix, string? Role, int PermitLimit, int WindowSeconds, bool IsActive);
 public record UpsertRateLimitRuleRequest(string Name, string PathPrefix, string? Role, int PermitLimit, int WindowSeconds, bool IsActive = true);
 
+public record AdminDashboardMetricsDto(
+    int AuditLogsLast7Days,
+    int TotalManifests,
+    int TotalEdoPayments,
+    decimal TotalEdoPaymentAmount,
+    int PendingEdoPayments,
+    decimal PendingEdoPaymentAmount,
+    int VerifiedEdoPayments,
+    decimal VerifiedEdoPaymentAmount,
+    decimal DailyVerifiedFees,
+    int ReadyToRelease,
+    int PendingAccreditations);
+
 public record DocumentTemplateDto(
     Guid Id,
     string DocumentType,

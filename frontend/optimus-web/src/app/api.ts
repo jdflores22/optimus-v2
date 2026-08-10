@@ -55,6 +55,7 @@ import type {
   NotificationPreferenceDto,
   NotificationMetricsDto,
   SystemSettingDto,
+  AdminDashboardMetricsDto,
   RateLimitRuleDto,
   MessageTemplateDto,
   DocumentTemplateDto,
@@ -145,6 +146,7 @@ export const api = createApi({
     'Notifications',
     'PlatformSettings',
     'RateLimits',
+    'AdminDashboard',
     'MessageTemplates',
     'DocumentTemplates',
     'ScheduledReports',
@@ -1324,6 +1326,10 @@ export const api = createApi({
       query: () => '/api/rate-limits',
       providesTags: ['RateLimits'],
     }),
+    getAdminDashboardMetrics: builder.query<AdminDashboardMetricsDto, void>({
+      query: () => '/api/admin/dashboard/metrics',
+      providesTags: ['AdminDashboard'],
+    }),
     upsertRateLimit: builder.mutation<
       RateLimitRuleDto,
       {
@@ -1612,6 +1618,7 @@ export const {
   useGetSystemSettingsQuery,
   useUpsertSystemSettingMutation,
   useGetRateLimitsQuery,
+  useGetAdminDashboardMetricsQuery,
   useUpsertRateLimitMutation,
   useUpdateRateLimitMutation,
   useGetMessageTemplatesQuery,

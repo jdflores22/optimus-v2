@@ -920,6 +920,19 @@ export type NotificationMetricsDto = {
 };
 
 export type SystemSettingDto = { id: string; key: string; value: string; description?: string };
+export type AdminDashboardMetricsDto = {
+  auditLogsLast7Days: number;
+  totalManifests: number;
+  totalEdoPayments: number;
+  totalEdoPaymentAmount: number;
+  pendingEdoPayments: number;
+  pendingEdoPaymentAmount: number;
+  verifiedEdoPayments: number;
+  verifiedEdoPaymentAmount: number;
+  dailyVerifiedFees: number;
+  readyToRelease: number;
+  pendingAccreditations: number;
+};
 export type RateLimitRuleDto = {
   id: string;
   name: string;

@@ -13,6 +13,7 @@ import {
   VerifyEmailPage,
 } from './features/auth/AuthPages';
 import { DashboardPage } from './features/dashboard/DashboardPage';
+import { SystemAdminDashboardPage } from './features/dashboard/SystemAdminDashboardPage';
 import { ConsigneeDashboardPage } from './features/dashboard/ConsigneeDashboardPage';
 import { BrokerDashboardPage } from './features/dashboard/BrokerDashboardPage';
 import { AppShell } from './features/layout/AppShell';
@@ -124,6 +125,7 @@ function HomePage() {
   }
   if (user?.role === 'Consignee') return <ConsigneeDashboardPage />;
   if (user?.role === 'Broker') return <BrokerDashboardPage />;
+  if (user?.role === 'SystemAdmin') return <SystemAdminDashboardPage />;
   return <DashboardPage />;
 }
 
