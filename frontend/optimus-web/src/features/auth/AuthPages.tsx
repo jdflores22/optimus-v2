@@ -1,5 +1,6 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Alert, Button, Link, Stack, TextField, Typography } from '@mui/material';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { Alert, Button, CircularProgress, Link, Stack, TextField, Typography } from '@mui/material';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   useRegisterBrokerMutation,
@@ -16,6 +17,7 @@ import { setCredentials } from '../../app/authSlice';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from './AuthSplitLayout';
 import { postAuthHomePath } from '../../shared/postAuthHomePath';
+import { getApiErrorMessage } from '../../shared/apiErrorMessage';
 import {
   RegistrationPasswordFields,
   useRegistrationPassword,
@@ -98,8 +100,8 @@ export function RegisterBrokerPage() {
         referralCode: form.referralCode.trim() || undefined,
       }).unwrap();
       setMessage(res.message);
-    } catch {
-      setError('Registration failed.');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Registration failed.'));
     }
   };
 
@@ -230,8 +232,8 @@ export function RegisterConsigneePage() {
         businessName: form.businessName.trim(),
       }).unwrap();
       setMessage(res.message);
-    } catch {
-      setError('Registration failed.');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Registration failed.'));
     }
   };
 
@@ -361,8 +363,8 @@ export function RegisterTruckerPage() {
         truckPlateNumber: form.truckPlateNumber.trim() || undefined,
       }).unwrap();
       setMessage(res.message);
-    } catch {
-      setError('Registration failed.');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Registration failed.'));
     }
   };
 
@@ -540,29 +542,111 @@ export function ForgotPasswordPage() {
 export function VerifyEmailPage() {
   const [verifyEmail] = useVerifyEmailMutation();
   const [searchParams] = useSearchParams();
-  const [token, setToken] = useState('');
+  const linkToken = searchParams.get('token')?.trim() ?? '';
+  const [manualToken, setManualToken] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [linkStatus, setLinkStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
+  const attemptedLinkVerification = useRef(false);
 
   useEffect(() => {
-    const fromLink = searchParams.get('token');
-    if (fromLink) {
-      setToken(fromLink);
+    if (!linkToken || attemptedLinkVerification.current) {
+      return;
     }
-  }, [searchParams]);
+
+    attemptedLinkVerification.current = true;
+
+    const verifyFromLink = async () => {
+      setLinkStatus('verifying');
+      setError(null);
+      try {
+        const res = await verifyEmail({ token: linkToken }).unwrap();
+        setMessage(res.message ?? 'Your email has been verified.');
+        setLinkStatus('success');
+      } catch (err) {
+        setError(getApiErrorMessage(err, 'Verification failed. The link may have expired.'));
+        setLinkStatus('error');
+      }
+    };
+
+    void verifyFromLink();
+  }, [linkToken, verifyEmail]);
+
+  if (linkToken) {
+    if (linkStatus === 'idle' || linkStatus === 'verifying') {
+      return (
+        <AuthSplitLayout
+          title="Verifying email"
+          subtitle="Please wait while we confirm your email address."
+        >
+          <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
+            <CircularProgress size={40} />
+            <Typography color="text.secondary">This only takes a moment.</Typography>
+          </Stack>
+        </AuthSplitLayout>
+      );
+    }
+
+    if (linkStatus === 'success') {
+      return (
+        <AuthSplitLayout
+          title="Email verified"
+          subtitle="Your account is ready. You can now sign in to OPTIMUS."
+        >
+          <Stack spacing={2.5} alignItems="center" sx={{ py: 1 }}>
+            <CheckCircleOutlineIcon color="success" sx={{ fontSize: 56 }} />
+            <Alert severity="success" sx={{ width: '100%' }}>
+              {message ?? 'Your email has been verified successfully.'}
+            </Alert>
+            <Button
+              component={RouterLink}
+              to="/login"
+              variant="contained"
+              size="large"
+              fullWidth
+              sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
+            >
+              Sign in
+            </Button>
+          </Stack>
+        </AuthSplitLayout>
+      );
+    }
+
+    return (
+      <AuthSplitLayout
+        title="Verification failed"
+        subtitle="This link is invalid or has expired."
+      >
+        <Stack spacing={2}>
+          <Alert severity="error">{error}</Alert>
+          <Button
+            component={RouterLink}
+            to="/login"
+            variant="contained"
+            size="large"
+            fullWidth
+            sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
+          >
+            Back to sign in
+          </Button>
+        </Stack>
+      </AuthSplitLayout>
+    );
+  }
 
   return (
     <AuthSplitLayout
       title="Verify email"
-      subtitle="Open the link from your registration email or paste your verification token below."
+      subtitle="Paste the verification token from your registration email."
     >
       <Stack spacing={2}>
         {message && <Alert severity="success">{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
         <TextField
           label="Verification token"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
+          value={manualToken}
+          onChange={(e) => setManualToken(e.target.value)}
           helperText="Sent to your inbox after registration"
           fullWidth
         />
@@ -574,10 +658,10 @@ export function VerifyEmailPage() {
           onClick={async () => {
             setError(null);
             try {
-              const res = await verifyEmail({ token }).unwrap();
-              setMessage(res.message);
-            } catch {
-              setError('Verification failed.');
+              const res = await verifyEmail({ token: manualToken.trim() }).unwrap();
+              setMessage(res.message ?? 'Your email has been verified.');
+            } catch (err) {
+              setError(getApiErrorMessage(err, 'Verification failed.'));
             }
           }}
         >

@@ -47,7 +47,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RegisterBroker([FromBody] RegisterBrokerRequest request, CancellationToken cancellationToken)
     {
         await _authService.RegisterBrokerAsync(request, cancellationToken);
-        return Accepted(new { message = "Broker registered. Check email/logs for verification token." });
+        return Accepted(new { message = "Check your email for a verification link. It may take a minute to arrive." });
     }
 
     [HttpPost("register/consignee")]
@@ -55,7 +55,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RegisterConsignee([FromBody] RegisterConsigneeRequest request, CancellationToken cancellationToken)
     {
         await _authService.RegisterConsigneeAsync(request, cancellationToken);
-        return Accepted(new { message = "Consignee registered. Check email/logs for verification token." });
+        return Accepted(new { message = "Check your email for a verification link. It may take a minute to arrive." });
     }
 
     [HttpPost("register/trucker")]
@@ -63,7 +63,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RegisterTrucker([FromBody] RegisterTruckerRequest request, CancellationToken cancellationToken)
     {
         await _authService.RegisterTruckerAsync(request, cancellationToken);
-        return Accepted(new { message = "Trucker registered. Check email/logs for verification token." });
+        return Accepted(new { message = "Check your email for a verification link. It may take a minute to arrive." });
     }
 
     [HttpPost("password/request-otp")]

@@ -147,7 +147,10 @@ public class AuthService : IAuthService
 
     public async Task RegisterBrokerAsync(RegisterBrokerRequest request, CancellationToken cancellationToken = default)
     {
-        await EnsureEmailAvailableAsync(request.Email, cancellationToken);
+        if (await TryResendVerificationForUnverifiedEmailAsync(request.Email, cancellationToken))
+        {
+            return;
+        }
 
         var broker = new Broker
         {
@@ -193,13 +196,15 @@ public class AuthService : IAuthService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        await _emailSender.SendAsync(broker.Email, "Verify your Optimus V2 email",
-            BuildVerificationEmailBody(broker.EmailVerificationToken!), cancellationToken);
+        await SendVerificationEmailAsync(broker.Email, broker.EmailVerificationToken!, cancellationToken);
     }
 
     public async Task RegisterConsigneeAsync(RegisterConsigneeRequest request, CancellationToken cancellationToken = default)
     {
-        await EnsureEmailAvailableAsync(request.Email, cancellationToken);
+        if (await TryResendVerificationForUnverifiedEmailAsync(request.Email, cancellationToken))
+        {
+            return;
+        }
 
         var consignee = new Consignee
         {
@@ -218,13 +223,15 @@ public class AuthService : IAuthService
         _db.Consignees.Add(consignee);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _emailSender.SendAsync(consignee.Email, "Verify your Optimus V2 email",
-            BuildVerificationEmailBody(consignee.EmailVerificationToken!), cancellationToken);
+        await SendVerificationEmailAsync(consignee.Email, consignee.EmailVerificationToken!, cancellationToken);
     }
 
     public async Task RegisterTruckerAsync(RegisterTruckerRequest request, CancellationToken cancellationToken = default)
     {
-        await EnsureEmailAvailableAsync(request.Email, cancellationToken);
+        if (await TryResendVerificationForUnverifiedEmailAsync(request.Email, cancellationToken))
+        {
+            return;
+        }
 
         var trucker = new Trucker
         {
@@ -246,8 +253,7 @@ public class AuthService : IAuthService
         _db.Truckers.Add(trucker);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _emailSender.SendAsync(trucker.Email, "Verify your Optimus V2 email",
-            BuildVerificationEmailBody(trucker.EmailVerificationToken!), cancellationToken);
+        await SendVerificationEmailAsync(trucker.Email, trucker.EmailVerificationToken!, cancellationToken);
     }
 
     public async Task RequestPasswordResetAsync(RequestPasswordResetRequest request, CancellationToken cancellationToken = default)
@@ -422,14 +428,34 @@ public class AuthService : IAuthService
             user.ProfilePhotoPath);
     }
 
-    private async Task EnsureEmailAvailableAsync(string email, CancellationToken cancellationToken)
+    private async Task<bool> TryResendVerificationForUnverifiedEmailAsync(string email, CancellationToken cancellationToken)
     {
         var normalized = email.Trim().ToLowerInvariant();
-        if (await _db.Users.AnyAsync(x => x.Email == normalized, cancellationToken))
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == normalized, cancellationToken);
+        if (user is null)
         {
-            throw new InvalidOperationException("Email is already registered.");
+            return false;
         }
+
+        if (user.EmailVerified)
+        {
+            throw new InvalidOperationException(
+                "Email is already registered. Sign in or use password reset if you forgot your password.");
+        }
+
+        SetEmailVerification(user);
+        await _db.SaveChangesAsync(cancellationToken);
+        await SendVerificationEmailAsync(user.Email, user.EmailVerificationToken!, cancellationToken);
+        _logger.LogInformation("Resent verification email for unverified account {Email}", user.Email);
+        return true;
     }
+
+    private Task SendVerificationEmailAsync(string email, string token, CancellationToken cancellationToken) =>
+        _emailSender.SendAsync(
+            email,
+            "Verify your Optimus V2 email",
+            BuildVerificationEmailBody(token),
+            cancellationToken);
 
     private static void SetEmailVerification(User user)
     {
