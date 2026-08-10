@@ -42,16 +42,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 8,
-            },
-          },
-        ],
+        // API lives on Railway (cross-origin). Do not cache /api via SW — it breaks CORS after failed deploys.
       },
       devOptions: {
         enabled: true,

@@ -76,8 +76,19 @@ try
     {
         options.AddPolicy("Frontend", policy =>
         {
-            var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
-                          ?? new[] { "http://localhost:5173" };
+            var configured = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
+            var origins = configured
+                .Concat(new[]
+                {
+                    "https://indigo-buffalo-715579.hostingersite.com",
+                    "https://www.indigo-buffalo-715579.hostingersite.com",
+                    "http://localhost:5173",
+                    "http://127.0.0.1:5173",
+                })
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
             policy.WithOrigins(origins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
@@ -90,6 +101,11 @@ try
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
         options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
         {
+            if (HttpMethods.IsOptions(httpContext.Request.Method))
+            {
+                return RateLimitPartition.GetNoLimiter("options");
+            }
+
             var key = httpContext.User.Identity?.Name
                       ?? httpContext.Connection.RemoteIpAddress?.ToString()
                       ?? "anon";
@@ -104,6 +120,7 @@ try
 
     var app = builder.Build();
 
+    app.UseCors("Frontend");
     app.UseSerilogRequestLogging();
 
     if (app.Environment.IsDevelopment())
@@ -112,7 +129,6 @@ try
         app.UseSwaggerUI();
     }
 
-    app.UseCors("Frontend");
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseRateLimiter();
     app.UseMiddleware<BlockEdoStaticFilesMiddleware>();
