@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Optimus.Application.Auth.Dtos;
@@ -24,6 +25,7 @@ public class AuthService : IAuthService
     private readonly IEmailSender _emailSender;
     private readonly JwtSettings _jwtSettings;
     private readonly AppSettings _appSettings;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -34,6 +36,7 @@ public class AuthService : IAuthService
         IEmailSender emailSender,
         IOptions<JwtSettings> jwtSettings,
         IOptions<AppSettings> appSettings,
+        IServiceScopeFactory scopeFactory,
         ILogger<AuthService> logger)
     {
         _db = db;
@@ -43,6 +46,7 @@ public class AuthService : IAuthService
         _emailSender = emailSender;
         _jwtSettings = jwtSettings.Value;
         _appSettings = appSettings.Value;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -196,7 +200,7 @@ public class AuthService : IAuthService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        await SendVerificationEmailAsync(broker.Email, broker.EmailVerificationToken!, cancellationToken);
+        QueueVerificationEmail(broker.Email, broker.EmailVerificationToken!);
     }
 
     public async Task RegisterConsigneeAsync(RegisterConsigneeRequest request, CancellationToken cancellationToken = default)
@@ -223,7 +227,7 @@ public class AuthService : IAuthService
         _db.Consignees.Add(consignee);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await SendVerificationEmailAsync(consignee.Email, consignee.EmailVerificationToken!, cancellationToken);
+        QueueVerificationEmail(consignee.Email, consignee.EmailVerificationToken!);
     }
 
     public async Task RegisterTruckerAsync(RegisterTruckerRequest request, CancellationToken cancellationToken = default)
@@ -253,7 +257,7 @@ public class AuthService : IAuthService
         _db.Truckers.Add(trucker);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await SendVerificationEmailAsync(trucker.Email, trucker.EmailVerificationToken!, cancellationToken);
+        QueueVerificationEmail(trucker.Email, trucker.EmailVerificationToken!);
     }
 
     public async Task RequestPasswordResetAsync(RequestPasswordResetRequest request, CancellationToken cancellationToken = default)
@@ -454,17 +458,31 @@ public class AuthService : IAuthService
 
         SetEmailVerification(user);
         await _db.SaveChangesAsync(cancellationToken);
-        await SendVerificationEmailAsync(user.Email, user.EmailVerificationToken!, cancellationToken);
+        QueueVerificationEmail(user.Email, user.EmailVerificationToken!);
         _logger.LogInformation("Resent verification email for unverified account {Email}", user.Email);
         return true;
     }
 
-    private Task SendVerificationEmailAsync(string email, string token, CancellationToken cancellationToken) =>
-        _emailSender.SendAsync(
-            email,
-            "Verify your Optimus V2 email",
-            BuildVerificationEmailBody(token),
-            cancellationToken);
+    private void QueueVerificationEmail(string email, string token)
+    {
+        var body = BuildVerificationEmailBody(token);
+        const string subject = "Verify your Optimus V2 email";
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+                await emailSender.SendAsync(email, subject, body, CancellationToken.None);
+                _logger.LogInformation("Verification email sent to {Email}", email);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send verification email to {Email}", email);
+            }
+        });
+    }
 
     private static void SetEmailVerification(User user)
     {

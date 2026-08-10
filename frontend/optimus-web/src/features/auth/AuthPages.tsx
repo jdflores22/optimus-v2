@@ -60,6 +60,29 @@ function RegisterRoleLinks({ current }: { current: 'broker' | 'consignee' | 'tru
   );
 }
 
+function RegistrationSubmitButton({
+  loading,
+  disabled,
+  label,
+}: {
+  loading: boolean;
+  disabled: boolean;
+  label: string;
+}) {
+  return (
+    <Button
+      type="submit"
+      variant="contained"
+      size="large"
+      fullWidth
+      disabled={disabled || loading}
+      sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
+    >
+      {loading ? <CircularProgress size={22} color="inherit" /> : label}
+    </Button>
+  );
+}
+
 export function RegisterBrokerPage() {
   const [register, { isLoading }] = useRegisterBrokerMutation();
   const [form, setForm] = useState({
@@ -122,6 +145,12 @@ export function RegisterBrokerPage() {
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
         {message && <Alert severity="success">{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
+        {isLoading && (
+          <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />}>
+            Creating your account and sending a verification email…
+          </Alert>
+        )}
+        <Stack component="fieldset" disabled={isLoading} spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
         <TextField
           label={FIELD_LABELS.email}
           type="email"
@@ -177,16 +206,12 @@ export function RegisterBrokerPage() {
             passwordFields.setTouched((prev) => ({ ...prev, confirmPassword: true }))
           }
         />
-        <Button
-          type="submit"
-          variant="contained"
-          size="large"
-          fullWidth
+        </Stack>
+        <RegistrationSubmitButton
+          loading={isLoading}
           disabled={!canSubmit}
-          sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
-        >
-          Create broker account
-        </Button>
+          label="Create broker account"
+        />
         <RegisterRoleLinks current="broker" />
       </Stack>
     </AuthSplitLayout>
@@ -254,6 +279,12 @@ export function RegisterConsigneePage() {
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
         {message && <Alert severity="success">{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
+        {isLoading && (
+          <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />}>
+            Creating your account and sending a verification email…
+          </Alert>
+        )}
+        <Stack component="fieldset" disabled={isLoading} spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
         <TextField
           label={FIELD_LABELS.email}
           type="email"
@@ -303,16 +334,12 @@ export function RegisterConsigneePage() {
             passwordFields.setTouched((prev) => ({ ...prev, confirmPassword: true }))
           }
         />
-        <Button
-          type="submit"
-          variant="contained"
-          size="large"
-          fullWidth
+        </Stack>
+        <RegistrationSubmitButton
+          loading={isLoading}
           disabled={!canSubmit}
-          sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
-        >
-          Create consignee account
-        </Button>
+          label="Create consignee account"
+        />
         <RegisterRoleLinks current="consignee" />
       </Stack>
     </AuthSplitLayout>
@@ -385,6 +412,12 @@ export function RegisterTruckerPage() {
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
         {message && <Alert severity="success">{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
+        {isLoading && (
+          <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />}>
+            Creating your account and sending a verification email…
+          </Alert>
+        )}
+        <Stack component="fieldset" disabled={isLoading} spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
         <TextField
           label={FIELD_LABELS.email}
           type="email"
@@ -452,16 +485,12 @@ export function RegisterTruckerPage() {
             passwordFields.setTouched((prev) => ({ ...prev, confirmPassword: true }))
           }
         />
-        <Button
-          type="submit"
-          variant="contained"
-          size="large"
-          fullWidth
+        </Stack>
+        <RegistrationSubmitButton
+          loading={isLoading}
           disabled={!canSubmit}
-          sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
-        >
-          Create trucker account
-        </Button>
+          label="Create trucker account"
+        />
         <RegisterRoleLinks current="trucker" />
       </Stack>
     </AuthSplitLayout>
