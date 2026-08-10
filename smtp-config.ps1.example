@@ -1,0 +1,11 @@
+# Copy to smtp-config.ps1 (not committed). Hostinger mailbox for OPTIMUS outbound mail.
+@{
+    Host      = 'smtp.hostinger.com'
+    Port      = 465
+    User      = 'technical@tnsds.ph'
+    Password  = ''   # <-- mailbox password
+    FromEmail = 'technical@tnsds.ph'
+    FromName  = 'OPTIMUS'
+    UseSsl    = $true
+    PublicUrl = 'https://indigo-buffalo-715579.hostingersite.com'
+}

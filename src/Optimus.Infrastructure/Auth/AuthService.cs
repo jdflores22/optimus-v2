@@ -8,6 +8,7 @@ using Optimus.Application.Auth.Dtos;
 using Optimus.Application.Auth.Interfaces;
 using Optimus.Domain.Entities;
 using Optimus.Domain.Enums;
+using Optimus.Infrastructure.Email;
 using Optimus.Infrastructure.Persistence;
 using Optimus.Infrastructure.Shipping;
 using Optimus.Shared.Constants;
@@ -22,6 +23,7 @@ public class AuthService : IAuthService
     private readonly IValidator<LoginRequest> _loginValidator;
     private readonly IEmailSender _emailSender;
     private readonly JwtSettings _jwtSettings;
+    private readonly AppSettings _appSettings;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -31,6 +33,7 @@ public class AuthService : IAuthService
         IValidator<LoginRequest> loginValidator,
         IEmailSender emailSender,
         IOptions<JwtSettings> jwtSettings,
+        IOptions<AppSettings> appSettings,
         ILogger<AuthService> logger)
     {
         _db = db;
@@ -39,6 +42,7 @@ public class AuthService : IAuthService
         _loginValidator = loginValidator;
         _emailSender = emailSender;
         _jwtSettings = jwtSettings.Value;
+        _appSettings = appSettings.Value;
         _logger = logger;
     }
 
@@ -190,7 +194,7 @@ public class AuthService : IAuthService
 
         await _db.SaveChangesAsync(cancellationToken);
         await _emailSender.SendAsync(broker.Email, "Verify your Optimus V2 email",
-            $"Your verification token: {broker.EmailVerificationToken}", cancellationToken);
+            BuildVerificationEmailBody(broker.EmailVerificationToken!), cancellationToken);
     }
 
     public async Task RegisterConsigneeAsync(RegisterConsigneeRequest request, CancellationToken cancellationToken = default)
@@ -215,7 +219,7 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync(cancellationToken);
 
         await _emailSender.SendAsync(consignee.Email, "Verify your Optimus V2 email",
-            $"Your verification token: {consignee.EmailVerificationToken}", cancellationToken);
+            BuildVerificationEmailBody(consignee.EmailVerificationToken!), cancellationToken);
     }
 
     public async Task RegisterTruckerAsync(RegisterTruckerRequest request, CancellationToken cancellationToken = default)
@@ -243,7 +247,7 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync(cancellationToken);
 
         await _emailSender.SendAsync(trucker.Email, "Verify your Optimus V2 email",
-            $"Your verification token: {trucker.EmailVerificationToken}", cancellationToken);
+            BuildVerificationEmailBody(trucker.EmailVerificationToken!), cancellationToken);
     }
 
     public async Task RequestPasswordResetAsync(RequestPasswordResetRequest request, CancellationToken cancellationToken = default)
@@ -261,7 +265,8 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync(cancellationToken);
 
         await _emailSender.SendAsync(user.Email, "Optimus V2 password reset OTP",
-            $"Your OTP is {otp}. It expires in 15 minutes.", cancellationToken);
+            $"Your password reset code is {otp}. It expires in 15 minutes.{Environment.NewLine}{Environment.NewLine}If you did not request this, you can ignore this email.",
+            cancellationToken);
         _logger.LogInformation("Password reset OTP generated for {Email}", user.Email);
     }
 
@@ -431,6 +436,18 @@ public class AuthService : IAuthService
         user.EmailVerificationToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         user.EmailVerificationExpiresAt = DateTime.UtcNow.AddDays(2);
     }
+
+    private string BuildVerificationEmailBody(string token)
+    {
+        var publicUrl = _appSettings.TrimmedPublicUrl;
+        if (string.IsNullOrWhiteSpace(publicUrl))
+        {
+            return $"Welcome to OPTIMUS.{Environment.NewLine}{Environment.NewLine}Your verification token:{Environment.NewLine}{token}{Environment.NewLine}{Environment.NewLine}Enter this token on the Verify Email page. The token expires in 48 hours.";
+        }
+
+        var verifyUrl = $"{publicUrl}/verify-email?token={Uri.EscapeDataString(token)}";
+        return $"Welcome to OPTIMUS.{Environment.NewLine}{Environment.NewLine}Verify your email by opening this link:{Environment.NewLine}{verifyUrl}{Environment.NewLine}{Environment.NewLine}Or paste this token on the Verify Email page:{Environment.NewLine}{token}{Environment.NewLine}{Environment.NewLine}The link expires in 48 hours.";
+    }
 }
 
 public class JwtTokenService : IJwtTokenService
@@ -497,20 +514,4 @@ public class BcryptPasswordHasher : IPasswordHasher
 
     public bool Verify(string password, string passwordHash) =>
         BCrypt.Net.BCrypt.Verify(password, passwordHash);
-}
-
-public class LoggingEmailSender : IEmailSender
-{
-    private readonly ILogger<LoggingEmailSender> _logger;
-
-    public LoggingEmailSender(ILogger<LoggingEmailSender> logger)
-    {
-        _logger = logger;
-    }
-
-    public Task SendAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("EMAIL to={To} subject={Subject} body={Body}", toEmail, subject, body);
-        return Task.CompletedTask;
-    }
 }

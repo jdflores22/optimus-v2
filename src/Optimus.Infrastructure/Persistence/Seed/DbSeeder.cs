@@ -164,7 +164,7 @@ public static class DbSeeder
         {
             db.SystemSettings.AddRange(
                 new SystemSetting { Key = "session.idle_minutes", Value = "30", Description = "Idle session timeout" },
-                new SystemSetting { Key = "notifications.email_from", Value = "noreply@optimus.local", Description = "Default from address" },
+                new SystemSetting { Key = "notifications.email_from", Value = "technical@tnsds.ph", Description = "Default from address" },
                 new SystemSetting { Key = "pwa.vapid_public_key", Value = "DEMO_VAPID_PUBLIC", Description = "Web Push VAPID public key (demo)" }
             );
         }

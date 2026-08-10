@@ -13,6 +13,7 @@ using Optimus.Application.Security;
 using Optimus.Application.ShippingAdmin.Interfaces;
 using Optimus.Application.Yard.Interfaces;
 using Optimus.Infrastructure.Auth;
+using Optimus.Infrastructure.Email;
 using Optimus.Infrastructure.Cargo;
 using Optimus.Infrastructure.Edo;
 using Optimus.Infrastructure.Identity;
@@ -33,6 +34,18 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+        services.Configure<SmtpSettings>(configuration.GetSection(SmtpSettings.SectionName));
+        services.Configure<AppSettings>(configuration.GetSection(AppSettings.SectionName));
+
+        var smtpSettings = configuration.GetSection(SmtpSettings.SectionName).Get<SmtpSettings>() ?? new SmtpSettings();
+        if (smtpSettings.IsConfigured)
+        {
+            services.AddScoped<IEmailSender, SmtpEmailSender>();
+        }
+        else
+        {
+            services.AddScoped<IEmailSender, LoggingEmailSender>();
+        }
 
         var connectionString = DatabaseConnection.ResolveFromConfiguration(configuration)
             ?? throw new InvalidOperationException(
@@ -111,7 +124,6 @@ public static class DependencyInjection
 
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
-        services.AddScoped<IEmailSender, LoggingEmailSender>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IResourceAuthorizationService, ResourceAuthorizationService>();
         services.AddScoped<IRoleAcceptanceService, RoleAcceptanceService>();

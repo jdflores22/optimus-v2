@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Alert, Button, Link, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import {
@@ -13,7 +13,7 @@ import {
 } from '../../app/api';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../../app/authSlice';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from './AuthSplitLayout';
 import { postAuthHomePath } from '../../shared/postAuthHomePath';
 import {
@@ -539,14 +539,22 @@ export function ForgotPasswordPage() {
 
 export function VerifyEmailPage() {
   const [verifyEmail] = useVerifyEmailMutation();
+  const [searchParams] = useSearchParams();
   const [token, setToken] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const fromLink = searchParams.get('token');
+    if (fromLink) {
+      setToken(fromLink);
+    }
+  }, [searchParams]);
+
   return (
     <AuthSplitLayout
       title="Verify email"
-      subtitle="Paste the verification token from your registration email or API logs."
+      subtitle="Open the link from your registration email or paste your verification token below."
     >
       <Stack spacing={2}>
         {message && <Alert severity="success">{message}</Alert>}
@@ -555,7 +563,7 @@ export function VerifyEmailPage() {
           label="Verification token"
           value={token}
           onChange={(e) => setToken(e.target.value)}
-          helperText="Copy token from API logs after registration"
+          helperText="Sent to your inbox after registration"
           fullWidth
         />
         <Button

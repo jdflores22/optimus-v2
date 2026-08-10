@@ -6,6 +6,7 @@ using Microsoft.OpenApi.Models;
 using Optimus.Application;
 using Optimus.Application.Platform.Interfaces;
 using Optimus.Infrastructure;
+using Optimus.Infrastructure.Email;
 using Optimus.Infrastructure.Persistence;
 using Optimus.Infrastructure.Persistence.Seed;
 using Optimus.Infrastructure.Storage;
@@ -20,6 +21,9 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    var envName = builder.Environment.EnvironmentName;
+    builder.Configuration.AddJsonFile($"appsettings.{envName}.local.json", optional: true, reloadOnChange: true);
 
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
@@ -182,6 +186,8 @@ try
     }
 
     Log.Information("MySQL target: {DbTarget}", DatabaseConnection.DescribeForLogs(app.Configuration));
+    var smtpConfigured = app.Configuration.GetSection(SmtpSettings.SectionName).Get<SmtpSettings>()?.IsConfigured == true;
+    Log.Information("SMTP email: {Mode}", smtpConfigured ? "Hostinger (live send)" : "logging only (set Smtp__Password on Railway)");
     app.Run();
 }
 catch (Exception ex)
