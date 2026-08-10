@@ -307,18 +307,27 @@ public class AuthService : IAuthService
 
     public async Task VerifyEmailAsync(VerifyEmailRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(x => x.EmailVerificationToken == request.Token, cancellationToken)
-                   ?? throw new InvalidOperationException("Invalid verification token.");
+        var token = request.Token?.Trim();
+        if (string.IsNullOrEmpty(token))
+        {
+            throw new InvalidOperationException("Verification token is required.");
+        }
+
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.EmailVerificationToken == token, cancellationToken)
+                   ?? throw new InvalidOperationException("Invalid or expired verification link.");
+
+        if (user.EmailVerified)
+        {
+            return;
+        }
 
         if (user.EmailVerificationExpiresAt is null || user.EmailVerificationExpiresAt < DateTime.UtcNow)
         {
-            throw new InvalidOperationException("Verification token expired.");
+            throw new InvalidOperationException("Verification link expired. Register again to receive a new email.");
         }
 
         user.EmailVerified = true;
         user.EmailVerifiedAt = DateTime.UtcNow;
-        user.EmailVerificationToken = null;
-        user.EmailVerificationExpiresAt = null;
         user.Status = AccountStatus.Approved;
         await _db.SaveChangesAsync(cancellationToken);
     }

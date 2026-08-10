@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if (-not (Test-Path $ConfigPath)) {
-    throw "Missing $ConfigPath — copy smtp-config.ps1.example to smtp-config.ps1 and set Password."
+    throw "Missing $ConfigPath - copy smtp-config.ps1.example to smtp-config.ps1 and set Password."
 }
 
 $config = & $ConfigPath
@@ -21,7 +21,7 @@ if ([string]::IsNullOrWhiteSpace($config.Password)) {
 
 function Show-ManualRailwayVars {
     param($Settings)
-    Write-Host 'Set these in Railway → Service → Variables, then redeploy:' -ForegroundColor Yellow
+    Write-Host 'Set these in Railway -> Service -> Variables, then redeploy:' -ForegroundColor Yellow
     Write-Host "Smtp__Host=$($Settings.Host)"
     Write-Host "Smtp__Port=$($Settings.Port)"
     Write-Host "Smtp__User=$($Settings.User)"

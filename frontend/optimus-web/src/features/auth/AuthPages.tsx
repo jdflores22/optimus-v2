@@ -554,6 +554,13 @@ export function VerifyEmailPage() {
       return;
     }
 
+    const storageKey = `optimus-email-verified:${linkToken}`;
+    if (sessionStorage.getItem(storageKey) === '1') {
+      setMessage('Your email has been verified.');
+      setLinkStatus('success');
+      return;
+    }
+
     attemptedLinkVerification.current = true;
 
     const verifyFromLink = async () => {
@@ -561,6 +568,7 @@ export function VerifyEmailPage() {
       setError(null);
       try {
         const res = await verifyEmail({ token: linkToken }).unwrap();
+        sessionStorage.setItem(storageKey, '1');
         setMessage(res.message ?? 'Your email has been verified.');
         setLinkStatus('success');
       } catch (err) {
@@ -570,7 +578,9 @@ export function VerifyEmailPage() {
     };
 
     void verifyFromLink();
-  }, [linkToken, verifyEmail]);
+    // verifyEmail is intentionally omitted to avoid duplicate POSTs when RTK Query recreates the hook fn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkToken]);
 
   if (linkToken) {
     if (linkStatus === 'idle' || linkStatus === 'verifying') {
@@ -620,6 +630,9 @@ export function VerifyEmailPage() {
       >
         <Stack spacing={2}>
           <Alert severity="error">{error}</Alert>
+          <Typography color="text.secondary" variant="body2">
+            If you already verified this email, try signing in. Otherwise register again to receive a new link.
+          </Typography>
           <Button
             component={RouterLink}
             to="/login"
@@ -628,7 +641,17 @@ export function VerifyEmailPage() {
             fullWidth
             sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
           >
-            Back to sign in
+            Sign in
+          </Button>
+          <Button
+            component={RouterLink}
+            to="/register/trucker"
+            variant="outlined"
+            size="large"
+            fullWidth
+            sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
+          >
+            Register again
           </Button>
         </Stack>
       </AuthSplitLayout>
