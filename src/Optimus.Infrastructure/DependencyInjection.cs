@@ -18,6 +18,7 @@ using Optimus.Infrastructure.Edo;
 using Optimus.Infrastructure.Identity;
 using Optimus.Infrastructure.Ops;
 using Optimus.Infrastructure.Persistence;
+using Optimus.Infrastructure.Persistence.Seed;
 using Optimus.Infrastructure.Platform;
 using Optimus.Infrastructure.Storage;
 using Optimus.Infrastructure.ShippingAdmin;
@@ -142,6 +143,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditTrailService, AuditTrailService>();
         services.AddScoped<IPlatformActivityService, PlatformActivityService>();
         services.AddScoped<IMaintenanceService, MaintenanceService>();
+        services.AddScoped<ITransactionResetService, TransactionResetService>();
         services.AddScoped<ITerminalService, TerminalService>();
         services.AddScoped<IContainerCatalogService, ContainerCatalogService>();
         services.AddScoped<ICyAllocationService, CyAllocationService>();

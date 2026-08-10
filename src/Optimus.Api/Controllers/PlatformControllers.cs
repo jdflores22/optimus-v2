@@ -291,9 +291,25 @@ public class PlatformActivityController : ControllerBase
 public class MaintenanceController : ControllerBase
 {
     private readonly IMaintenanceService _maintenance;
-    public MaintenanceController(IMaintenanceService maintenance) => _maintenance = maintenance;
+    private readonly ITransactionResetService _transactionReset;
+
+    public MaintenanceController(
+        IMaintenanceService maintenance,
+        ITransactionResetService transactionReset)
+    {
+        _maintenance = maintenance;
+        _transactionReset = transactionReset;
+    }
 
     [HttpPost("run")]
     public async Task<ActionResult<MaintenanceResultDto>> Run(CancellationToken ct)
         => Ok(await _maintenance.RunAsync(ct));
+
+    /// <summary>
+    /// Wipes all operational data (manifests, eDOs, payments, yard ops, etc.)
+    /// while keeping users, shipping lines, terminals, and platform settings.
+    /// </summary>
+    [HttpPost("reset-transactions")]
+    public async Task<ActionResult<TransactionResetResultDto>> ResetTransactions(CancellationToken ct)
+        => Ok(await _transactionReset.ResetAsync(ct));
 }

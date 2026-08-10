@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using Optimus.Application;
+using Optimus.Application.Platform.Interfaces;
 using Optimus.Infrastructure;
 using Optimus.Infrastructure.Persistence;
 using Optimus.Infrastructure.Persistence.Seed;
@@ -137,6 +138,23 @@ try
         status = "hardening-parity-signoff",
         version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.1"
     }));
+
+    if (args.Contains("--reset-transactions", StringComparer.OrdinalIgnoreCase))
+    {
+        Log.Information("MySQL target: {DbTarget}", DatabaseConnection.DescribeForLogs(app.Configuration));
+        Log.Warning("Running transactional data reset (preserves users and platform config)...");
+        using var scope = app.Services.CreateScope();
+        var reset = scope.ServiceProvider.GetRequiredService<ITransactionResetService>();
+        var result = await reset.ResetAsync();
+        Log.Warning(
+            "Transaction reset complete. Tables cleared: {Tables}, terminal slots reset: {Slots}",
+            result.TablesCleared,
+            result.TerminalSlotsReset);
+        Log.Information("Re-seeding demo yard/ops data...");
+        await DbSeeder.SeedAsync(app.Services);
+        Log.Information("Reset and seed completed.");
+        return;
+    }
 
     if (args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase))
     {
