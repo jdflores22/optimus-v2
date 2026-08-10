@@ -59,20 +59,31 @@ public static class TransactionalEmailTemplate
         var ctaBlock = encodedVerifyUrl is not null
             ? $"""
                <tr>
-                 <td align="center" style="padding: 8px 0 28px;">
+                 <td align="center" style="padding: 12px 32px 8px;">
                    <a href="{encodedVerifyUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: {BrandPrimary}; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; font-weight: 600; line-height: 1; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
                      Verify email address
                    </a>
                  </td>
                </tr>
                <tr>
-                 <td style="padding: 0 0 24px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted}; text-align: center;">
-                   Button not working? Copy and paste this link into your browser:<br />
-                   <a href="{encodedVerifyUrl}" target="_blank" rel="noopener noreferrer" style="color: {BrandPrimaryLight}; word-break: break-all;">{encodedVerifyUrl}</a>
+                 <td align="center" style="padding: 0 32px 32px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted};">
+                   Button not working?
+                   <a href="{encodedVerifyUrl}" target="_blank" rel="noopener noreferrer" style="color: {BrandPrimaryLight}; font-weight: 600; text-decoration: none;">Open verification page</a>
+                 </td>
+               </tr>
+               <tr>
+                 <td style="padding: 0 32px 8px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: {TextMuted};">
+                   Or use this code
                  </td>
                </tr>
                """
-            : string.Empty;
+            : """
+               <tr>
+                 <td style="padding: 0 32px 8px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280;">
+                   Verification code
+                 </td>
+               </tr>
+               """;
 
         var logoBlock = logoUrl is not null
             ? $"""<img src="{WebUtility.HtmlEncode(logoUrl)}" alt="OPTIMUS" width="72" height="72" style="display: block; margin: 0 auto 12px; border: 0;" />"""
@@ -113,16 +124,16 @@ public static class TransactionalEmailTemplate
                       </tr>
                       {ctaBlock}
                       <tr>
-                        <td style="padding: 0 32px 28px;">
+                        <td style="padding: 0 32px 24px;">
                           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;">
                             <tr>
-                              <td style="padding: 16px 18px; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; line-height: 1.5; color: {TextPrimary}; word-break: break-all;">
+                              <td style="padding: 14px 16px; font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; line-height: 1.5; color: {TextPrimary}; word-break: break-all; text-align: center;">
                                 {encodedToken}
                               </td>
                             </tr>
                           </table>
-                          <p style="margin: 10px 0 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted};">
-                            You can also paste this verification code on the Verify Email page.
+                          <p style="margin: 12px 0 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted};">
+                            Paste this code on the Verify Email page if needed.
                           </p>
                         </td>
                       </tr>
