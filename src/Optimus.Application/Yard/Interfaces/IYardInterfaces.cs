@@ -46,8 +46,12 @@ public interface IContainerInventoryService
         string? search,
         int page,
         int pageSize,
+        string? terminalIdentity = null,
         CancellationToken ct = default);
-    Task<IReadOnlyList<string>> ListInventoryDepotsAsync(Guid? shippingLineId, CancellationToken ct = default);
+    Task<IReadOnlyList<string>> ListInventoryDepotsAsync(
+        Guid? shippingLineId,
+        string? terminalIdentity = null,
+        CancellationToken ct = default);
     Task<IReadOnlyList<ContainerDto>> SearchForReturnAsync(string query, CancellationToken ct = default);
     Task<ContainerDto> AllocateAsync(Guid id, AllocateContainerRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<ContainerDto> ReallocateAsync(Guid id, ReallocateContainerRequest request, Guid actorId, string actorRole, CancellationToken ct = default);

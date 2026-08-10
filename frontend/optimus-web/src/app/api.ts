@@ -838,20 +838,28 @@ export const api = createApi({
     }),
     getContainerInventory: builder.query<
       ContainerInventoryPageDto,
-      { depot?: string; search?: string; page?: number; pageSize?: number }
+      { depot?: string; search?: string; page?: number; pageSize?: number; terminalIdentity?: string }
     >({
-      query: ({ depot, search, page = 1, pageSize = 50 }) => {
+      query: ({ depot, search, page = 1, pageSize = 50, terminalIdentity }) => {
         const params = new URLSearchParams();
         params.set('page', String(page));
         params.set('pageSize', String(pageSize));
         if (depot) params.set('depot', depot);
         if (search) params.set('search', search);
+        if (terminalIdentity) params.set('terminalIdentity', terminalIdentity);
         return `/api/containers/inventory?${params.toString()}`;
       },
       providesTags: ['Containers'],
     }),
-    getContainerInventoryDepots: builder.query<string[], void>({
-      query: () => '/api/containers/inventory/depots',
+    getContainerInventoryDepots: builder.query<string[], { terminalIdentity?: string } | void>({
+      query: (args) => {
+        const params = new URLSearchParams();
+        const terminalIdentity =
+          args && typeof args === 'object' && 'terminalIdentity' in args ? args.terminalIdentity : undefined;
+        if (terminalIdentity) params.set('terminalIdentity', terminalIdentity);
+        const qs = params.toString();
+        return qs ? `/api/containers/inventory/depots?${qs}` : '/api/containers/inventory/depots';
+      },
       providesTags: ['Containers'],
     }),
     getContainerInventoryItem: builder.query<ContainerInventoryItemDto, string>({

@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type SyntheticEvent } from 'react';
 import {
   Alert,
   Box,
   Button,
   Chip,
-  MenuItem,
   Pagination,
   Stack,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -17,9 +18,10 @@ import {
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import {
-  useGetContainerInventoryDepotsQuery,
   useGetContainerInventoryQuery,
+  useGetCyAllocationsQuery,
 } from '../../app/api';
+import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 
@@ -49,15 +51,35 @@ function sizeTone(label: string): 'info' | 'warning' | 'error' {
 }
 
 export function ContainerInventoryPage() {
+  const [tab, setTab] = useState<string>('all');
   const [draftSearch, setDraftSearch] = useState('');
-  const [draftDepot, setDraftDepot] = useState('');
   const [search, setSearch] = useState('');
-  const [depot, setDepot] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data: depots = [] } = useGetContainerInventoryDepotsQuery();
+  const { shippingLineId } = useDefaultShippingLine();
+  const { data: contractAllocations = [] } = useGetCyAllocationsQuery(
+    shippingLineId
+      ? { shippingLineId, containerYardsOnly: false, activeTerminalsOnly: true }
+      : undefined,
+    { skip: !shippingLineId },
+  );
+
+  const depots = useMemo(() => {
+    const seen = new Set<string>();
+    return contractAllocations
+      .map((a) => a.terminalName)
+      .filter((name) => {
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      })
+      .sort((a, b) => a.localeCompare(b));
+  }, [contractAllocations]);
+
+  const activeDepot = tab === 'all' ? undefined : tab;
+
   const { data, error, isFetching } = useGetContainerInventoryQuery({
-    depot: depot || undefined,
+    depot: activeDepot,
     search: search || undefined,
     page,
     pageSize: 50,
@@ -68,7 +90,7 @@ export function ContainerInventoryPage() {
 
   const pageStats = useMemo(
     () => [
-      { label: 'Total containers', value: stats?.totalContainers ?? 0, hint: 'All depots combined', tone: 'primary' as const },
+      { label: 'Total containers', value: stats?.totalContainers ?? 0, hint: tab === 'all' ? 'All depots combined' : tab, tone: 'primary' as const },
       { label: 'Total TEUs', value: stats?.totalTeus ?? 0, hint: 'Twenty-foot equivalent units', tone: 'success' as const },
       { label: '20ft containers', value: stats?.total20Ft ?? 0, hint: 'Standard size', tone: 'info' as const },
       { label: '40ft containers', value: stats?.total40Ft ?? 0, hint: 'High capacity', tone: 'warning' as const },
@@ -91,28 +113,35 @@ export function ContainerInventoryPage() {
         tone: 'success' as const,
       },
     ],
-    [stats],
+    [stats, tab],
   );
 
-  const applyFilters = () => {
+  const applySearch = () => {
     setSearch(draftSearch.trim());
-    setDepot(draftDepot);
     setPage(1);
   };
 
-  const resetFilters = () => {
+  const resetSearch = () => {
     setDraftSearch('');
-    setDraftDepot('');
     setSearch('');
-    setDepot('');
     setPage(1);
   };
+
+  const handleTabChange = (_: SyntheticEvent, value: string) => {
+    setTab(value);
+    setPage(1);
+  };
+
+  const subtitle =
+    tab === 'all'
+      ? `All containers across all depots — ${data?.shippingLineName ?? '…'}`
+      : `${tab} — ${data?.shippingLineName ?? '…'}`;
 
   return (
     <WorkflowPage
       eyebrow="Terminal operations"
       title="Container Inventory"
-      subtitle={`All containers across all depots — ${data?.shippingLineName ?? '…'}`}
+      subtitle={subtitle}
       chips={
         <>
           <Chip size="small" label={`${data?.totalCount ?? 0} containers`} color="primary" />
@@ -127,7 +156,24 @@ export function ContainerInventoryPage() {
         </Alert>
       )}
 
-      <WorkflowSection title="Filters" subtitle="Search by exact container number or narrow by depot.">
+      <WorkflowSection
+        title="Depot"
+        subtitle={tab === 'all' ? 'Combined inventory from every depot.' : `Containers at ${tab} only.`}
+      >
+        <Tabs
+          value={tab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab value="all" label="All" sx={{ textTransform: 'none', fontWeight: 600 }} />
+          {depots.map((depot) => (
+            <Tab key={depot} value={depot} label={depot} sx={{ textTransform: 'none', fontWeight: 600 }} />
+          ))}
+        </Tabs>
+
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
           <TextField
             size="small"
@@ -135,28 +181,13 @@ export function ContainerInventoryPage() {
             placeholder="Search by container number…"
             value={draftSearch}
             onChange={(e) => setDraftSearch(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+            onKeyDown={(e) => e.key === 'Enter' && applySearch()}
             sx={{ minWidth: 240 }}
           />
-          <TextField
-            select
-            size="small"
-            label="Depot"
-            value={draftDepot}
-            onChange={(e) => setDraftDepot(e.target.value)}
-            sx={{ minWidth: 220 }}
-          >
-            <MenuItem value="">All Depots</MenuItem>
-            {depots.map((d) => (
-              <MenuItem key={d} value={d}>
-                {d}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Button variant="contained" onClick={applyFilters}>
+          <Button variant="contained" onClick={applySearch}>
             Search
           </Button>
-          <Button variant="outlined" onClick={resetFilters}>
+          <Button variant="outlined" onClick={resetSearch}>
             Reset
           </Button>
         </Stack>
@@ -166,7 +197,9 @@ export function ContainerInventoryPage() {
         <WorkflowSection title="Inventory" subtitle="Allocated and pre-forecast containers in active yard positions.">
           {items.length === 0 ? (
             <Alert severity="info" variant="outlined">
-              No containers match the current filters.
+              {tab === 'all'
+                ? 'No containers match the current filters.'
+                : `No containers at ${tab} yet.`}
             </Alert>
           ) : (
             <>

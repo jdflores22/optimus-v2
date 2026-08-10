@@ -179,6 +179,7 @@ public class ContainersController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         [FromQuery] Guid? shippingLineId = null,
+        [FromQuery] string? terminalIdentity = null,
         CancellationToken ct = default)
         => Ok(await _containers.InventoryPageAsync(
             shippingLineId ?? ActiveShippingLineId,
@@ -186,14 +187,16 @@ public class ContainersController : ControllerBase
             search,
             page,
             pageSize,
+            terminalIdentity,
             ct));
 
     [HttpGet("inventory/depots")]
     [Authorize(Policy = "ContainerInventory")]
     public async Task<ActionResult<IReadOnlyList<string>>> InventoryDepots(
         [FromQuery] Guid? shippingLineId = null,
+        [FromQuery] string? terminalIdentity = null,
         CancellationToken ct = default)
-        => Ok(await _containers.ListInventoryDepotsAsync(shippingLineId ?? ActiveShippingLineId, ct));
+        => Ok(await _containers.ListInventoryDepotsAsync(shippingLineId ?? ActiveShippingLineId, terminalIdentity, ct));
 
     [HttpGet("inventory/{id:guid}")]
     [Authorize(Policy = "ContainerInventory")]

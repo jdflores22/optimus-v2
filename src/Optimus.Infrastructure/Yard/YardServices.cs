@@ -477,12 +477,14 @@ public class ContainerInventoryService : IContainerInventoryService
         string? search,
         int page,
         int pageSize,
+        string? terminalIdentity = null,
         CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = pageSize <= 0 ? 50 : Math.Clamp(pageSize, 1, 100);
 
-        var q = InventoryQuery(shippingLineId, depot, search);
+        var identityFilter = ParseTerminalIdentityFilter(terminalIdentity);
+        var q = InventoryQuery(shippingLineId, depot, search, identityFilter);
         var totalCount = await q.CountAsync(ct);
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Min(page, totalPages);
@@ -494,12 +496,12 @@ public class ContainerInventoryService : IContainerInventoryService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var allForStats = await InventoryQuery(shippingLineId, depot, search)
+        var allForStats = await InventoryQuery(shippingLineId, depot, search, identityFilter)
             .Include(x => x.ContainerSize)
             .Include(x => x.CyAllocation)!.ThenInclude(a => a!.Terminal)
             .ToListAsync(ct);
 
-        var stats = await BuildInventoryStatsAsync(shippingLineId, allForStats, ct);
+        var stats = await BuildInventoryStatsAsync(shippingLineId, allForStats, identityFilter, depot, ct);
         var shippingLineName = shippingLineId.HasValue
             ? await _db.ShippingLines.AsNoTracking()
                 .Where(x => x.Id == shippingLineId)
@@ -517,19 +519,28 @@ public class ContainerInventoryService : IContainerInventoryService
             stats);
     }
 
-    public async Task<IReadOnlyList<string>> ListInventoryDepotsAsync(Guid? shippingLineId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> ListInventoryDepotsAsync(
+        Guid? shippingLineId,
+        string? terminalIdentity = null,
+        CancellationToken ct = default)
     {
-        var q = _db.Containers.AsNoTracking()
-            .Where(x => x.AllocationStatus == AllocationStatus.Allocated || x.AllocationStatus == AllocationStatus.PreForecast)
-            .Where(x => x.CyAllocation != null);
+        var identityFilter = ParseTerminalIdentityFilter(terminalIdentity);
+        var q = _db.ShippingLineTerminalAllocations.AsNoTracking()
+            .Include(x => x.Terminal)
+            .Where(x => x.Terminal.IsActive);
 
         if (shippingLineId.HasValue)
         {
             q = q.Where(x => x.ShippingLineId == shippingLineId);
         }
 
+        if (identityFilter.HasValue)
+        {
+            q = q.Where(x => x.Terminal.Identity == identityFilter.Value);
+        }
+
         return await q
-            .Select(x => x.CyAllocation!.Terminal.Name)
+            .Select(x => x.Terminal.Name)
             .Distinct()
             .OrderBy(x => x)
             .ToListAsync(ct);
@@ -760,7 +771,11 @@ public class ContainerInventoryService : IContainerInventoryService
             .Include(x => x.ContainerSize)
             .Include(x => x.CyAllocation)!.ThenInclude(a => a!.Terminal);
 
-    private IQueryable<Container> InventoryQuery(Guid? shippingLineId, string? depot, string? search)
+    private IQueryable<Container> InventoryQuery(
+        Guid? shippingLineId,
+        string? depot,
+        string? search,
+        TerminalIdentity? identityFilter = null)
     {
         var q = Query()
             .Where(x => x.AllocationStatus == AllocationStatus.Allocated || x.AllocationStatus == AllocationStatus.PreForecast);
@@ -770,10 +785,15 @@ public class ContainerInventoryService : IContainerInventoryService
             q = q.Where(x => x.ShippingLineId == shippingLineId);
         }
 
+        if (identityFilter.HasValue)
+        {
+            q = q.Where(x => x.CyAllocation != null && x.CyAllocation.Terminal.Identity == identityFilter.Value);
+        }
+
         if (!string.IsNullOrWhiteSpace(depot))
         {
             var d = depot.Trim();
-            q = q.Where(x => x.CyAllocation != null && x.CyAllocation.Terminal.Name.Contains(d));
+            q = q.Where(x => x.CyAllocation != null && x.CyAllocation.Terminal.Name == d);
         }
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -785,9 +805,25 @@ public class ContainerInventoryService : IContainerInventoryService
         return q;
     }
 
+    private static TerminalIdentity? ParseTerminalIdentityFilter(string? terminalIdentity)
+    {
+        if (string.IsNullOrWhiteSpace(terminalIdentity))
+        {
+            return null;
+        }
+
+        return terminalIdentity.Equals("Terminal", StringComparison.OrdinalIgnoreCase)
+               || terminalIdentity.Equals("PortTerminal", StringComparison.OrdinalIgnoreCase)
+               || terminalIdentity.Equals("Port", StringComparison.OrdinalIgnoreCase)
+            ? TerminalIdentity.PortTerminal
+            : TerminalIdentity.ContainerYard;
+    }
+
     private async Task<ContainerInventoryStatsDto> BuildInventoryStatsAsync(
         Guid? shippingLineId,
         IReadOnlyList<Container> containers,
+        TerminalIdentity? identityFilter,
+        string? depotName,
         CancellationToken ct)
     {
         var total20 = 0;
@@ -813,6 +849,17 @@ public class ContainerInventoryService : IContainerInventoryService
         }
 
         var allocations = await allocationsQ.ToListAsync(ct);
+        if (identityFilter.HasValue)
+        {
+            allocations = allocations.Where(x => x.Terminal.Identity == identityFilter.Value).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(depotName))
+        {
+            var depot = depotName.Trim();
+            allocations = allocations.Where(x => x.Terminal.Name == depot).ToList();
+        }
+
         var term20 = 0;
         var term40 = 0;
         var yard20 = 0;
