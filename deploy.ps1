@@ -116,6 +116,16 @@ if (-not $SkipGitPush) {
         throw 'git push failed'
     }
     Write-Host 'Git push complete.' -ForegroundColor Green
+
+    $smtpSync = Join-Path $PSScriptRoot 'scripts\sync-smtp-railway.ps1'
+    if (Test-Path (Join-Path $PSScriptRoot 'smtp-config.ps1')) {
+        Write-Host ''
+        Write-Host 'Syncing SMTP variables to Railway...' -ForegroundColor Cyan
+        & $smtpSync
+    } else {
+        Write-Host ''
+        Write-Host 'Tip: copy smtp-config.ps1.example to smtp-config.ps1 and run scripts/sync-smtp-railway.ps1 so registration emails work on Railway.' -ForegroundColor Yellow
+    }
 }
 
 Write-Host ''

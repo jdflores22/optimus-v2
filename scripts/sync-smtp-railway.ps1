@@ -19,26 +19,39 @@ if ([string]::IsNullOrWhiteSpace($config.Password)) {
     throw 'smtp-config.ps1 Password is empty.'
 }
 
-if (-not (Get-Command railway -ErrorAction SilentlyContinue)) {
-    Write-Host 'Railway CLI not found. Set these in Railway → Variables manually:' -ForegroundColor Yellow
-    Write-Host "Smtp__Host=$($config.Host)"
-    Write-Host "Smtp__Port=$($config.Port)"
-    Write-Host "Smtp__User=$($config.User)"
-    Write-Host 'Smtp__Password=<your-mailbox-password>'
-    Write-Host "Smtp__FromEmail=$($config.FromEmail)"
-    Write-Host "Smtp__FromName=$($config.FromName)"
-    Write-Host "Smtp__UseSsl=$($config.UseSsl)"
-    Write-Host "App__PublicUrl=$($config.PublicUrl)"
+function Show-ManualRailwayVars {
+    param($Settings)
+    Write-Host 'Set these in Railway → Service → Variables, then redeploy:' -ForegroundColor Yellow
+    Write-Host "Smtp__Host=$($Settings.Host)"
+    Write-Host "Smtp__Port=$($Settings.Port)"
+    Write-Host "Smtp__User=$($Settings.User)"
+    Write-Host "Smtp__Password=$($Settings.Password)"
+    Write-Host "Smtp__FromEmail=$($Settings.FromEmail)"
+    Write-Host "Smtp__FromName=$($Settings.FromName)"
+    Write-Host "Smtp__UseSsl=$($Settings.UseSsl)"
+    Write-Host "App__PublicUrl=$($Settings.PublicUrl)"
+}
+
+$railwayCmd = if (Get-Command railway -ErrorAction SilentlyContinue) { 'railway' } else { 'npx --yes @railway/cli' }
+
+if ($railwayCmd -like 'npx*') {
+    Write-Host 'Using npx @railway/cli for Railway variables...' -ForegroundColor DarkGray
+}
+
+$statusOutput = Invoke-Expression "$railwayCmd status 2>&1" | Out-String
+if ($LASTEXITCODE -ne 0 -or $statusOutput -match 'No linked project') {
+    Write-Host 'Railway CLI is not linked to a project.' -ForegroundColor Yellow
+    Show-ManualRailwayVars -Settings $config
     exit 0
 }
 
 Write-Host 'Setting Railway SMTP variables...' -ForegroundColor Cyan
-railway variables set "Smtp__Host=$($config.Host)"
-railway variables set "Smtp__Port=$($config.Port)"
-railway variables set "Smtp__User=$($config.User)"
-railway variables set "Smtp__Password=$($config.Password)"
-railway variables set "Smtp__FromEmail=$($config.FromEmail)"
-railway variables set "Smtp__FromName=$($config.FromName)"
-railway variables set "Smtp__UseSsl=$($config.UseSsl)"
-railway variables set "App__PublicUrl=$($config.PublicUrl)"
+Invoke-Expression "$railwayCmd variables set `"Smtp__Host=$($config.Host)`""
+Invoke-Expression "$railwayCmd variables set `"Smtp__Port=$($config.Port)`""
+Invoke-Expression "$railwayCmd variables set `"Smtp__User=$($config.User)`""
+Invoke-Expression "$railwayCmd variables set `"Smtp__Password=$($config.Password)`""
+Invoke-Expression "$railwayCmd variables set `"Smtp__FromEmail=$($config.FromEmail)`""
+Invoke-Expression "$railwayCmd variables set `"Smtp__FromName=$($config.FromName)`""
+Invoke-Expression "$railwayCmd variables set `"Smtp__UseSsl=$($config.UseSsl)`""
+Invoke-Expression "$railwayCmd variables set `"App__PublicUrl=$($config.PublicUrl)`""
 Write-Host 'Done. Redeploy the API service on Railway.' -ForegroundColor Green

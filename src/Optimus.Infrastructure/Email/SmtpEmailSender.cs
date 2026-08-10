@@ -1,5 +1,6 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -9,37 +10,66 @@ namespace Optimus.Infrastructure.Email;
 
 public class SmtpEmailSender : IEmailSender
 {
-    private readonly SmtpSettings _settings;
+    private readonly IOptionsMonitor<SmtpSettings> _settings;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<SmtpEmailSender> _logger;
 
-    public SmtpEmailSender(IOptions<SmtpSettings> settings, ILogger<SmtpEmailSender> logger)
+    public SmtpEmailSender(
+        IOptionsMonitor<SmtpSettings> settings,
+        IHostEnvironment environment,
+        ILogger<SmtpEmailSender> logger)
     {
-        _settings = settings.Value;
+        _settings = settings;
+        _environment = environment;
         _logger = logger;
     }
 
     public async Task SendAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
     {
-        if (!_settings.IsConfigured)
+        var settings = _settings.CurrentValue;
+        if (!settings.IsConfigured)
         {
-            throw new InvalidOperationException("SMTP is not configured.");
+            if (_environment.IsDevelopment())
+            {
+                _logger.LogWarning(
+                    "EMAIL not sent (SMTP not configured). to={To} subject={Subject} body={Body}",
+                    toEmail,
+                    subject,
+                    body);
+                return;
+            }
+
+            _logger.LogError(
+                "EMAIL not sent — SMTP is not configured in {Environment}. Set Smtp__Password on Railway. to={To} subject={Subject}",
+                _environment.EnvironmentName,
+                toEmail,
+                subject);
+            throw new InvalidOperationException("Email could not be sent because SMTP is not configured.");
         }
 
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
+        message.From.Add(new MailboxAddress(settings.FromName, settings.FromEmail));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
         message.Body = new TextPart("plain") { Text = body };
 
-        using var client = new SmtpClient();
-        var secureSocketOptions = ResolveSecureSocketOptions(_settings);
+        try
+        {
+            using var client = new SmtpClient();
+            var secureSocketOptions = ResolveSecureSocketOptions(settings);
 
-        await client.ConnectAsync(_settings.Host, _settings.Port, secureSocketOptions, cancellationToken);
-        await client.AuthenticateAsync(_settings.User, _settings.Password, cancellationToken);
-        await client.SendAsync(message, cancellationToken);
-        await client.DisconnectAsync(true, cancellationToken);
+            await client.ConnectAsync(settings.Host, settings.Port, secureSocketOptions, cancellationToken);
+            await client.AuthenticateAsync(settings.User, settings.Password, cancellationToken);
+            await client.SendAsync(message, cancellationToken);
+            await client.DisconnectAsync(true, cancellationToken);
 
-        _logger.LogInformation("EMAIL sent to={To} subject={Subject}", toEmail, subject);
+            _logger.LogInformation("EMAIL sent to={To} subject={Subject}", toEmail, subject);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EMAIL failed to={To} subject={Subject}", toEmail, subject);
+            throw new InvalidOperationException("Email could not be sent. Please try again later.", ex);
+        }
     }
 
     private static SecureSocketOptions ResolveSecureSocketOptions(SmtpSettings settings)

@@ -34,18 +34,10 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
-        services.Configure<SmtpSettings>(configuration.GetSection(SmtpSettings.SectionName));
-        services.Configure<AppSettings>(configuration.GetSection(AppSettings.SectionName));
+        services.Configure<SmtpSettings>(options => SmtpSettingsConfiguration.Bind(options, configuration));
+        services.AddOptions<AppSettings>().Bind(configuration.GetSection(AppSettings.SectionName));
 
-        var smtpSettings = configuration.GetSection(SmtpSettings.SectionName).Get<SmtpSettings>() ?? new SmtpSettings();
-        if (smtpSettings.IsConfigured)
-        {
-            services.AddScoped<IEmailSender, SmtpEmailSender>();
-        }
-        else
-        {
-            services.AddScoped<IEmailSender, LoggingEmailSender>();
-        }
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
 
         var connectionString = DatabaseConnection.ResolveFromConfiguration(configuration)
             ?? throw new InvalidOperationException(

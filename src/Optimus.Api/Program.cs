@@ -186,8 +186,9 @@ try
     }
 
     Log.Information("MySQL target: {DbTarget}", DatabaseConnection.DescribeForLogs(app.Configuration));
-    var smtpConfigured = app.Configuration.GetSection(SmtpSettings.SectionName).Get<SmtpSettings>()?.IsConfigured == true;
-    Log.Information("SMTP email: {Mode}", smtpConfigured ? "Hostinger (live send)" : "logging only (set Smtp__Password on Railway)");
+    var smtpSettings = new SmtpSettings();
+    SmtpSettingsConfiguration.Bind(smtpSettings, app.Configuration);
+    Log.Information("SMTP email: {Mode}", smtpSettings.IsConfigured ? "Hostinger (live send)" : "not configured (set Smtp__Password on Railway)");
     app.Run();
 }
 catch (Exception ex)
