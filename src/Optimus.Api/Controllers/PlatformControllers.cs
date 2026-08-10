@@ -9,6 +9,7 @@ using Optimus.Application.Platform.Dtos;
 using Optimus.Application.Platform.Interfaces;
 using Optimus.Application.Yard.Dtos;
 using Optimus.Application.Yard.Interfaces;
+using Optimus.Infrastructure.Persistence.Seed;
 
 namespace Optimus.Api.Controllers;
 
@@ -308,8 +309,13 @@ public class MaintenanceController : ControllerBase
     /// <summary>
     /// Wipes all operational data (manifests, eDOs, payments, yard ops, etc.)
     /// while keeping users, shipping lines, terminals, and platform settings.
+    /// Re-seeds demo yard/ops data afterward.
     /// </summary>
     [HttpPost("reset-transactions")]
     public async Task<ActionResult<TransactionResetResultDto>> ResetTransactions(CancellationToken ct)
-        => Ok(await _transactionReset.ResetAsync(ct));
+    {
+        var result = await _transactionReset.ResetAsync(ct);
+        await DbSeeder.SeedAsync(HttpContext.RequestServices);
+        return Ok(result);
+    }
 }
