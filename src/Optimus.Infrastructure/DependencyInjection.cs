@@ -35,9 +35,17 @@ public static class DependencyInjection
     {
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         services.Configure<SmtpSettings>(options => SmtpSettingsConfiguration.Bind(options, configuration));
+        services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
         services.AddOptions<AppSettings>().Bind(configuration.GetSection(AppSettings.SectionName));
 
-        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddHttpClient<ResendEmailSender>();
+        services.AddScoped<SmtpEmailSender>();
+        services.AddScoped<RoutingEmailSender>();
+        services.AddScoped<IEmailSender, RoutingEmailSender>();
+
+        services.AddSingleton<EmailQueue>();
+        services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<EmailQueue>());
+        services.AddHostedService<EmailQueueHostedService>();
 
         var connectionString = DatabaseConnection.ResolveFromConfiguration(configuration)
             ?? throw new InvalidOperationException(

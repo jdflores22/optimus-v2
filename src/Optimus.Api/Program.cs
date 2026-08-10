@@ -188,7 +188,21 @@ try
     Log.Information("MySQL target: {DbTarget}", DatabaseConnection.DescribeForLogs(app.Configuration));
     var smtpSettings = new SmtpSettings();
     SmtpSettingsConfiguration.Bind(smtpSettings, app.Configuration);
-    Log.Information("SMTP email: {Mode}", smtpSettings.IsConfigured ? "Hostinger (live send)" : "not configured (set Smtp__Password on Railway)");
+    var resendSettings = app.Configuration.GetSection(ResendSettings.SectionName).Get<ResendSettings>() ?? new ResendSettings();
+    if (resendSettings.IsConfigured)
+    {
+        Log.Information("Email: Resend HTTP API (works on Railway Hobby)");
+    }
+    else if (smtpSettings.IsConfigured)
+    {
+        Log.Information(
+            "Email: SMTP via {Host} — outbound SMTP requires Railway Pro; use Resend__ApiKey on Hobby or set Resend API key",
+            smtpSettings.Host);
+    }
+    else
+    {
+        Log.Warning("Email: not configured (set Resend__ApiKey or Smtp__Password)");
+    }
     app.Run();
 }
 catch (Exception ex)

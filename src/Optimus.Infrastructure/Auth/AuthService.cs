@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Optimus.Application.Auth.Dtos;
@@ -23,9 +22,9 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IValidator<LoginRequest> _loginValidator;
     private readonly IEmailSender _emailSender;
+    private readonly IEmailQueue _emailQueue;
     private readonly JwtSettings _jwtSettings;
     private readonly AppSettings _appSettings;
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -34,9 +33,9 @@ public class AuthService : IAuthService
         IPasswordHasher passwordHasher,
         IValidator<LoginRequest> loginValidator,
         IEmailSender emailSender,
+        IEmailQueue emailQueue,
         IOptions<JwtSettings> jwtSettings,
         IOptions<AppSettings> appSettings,
-        IServiceScopeFactory scopeFactory,
         ILogger<AuthService> logger)
     {
         _db = db;
@@ -44,9 +43,9 @@ public class AuthService : IAuthService
         _passwordHasher = passwordHasher;
         _loginValidator = loginValidator;
         _emailSender = emailSender;
+        _emailQueue = emailQueue;
         _jwtSettings = jwtSettings.Value;
         _appSettings = appSettings.Value;
-        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -467,21 +466,8 @@ public class AuthService : IAuthService
     {
         var body = BuildVerificationEmailBody(token);
         const string subject = "Verify your Optimus V2 email";
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
-                await emailSender.SendAsync(email, subject, body, CancellationToken.None);
-                _logger.LogInformation("Verification email sent to {Email}", email);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send verification email to {Email}", email);
-            }
-        });
+        _emailQueue.Enqueue(email, subject, body);
+        _logger.LogInformation("Queued verification email for {Email}", email);
     }
 
     private static void SetEmailVerification(User user)
