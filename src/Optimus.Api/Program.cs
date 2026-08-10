@@ -104,7 +104,6 @@ try
 
     var app = builder.Build();
 
-    app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseSerilogRequestLogging();
 
     if (app.Environment.IsDevelopment())
@@ -114,6 +113,7 @@ try
     }
 
     app.UseCors("Frontend");
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseRateLimiter();
     app.UseMiddleware<BlockEdoStaticFilesMiddleware>();
 

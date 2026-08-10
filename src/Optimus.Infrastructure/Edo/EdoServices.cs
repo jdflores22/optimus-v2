@@ -232,10 +232,12 @@ public class EdoService : IEdoService
             .GroupBy(p => p.EdoId!.Value)
             .ToDictionary(g => g.Key, g => g.First());
 
-        var queueItems = items.Select(edo =>
+        var queueItems = items
+            .Where(edo => edo.Manifest is not null)
+            .Select(edo =>
         {
             latestPaymentByEdo.TryGetValue(edo.Id, out var payment);
-            var manifest = edo.Manifest;
+            var manifest = edo.Manifest!;
             return new EdoReleaseQueueItemDto(
                 edo.Id,
                 edo.EdoNumber,
