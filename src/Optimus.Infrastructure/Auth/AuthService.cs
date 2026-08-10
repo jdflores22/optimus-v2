@@ -333,6 +333,8 @@ public class AuthService : IAuthService
         user.EmailVerifiedAt = DateTime.UtcNow;
         user.Status = AccountStatus.Approved;
         await _db.SaveChangesAsync(cancellationToken);
+
+        QueueWelcomeEmail(user.Email, user.FirstName, user.Role);
     }
 
     public async Task<AuthResponse> IssueTokensAsync(User user, string? ipAddress, CancellationToken cancellationToken)
@@ -461,6 +463,26 @@ public class AuthService : IAuthService
         _logger.LogInformation("Resent verification email for unverified account {Email}", user.Email);
         return true;
     }
+
+    private void QueueWelcomeEmail(string email, string firstName, string role)
+    {
+        var (textBody, htmlBody) = TransactionalEmailTemplate.BuildWelcomeEmail(
+            firstName,
+            role,
+            _appSettings.TrimmedPublicUrl);
+        var subject = $"Welcome to OPTIMUS — your {FormatWelcomeRoleLabel(role)} account is ready";
+        _emailQueue.Enqueue(email, subject, textBody, htmlBody);
+        _logger.LogInformation("Queued welcome email for {Email} role={Role}", email, role);
+    }
+
+    private static string FormatWelcomeRoleLabel(string role) =>
+        role switch
+        {
+            AppRoles.Broker => "broker",
+            AppRoles.Consignee => "consignee",
+            AppRoles.Trucker => "trucker",
+            _ => string.IsNullOrWhiteSpace(role) ? "OPTIMUS" : role.ToLowerInvariant(),
+        };
 
     private void QueueVerificationEmail(string email, string token)
     {
