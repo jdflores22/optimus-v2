@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Alert, Button, CircularProgress, Link, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Link, Stack, TextField, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   useRegisterBrokerMutation,
@@ -60,12 +63,118 @@ function RegisterRoleLinks({ current }: { current: 'broker' | 'consignee' | 'tru
   );
 }
 
+const authPrimaryButtonSx = {
+  py: 1.35,
+  fontWeight: 600,
+  textTransform: 'none',
+  fontSize: '1rem',
+} as const;
+
+function AuthProgressPanel({ heading, body }: { heading: string; body: string }) {
+  return (
+    <Stack spacing={2.5} alignItems="center" sx={{ py: 5, textAlign: 'center' }}>
+      <CircularProgress size={48} />
+      <Typography variant="h6" fontWeight={600}>
+        {heading}
+      </Typography>
+      <Typography color="text.secondary" maxWidth={320}>
+        {body}
+      </Typography>
+    </Stack>
+  );
+}
+
+function AuthSuccessBadge() {
+  return (
+    <Box
+      sx={{
+        width: 80,
+        height: 80,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: (theme) => alpha(theme.palette.success.main, 0.12),
+      }}
+    >
+      <CheckCircleOutlineIcon color="success" sx={{ fontSize: 44 }} />
+    </Box>
+  );
+}
+
+function AuthErrorBadge() {
+  return (
+    <Box
+      sx={{
+        width: 80,
+        height: 80,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
+      }}
+    >
+      <ErrorOutlineIcon color="error" sx={{ fontSize: 44 }} />
+    </Box>
+  );
+}
+
+function AuthCheckEmailPanel({ email }: { email: string }) {
+  return (
+    <Stack spacing={3} alignItems="center" sx={{ py: 2, textAlign: 'center' }}>
+      <Box
+        sx={{
+          width: 80,
+          height: 80,
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+        }}
+      >
+        <MailOutlineIcon color="primary" sx={{ fontSize: 40 }} />
+      </Box>
+      <Typography color="text.secondary" variant="body2" maxWidth={360}>
+        We sent a verification link to <strong>{email}</strong>. Check your inbox and spam folder,
+        then click the link to activate your account.
+      </Typography>
+      <Button
+        component={RouterLink}
+        to="/login"
+        variant="contained"
+        size="large"
+        fullWidth
+        sx={authPrimaryButtonSx}
+      >
+        Back to sign in
+      </Button>
+    </Stack>
+  );
+}
+
+function AuthSignInPanel() {
+  return (
+    <Stack spacing={3} alignItems="center" sx={{ py: 3, textAlign: 'center' }}>
+      <AuthSuccessBadge />
+      <Button
+        component={RouterLink}
+        to="/login"
+        variant="contained"
+        size="large"
+        fullWidth
+        sx={authPrimaryButtonSx}
+      >
+        Sign in
+      </Button>
+    </Stack>
+  );
+}
 function RegistrationSubmitButton({
-  loading,
   disabled,
   label,
 }: {
-  loading: boolean;
   disabled: boolean;
   label: string;
 }) {
@@ -75,16 +184,19 @@ function RegistrationSubmitButton({
       variant="contained"
       size="large"
       fullWidth
-      disabled={disabled || loading}
+      disabled={disabled}
       sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
     >
-      {loading ? <CircularProgress size={22} color="inherit" /> : label}
+      {label}
     </Button>
   );
 }
 
+type RegistrationPhase = 'form' | 'submitting' | 'success' | 'error';
+
 export function RegisterBrokerPage() {
-  const [register, { isLoading }] = useRegisterBrokerMutation();
+  const [register] = useRegisterBrokerMutation();
+  const [phase, setPhase] = useState<RegistrationPhase>('form');
   const [form, setForm] = useState({
     email: '',
     firstName: '',
@@ -93,28 +205,31 @@ export function RegisterBrokerPage() {
     referralCode: '',
   });
   const passwordFields = useRegistrationPassword();
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit =
+    (phase === 'form' || phase === 'error') &&
     form.email.trim() &&
     form.firstName.trim() &&
     form.lastName.trim() &&
     passwordFields.passwordStrong &&
-    passwordFields.passwordsAreMatching &&
-    !isLoading;
+    passwordFields.passwordsAreMatching;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (phase === 'submitting' || phase === 'success') return;
+
     setError(null);
     const passwordError = passwordFields.validate();
     if (passwordError) {
       setError(passwordError);
+      setPhase('error');
       return;
     }
 
+    setPhase('submitting');
     try {
-      const res = await register({
+      await register({
         email: form.email.trim(),
         password: passwordFields.password,
         firstName: form.firstName.trim(),
@@ -122,11 +237,34 @@ export function RegisterBrokerPage() {
         businessAddress: form.businessAddress.trim() || undefined,
         referralCode: form.referralCode.trim() || undefined,
       }).unwrap();
-      setMessage(res.message);
+      setPhase('success');
     } catch (err) {
       setError(getApiErrorMessage(err, 'Registration failed.'));
+      setPhase('error');
     }
   };
+
+  if (phase === 'submitting') {
+    return (
+      <AuthSplitLayout title="Creating account" subtitle="Please wait while we finish setting up.">
+        <AuthProgressPanel
+          heading="Creating your account"
+          body="Setting up your profile and sending a verification email. This only takes a moment."
+        />
+      </AuthSplitLayout>
+    );
+  }
+
+  if (phase === 'success') {
+    return (
+      <AuthSplitLayout
+        title="Check your email"
+        subtitle="Your broker account was created successfully."
+      >
+        <AuthCheckEmailPanel email={form.email.trim()} />
+      </AuthSplitLayout>
+    );
+  }
 
   return (
     <AuthSplitLayout
@@ -143,14 +281,8 @@ export function RegisterBrokerPage() {
       }
     >
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
-        {message && <Alert severity="success">{message}</Alert>}
-        {error && <Alert severity="error">{error}</Alert>}
-        {isLoading && (
-          <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />}>
-            Creating your account and sending a verification email…
-          </Alert>
-        )}
-        <Stack component="fieldset" disabled={isLoading} spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
+        {phase === 'error' && error && <Alert severity="error">{error}</Alert>}
+        <Stack spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
         <TextField
           label={FIELD_LABELS.email}
           type="email"
@@ -208,7 +340,6 @@ export function RegisterBrokerPage() {
         />
         </Stack>
         <RegistrationSubmitButton
-          loading={isLoading}
           disabled={!canSubmit}
           label="Create broker account"
         />
@@ -219,7 +350,8 @@ export function RegisterBrokerPage() {
 }
 
 export function RegisterConsigneePage() {
-  const [register, { isLoading }] = useRegisterConsigneeMutation();
+  const [register] = useRegisterConsigneeMutation();
+  const [phase, setPhase] = useState<RegistrationPhase>('form');
   const [form, setForm] = useState({
     email: '',
     firstName: '',
@@ -227,40 +359,66 @@ export function RegisterConsigneePage() {
     businessName: '',
   });
   const passwordFields = useRegistrationPassword();
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit =
+    (phase === 'form' || phase === 'error') &&
     form.email.trim() &&
     form.firstName.trim() &&
     form.lastName.trim() &&
     form.businessName.trim() &&
     passwordFields.passwordStrong &&
-    passwordFields.passwordsAreMatching &&
-    !isLoading;
+    passwordFields.passwordsAreMatching;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (phase === 'submitting' || phase === 'success') return;
+
     setError(null);
     const passwordError = passwordFields.validate();
     if (passwordError) {
       setError(passwordError);
+      setPhase('error');
       return;
     }
 
+    setPhase('submitting');
     try {
-      const res = await register({
+      await register({
         email: form.email.trim(),
         password: passwordFields.password,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         businessName: form.businessName.trim(),
       }).unwrap();
-      setMessage(res.message);
+      setPhase('success');
     } catch (err) {
       setError(getApiErrorMessage(err, 'Registration failed.'));
+      setPhase('error');
     }
   };
+
+  if (phase === 'submitting') {
+    return (
+      <AuthSplitLayout title="Creating account" subtitle="Please wait while we finish setting up.">
+        <AuthProgressPanel
+          heading="Creating your account"
+          body="Setting up your profile and sending a verification email. This only takes a moment."
+        />
+      </AuthSplitLayout>
+    );
+  }
+
+  if (phase === 'success') {
+    return (
+      <AuthSplitLayout
+        title="Check your email"
+        subtitle="Your consignee account was created successfully."
+      >
+        <AuthCheckEmailPanel email={form.email.trim()} />
+      </AuthSplitLayout>
+    );
+  }
 
   return (
     <AuthSplitLayout
@@ -277,14 +435,8 @@ export function RegisterConsigneePage() {
       }
     >
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
-        {message && <Alert severity="success">{message}</Alert>}
-        {error && <Alert severity="error">{error}</Alert>}
-        {isLoading && (
-          <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />}>
-            Creating your account and sending a verification email…
-          </Alert>
-        )}
-        <Stack component="fieldset" disabled={isLoading} spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
+        {phase === 'error' && error && <Alert severity="error">{error}</Alert>}
+        <Stack spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
         <TextField
           label={FIELD_LABELS.email}
           type="email"
@@ -336,7 +488,6 @@ export function RegisterConsigneePage() {
         />
         </Stack>
         <RegistrationSubmitButton
-          loading={isLoading}
           disabled={!canSubmit}
           label="Create consignee account"
         />
@@ -347,7 +498,8 @@ export function RegisterConsigneePage() {
 }
 
 export function RegisterTruckerPage() {
-  const [register, { isLoading }] = useRegisterTruckerMutation();
+  const [register] = useRegisterTruckerMutation();
+  const [phase, setPhase] = useState<RegistrationPhase>('form');
   const [form, setForm] = useState({
     email: '',
     firstName: '',
@@ -358,28 +510,31 @@ export function RegisterTruckerPage() {
     truckPlateNumber: '',
   });
   const passwordFields = useRegistrationPassword();
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit =
+    (phase === 'form' || phase === 'error') &&
     form.email.trim() &&
     form.firstName.trim() &&
     form.lastName.trim() &&
     passwordFields.passwordStrong &&
-    passwordFields.passwordsAreMatching &&
-    !isLoading;
+    passwordFields.passwordsAreMatching;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (phase === 'submitting' || phase === 'success') return;
+
     setError(null);
     const passwordError = passwordFields.validate();
     if (passwordError) {
       setError(passwordError);
+      setPhase('error');
       return;
     }
 
+    setPhase('submitting');
     try {
-      const res = await register({
+      await register({
         email: form.email.trim(),
         password: passwordFields.password,
         firstName: form.firstName.trim(),
@@ -389,11 +544,34 @@ export function RegisterTruckerPage() {
         licenseNumber: form.licenseNumber.trim() || undefined,
         truckPlateNumber: form.truckPlateNumber.trim() || undefined,
       }).unwrap();
-      setMessage(res.message);
+      setPhase('success');
     } catch (err) {
       setError(getApiErrorMessage(err, 'Registration failed.'));
+      setPhase('error');
     }
   };
+
+  if (phase === 'submitting') {
+    return (
+      <AuthSplitLayout title="Creating account" subtitle="Please wait while we finish setting up.">
+        <AuthProgressPanel
+          heading="Creating your account"
+          body="Setting up your profile and sending a verification email. This only takes a moment."
+        />
+      </AuthSplitLayout>
+    );
+  }
+
+  if (phase === 'success') {
+    return (
+      <AuthSplitLayout
+        title="Check your email"
+        subtitle="Your trucker account was created successfully."
+      >
+        <AuthCheckEmailPanel email={form.email.trim()} />
+      </AuthSplitLayout>
+    );
+  }
 
   return (
     <AuthSplitLayout
@@ -410,14 +588,8 @@ export function RegisterTruckerPage() {
       }
     >
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
-        {message && <Alert severity="success">{message}</Alert>}
-        {error && <Alert severity="error">{error}</Alert>}
-        {isLoading && (
-          <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />}>
-            Creating your account and sending a verification email…
-          </Alert>
-        )}
-        <Stack component="fieldset" disabled={isLoading} spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
+        {phase === 'error' && error && <Alert severity="error">{error}</Alert>}
+        <Stack spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
         <TextField
           label={FIELD_LABELS.email}
           type="email"
@@ -487,7 +659,6 @@ export function RegisterTruckerPage() {
         />
         </Stack>
         <RegistrationSubmitButton
-          loading={isLoading}
           disabled={!canSubmit}
           label="Create trucker account"
         />
@@ -573,9 +744,9 @@ export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const linkToken = searchParams.get('token')?.trim() ?? '';
   const [manualToken, setManualToken] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [linkStatus, setLinkStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
+  const [manualPhase, setManualPhase] = useState<'form' | 'verifying' | 'success' | 'error'>('form');
   const attemptedLinkVerification = useRef(false);
 
   useEffect(() => {
@@ -585,7 +756,6 @@ export function VerifyEmailPage() {
 
     const storageKey = `optimus-email-verified:${linkToken}`;
     if (sessionStorage.getItem(storageKey) === '1') {
-      setMessage('Your email has been verified.');
       setLinkStatus('success');
       return;
     }
@@ -596,9 +766,8 @@ export function VerifyEmailPage() {
       setLinkStatus('verifying');
       setError(null);
       try {
-        const res = await verifyEmail({ token: linkToken }).unwrap();
+        await verifyEmail({ token: linkToken }).unwrap();
         sessionStorage.setItem(storageKey, '1');
-        setMessage(res.message ?? 'Your email has been verified.');
         setLinkStatus('success');
       } catch (err) {
         setError(getApiErrorMessage(err, 'Verification failed. The link may have expired.'));
@@ -618,10 +787,7 @@ export function VerifyEmailPage() {
           title="Verifying email"
           subtitle="Please wait while we confirm your email address."
         >
-          <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
-            <CircularProgress size={40} />
-            <Typography color="text.secondary">This only takes a moment.</Typography>
-          </Stack>
+          <AuthProgressPanel heading="Verifying your email" body="This only takes a moment." />
         </AuthSplitLayout>
       );
     }
@@ -632,22 +798,7 @@ export function VerifyEmailPage() {
           title="Email verified"
           subtitle="Your account is ready. You can now sign in to OPTIMUS."
         >
-          <Stack spacing={2.5} alignItems="center" sx={{ py: 1 }}>
-            <CheckCircleOutlineIcon color="success" sx={{ fontSize: 56 }} />
-            <Alert severity="success" sx={{ width: '100%' }}>
-              {message ?? 'Your email has been verified successfully.'}
-            </Alert>
-            <Button
-              component={RouterLink}
-              to="/login"
-              variant="contained"
-              size="large"
-              fullWidth
-              sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
-            >
-              Sign in
-            </Button>
-          </Stack>
+          <AuthSignInPanel />
         </AuthSplitLayout>
       );
     }
@@ -657,32 +808,60 @@ export function VerifyEmailPage() {
         title="Verification failed"
         subtitle="This link is invalid or has expired."
       >
-        <Stack spacing={2}>
-          <Alert severity="error">{error}</Alert>
+        <Stack spacing={3} alignItems="center" sx={{ py: 1, textAlign: 'center' }}>
+          <AuthErrorBadge />
+          <Alert severity="error" sx={{ width: '100%', textAlign: 'left' }}>
+            {error}
+          </Alert>
           <Typography color="text.secondary" variant="body2">
-            If you already verified this email, try signing in. Otherwise register again to receive a new link.
+            If you already verified this email, try signing in. Otherwise register again to receive a
+            new link.
           </Typography>
-          <Button
-            component={RouterLink}
-            to="/login"
-            variant="contained"
-            size="large"
-            fullWidth
-            sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
-          >
-            Sign in
-          </Button>
-          <Button
-            component={RouterLink}
-            to="/register/trucker"
-            variant="outlined"
-            size="large"
-            fullWidth
-            sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
-          >
-            Register again
-          </Button>
+          <Stack spacing={1.5} width="100%">
+            <Button
+              component={RouterLink}
+              to="/login"
+              variant="contained"
+              size="large"
+              fullWidth
+              sx={authPrimaryButtonSx}
+            >
+              Sign in
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/register/trucker"
+              variant="outlined"
+              size="large"
+              fullWidth
+              sx={authPrimaryButtonSx}
+            >
+              Register again
+            </Button>
+          </Stack>
         </Stack>
+      </AuthSplitLayout>
+    );
+  }
+
+  if (manualPhase === 'verifying') {
+    return (
+      <AuthSplitLayout
+        title="Verifying email"
+        subtitle="Please wait while we confirm your email address."
+      >
+        <AuthProgressPanel heading="Verifying your email" body="This only takes a moment." />
+      </AuthSplitLayout>
+    );
+  }
+
+  if (manualPhase === 'success') {
+    return (
+      <AuthSplitLayout
+        title="Email verified"
+        subtitle="Your account is ready. You can now sign in to OPTIMUS."
+      >
+        <AuthSignInPanel />
       </AuthSplitLayout>
     );
   }
@@ -693,8 +872,7 @@ export function VerifyEmailPage() {
       subtitle="Paste the verification token from your registration email."
     >
       <Stack spacing={2}>
-        {message && <Alert severity="success">{message}</Alert>}
-        {error && <Alert severity="error">{error}</Alert>}
+        {manualPhase === 'error' && error && <Alert severity="error">{error}</Alert>}
         <TextField
           label="Verification token"
           value={manualToken}
@@ -706,14 +884,17 @@ export function VerifyEmailPage() {
           variant="contained"
           size="large"
           fullWidth
-          sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
+          disabled={!manualToken.trim()}
+          sx={authPrimaryButtonSx}
           onClick={async () => {
             setError(null);
+            setManualPhase('verifying');
             try {
-              const res = await verifyEmail({ token: manualToken.trim() }).unwrap();
-              setMessage(res.message ?? 'Your email has been verified.');
+              await verifyEmail({ token: manualToken.trim() }).unwrap();
+              setManualPhase('success');
             } catch (err) {
               setError(getApiErrorMessage(err, 'Verification failed.'));
+              setManualPhase('error');
             }
           }}
         >
