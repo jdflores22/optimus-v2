@@ -63,7 +63,7 @@ public class RoleAcceptanceService : IRoleAcceptanceService
         await _db.SaveChangesAsync(cancellationToken);
 
         await _emailSender.SendAsync(email, "Optimus V2 role invitation",
-            $"You were invited as {request.Role}. Acceptance token: {token}", cancellationToken);
+            $"You were invited as {request.Role}. Acceptance token: {token}", cancellationToken: cancellationToken);
 
         return Map(pending);
     }

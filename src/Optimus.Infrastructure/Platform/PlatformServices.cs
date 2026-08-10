@@ -100,7 +100,7 @@ public class EnhancedNotificationService : INotificationService
             {
                 var body = await _templates.RenderAsync($"notify.{category}", "email",
                     new Dictionary<string, string> { ["title"] = title, ["message"] = message, ["name"] = user.FullName }, ct);
-                await _email.SendAsync(user.Email, title, string.IsNullOrWhiteSpace(body) ? message : body, ct);
+                await _email.SendAsync(user.Email, title, string.IsNullOrWhiteSpace(body) ? message : body, cancellationToken: ct);
                 await LogDelivery(userId, "email", category, title, "sent", null, notifId, ct);
             }
             catch (Exception ex)

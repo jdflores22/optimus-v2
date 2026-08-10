@@ -417,7 +417,7 @@ public class AccreditationService : IAccreditationService
         await _db.SaveChangesAsync(ct);
         await _notifications.NotifyAsync(entity.ApplicantId, "SAS update", $"Status: {entity.Status}", "sas",
             nameof(AccreditationSubmission), entity.Id, ct);
-        await _email.SendAsync(entity.Applicant.Email, "SAS accreditation update", $"Your submission is now {entity.Status}.", ct);
+        await _email.SendAsync(entity.Applicant.Email, "SAS accreditation update", $"Your submission is now {entity.Status}.", cancellationToken: ct);
 
         if (entity.Status == AccreditationStatus.AwaitingFinalApproval)
         {
@@ -664,7 +664,7 @@ public class BrokerTransferService : IBrokerTransferService
         await _notifications.NotifyAsync(newBroker.Id, "Broker transfer request",
             $"Transfer requested for manifest {manifest.ManifestNumber}", "transfer", nameof(BrokerTransferRequest), entity.Id, ct);
         await _email.SendAsync(newBroker.Email, "Broker transfer request",
-            $"You were selected as new broker for {manifest.ManifestNumber}. Reason: {request.Reason}", ct);
+            $"You were selected as new broker for {manifest.ManifestNumber}. Reason: {request.Reason}", cancellationToken: ct);
         await _activity.LogAsync(actorId, "transfer.create", nameof(BrokerTransferRequest), entity.Id, manifest.ManifestNumber, ct);
         return await MapAsync(entity.Id, ct);
     }

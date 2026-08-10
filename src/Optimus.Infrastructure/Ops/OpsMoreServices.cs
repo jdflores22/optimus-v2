@@ -55,7 +55,7 @@ public class SuspensionAppealService : ISuspensionAppealService
         }
 
         await _db.SaveChangesAsync(ct);
-        await _email.SendAsync(broker.Email, "Account suspended", request.Reason, ct);
+        await _email.SendAsync(broker.Email, "Account suspended", request.Reason, cancellationToken: ct);
         await _activity.LogAsync(actorId, "broker.suspend", nameof(Broker), brokerId, request.Reason, ct);
     }
 

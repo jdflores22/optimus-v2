@@ -26,7 +26,12 @@ public class ResendEmailSender : IEmailSender
         _logger = logger;
     }
 
-    public async Task SendAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
+    public async Task SendAsync(
+        string toEmail,
+        string subject,
+        string textBody,
+        string? htmlBody = null,
+        CancellationToken cancellationToken = default)
     {
         if (!_resendSettings.IsConfigured)
         {
@@ -44,7 +49,7 @@ public class ResendEmailSender : IEmailSender
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _resendSettings.ApiKey);
-        request.Content = JsonContent.Create(new ResendEmailPayload(from, toEmail, subject, body));
+        request.Content = JsonContent.Create(new ResendEmailPayload(from, toEmail, subject, textBody, htmlBody));
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -65,10 +70,11 @@ public class ResendEmailSender : IEmailSender
         [property: JsonPropertyName("from")] string From,
         [property: JsonPropertyName("to")] string[] To,
         [property: JsonPropertyName("subject")] string Subject,
-        [property: JsonPropertyName("text")] string Text)
+        [property: JsonPropertyName("text")] string Text,
+        [property: JsonPropertyName("html")] string? Html)
     {
-        public ResendEmailPayload(string from, string to, string subject, string text)
-            : this(from, new[] { to }, subject, text)
+        public ResendEmailPayload(string from, string to, string subject, string text, string? html)
+            : this(from, new[] { to }, subject, text, string.IsNullOrWhiteSpace(html) ? null : html)
         {
         }
     }

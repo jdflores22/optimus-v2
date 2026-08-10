@@ -32,7 +32,12 @@ public interface IPasswordHasher
 
 public interface IEmailSender
 {
-    Task SendAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default);
+    Task SendAsync(
+        string toEmail,
+        string subject,
+        string textBody,
+        string? htmlBody = null,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IRoleAcceptanceService

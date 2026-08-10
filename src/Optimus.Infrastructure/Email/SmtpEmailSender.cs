@@ -24,7 +24,12 @@ public class SmtpEmailSender : IEmailSender
         _logger = logger;
     }
 
-    public async Task SendAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
+    public async Task SendAsync(
+        string toEmail,
+        string subject,
+        string textBody,
+        string? htmlBody = null,
+        CancellationToken cancellationToken = default)
     {
         var settings = _settings.CurrentValue;
         if (!settings.IsConfigured)
@@ -35,7 +40,7 @@ public class SmtpEmailSender : IEmailSender
                     "EMAIL not sent (SMTP not configured). to={To} subject={Subject} body={Body}",
                     toEmail,
                     subject,
-                    body);
+                    textBody);
                 return;
             }
 
@@ -51,7 +56,7 @@ public class SmtpEmailSender : IEmailSender
         message.From.Add(new MailboxAddress(settings.FromName, settings.FromEmail));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
-        message.Body = new TextPart("plain") { Text = body };
+        message.Body = BuildBody(textBody, htmlBody);
 
         try
         {
@@ -82,5 +87,20 @@ public class SmtpEmailSender : IEmailSender
         return settings.Port == 465
             ? SecureSocketOptions.SslOnConnect
             : SecureSocketOptions.StartTls;
+    }
+
+    private static MimeEntity BuildBody(string textBody, string? htmlBody)
+    {
+        if (string.IsNullOrWhiteSpace(htmlBody))
+        {
+            return new TextPart("plain") { Text = textBody };
+        }
+
+        var alternative = new Multipart("alternative")
+        {
+            new TextPart("plain") { Text = textBody },
+            new TextPart("html") { Text = htmlBody },
+        };
+        return alternative;
     }
 }

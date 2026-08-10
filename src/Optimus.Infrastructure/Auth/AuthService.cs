@@ -275,7 +275,7 @@ public class AuthService : IAuthService
 
         await _emailSender.SendAsync(user.Email, "Optimus V2 password reset OTP",
             $"Your password reset code is {otp}. It expires in 15 minutes.{Environment.NewLine}{Environment.NewLine}If you did not request this, you can ignore this email.",
-            cancellationToken);
+            cancellationToken: cancellationToken);
         _logger.LogInformation("Password reset OTP generated for {Email}", user.Email);
     }
 
@@ -464,9 +464,11 @@ public class AuthService : IAuthService
 
     private void QueueVerificationEmail(string email, string token)
     {
-        var body = BuildVerificationEmailBody(token);
-        const string subject = "Verify your Optimus V2 email";
-        _emailQueue.Enqueue(email, subject, body);
+        var (textBody, htmlBody) = TransactionalEmailTemplate.BuildVerificationEmail(
+            token,
+            _appSettings.TrimmedPublicUrl);
+        const string subject = "Verify your OPTIMUS email";
+        _emailQueue.Enqueue(email, subject, textBody, htmlBody);
         _logger.LogInformation("Queued verification email for {Email}", email);
     }
 
@@ -474,18 +476,6 @@ public class AuthService : IAuthService
     {
         user.EmailVerificationToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         user.EmailVerificationExpiresAt = DateTime.UtcNow.AddDays(2);
-    }
-
-    private string BuildVerificationEmailBody(string token)
-    {
-        var publicUrl = _appSettings.TrimmedPublicUrl;
-        if (string.IsNullOrWhiteSpace(publicUrl))
-        {
-            return $"Welcome to OPTIMUS.{Environment.NewLine}{Environment.NewLine}Your verification token:{Environment.NewLine}{token}{Environment.NewLine}{Environment.NewLine}Enter this token on the Verify Email page. The token expires in 48 hours.";
-        }
-
-        var verifyUrl = $"{publicUrl}/verify-email?token={Uri.EscapeDataString(token)}";
-        return $"Welcome to OPTIMUS.{Environment.NewLine}{Environment.NewLine}Verify your email by opening this link:{Environment.NewLine}{verifyUrl}{Environment.NewLine}{Environment.NewLine}Or paste this token on the Verify Email page:{Environment.NewLine}{token}{Environment.NewLine}{Environment.NewLine}The link expires in 48 hours.";
     }
 }
 

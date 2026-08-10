@@ -27,14 +27,19 @@ public class RoutingEmailSender : IEmailSender
         _logger = logger;
     }
 
-    public Task SendAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
+    public Task SendAsync(
+        string toEmail,
+        string subject,
+        string textBody,
+        string? htmlBody = null,
+        CancellationToken cancellationToken = default)
     {
         if (_resendSettings.IsConfigured)
         {
             _logger.LogDebug("Routing email to Resend API for {To}", toEmail);
-            return _resendSender.SendAsync(toEmail, subject, body, cancellationToken);
+            return _resendSender.SendAsync(toEmail, subject, textBody, htmlBody, cancellationToken);
         }
 
-        return _smtpSender.SendAsync(toEmail, subject, body, cancellationToken);
+        return _smtpSender.SendAsync(toEmail, subject, textBody, htmlBody, cancellationToken);
     }
 }

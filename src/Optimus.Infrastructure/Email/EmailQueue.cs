@@ -6,11 +6,11 @@ using Optimus.Application.Auth.Interfaces;
 
 namespace Optimus.Infrastructure.Email;
 
-public sealed record EmailJob(string ToEmail, string Subject, string Body);
+public sealed record EmailJob(string ToEmail, string Subject, string TextBody, string? HtmlBody = null);
 
 public interface IEmailQueue
 {
-    void Enqueue(string toEmail, string subject, string body);
+    void Enqueue(string toEmail, string subject, string textBody, string? htmlBody = null);
 }
 
 public sealed class EmailQueue : IEmailQueue
@@ -20,8 +20,8 @@ public sealed class EmailQueue : IEmailQueue
 
     public ChannelReader<EmailJob> Reader => _channel.Reader;
 
-    public void Enqueue(string toEmail, string subject, string body) =>
-        _channel.Writer.TryWrite(new EmailJob(toEmail, subject, body));
+    public void Enqueue(string toEmail, string subject, string textBody, string? htmlBody = null) =>
+        _channel.Writer.TryWrite(new EmailJob(toEmail, subject, textBody, htmlBody));
 }
 
 public sealed class EmailQueueHostedService : BackgroundService
@@ -48,7 +48,7 @@ public sealed class EmailQueueHostedService : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
-                await emailSender.SendAsync(job.ToEmail, job.Subject, job.Body, stoppingToken);
+                await emailSender.SendAsync(job.ToEmail, job.Subject, job.TextBody, job.HtmlBody, stoppingToken);
             }
             catch (Exception ex)
             {
