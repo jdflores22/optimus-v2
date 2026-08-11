@@ -47,9 +47,9 @@ public class EdoController : ControllerBase
         [FromQuery] string? status,
         CancellationToken ct)
     {
-        Guid? brokerId = Role == "Broker" ? UserId : null;
-        Guid? consigneeId = Role == "Consignee" ? UserId : null;
-        return Ok(await _edo.ListAsync(manifestId, status, brokerId, consigneeId, ct));
+        Guid? brokerId = Role == AppRoles.Broker ? UserId : null;
+        Guid? consigneeId = Role == AppRoles.Consignee ? UserId : null;
+        return Ok(await _edo.ListAsync(manifestId, status, UserId, Role, brokerId, consigneeId, ct));
     }
 
     [HttpGet("release-queue")]
@@ -97,6 +97,8 @@ public class EdoController : ControllerBase
     public async Task<ActionResult<EdoDto>> Get(Guid id, CancellationToken ct)
     {
         await _access.EnsureEdoAccessAsync(id, UserId, Role, ct);
+        await _edo.TryAutoReleasePreForecastRenewalAsync(id, UserId, ct);
+        await _edo.EnsureEdoPdfSignatoryAsync(id, ct);
         return Ok(await _edo.GetAsync(id, ct));
     }
 
@@ -104,6 +106,8 @@ public class EdoController : ControllerBase
     public async Task<IActionResult> DownloadPdf(Guid id, CancellationToken ct)
     {
         await _access.EnsureEdoAccessAsync(id, UserId, Role, ct);
+        await _edo.TryAutoReleasePreForecastRenewalAsync(id, UserId, ct);
+        await _edo.EnsureEdoPdfSignatoryAsync(id, ct);
         var edo = await _edo.GetAsync(id, ct);
         EdoDownloadPolicy.EnsureCanDownload(Role, Enum.Parse<EdoStatus>(edo.Status, true));
         return ServeUpload(edo.PdfPath, $"{edo.EdoNumber}.pdf", "application/pdf");
@@ -113,6 +117,7 @@ public class EdoController : ControllerBase
     public async Task<IActionResult> DownloadQr(Guid id, CancellationToken ct)
     {
         await _access.EnsureEdoAccessAsync(id, UserId, Role, ct);
+        await _edo.TryAutoReleasePreForecastRenewalAsync(id, UserId, ct);
         var edo = await _edo.GetAsync(id, ct);
         EdoDownloadPolicy.EnsureCanDownload(Role, Enum.Parse<EdoStatus>(edo.Status, true));
         return ServeUpload(edo.QrImagePath, $"{edo.EdoNumber}-qr.png", "image/png");
@@ -126,6 +131,8 @@ public class EdoController : ControllerBase
             return NotFound(new { message = "File not found." });
         }
 
+        Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        Response.Headers.Pragma = "no-cache";
         return PhysicalFile(fullPath, contentType, downloadName);
     }
 
@@ -152,6 +159,18 @@ public class EdoController : ControllerBase
     public async Task<ActionResult<EdoDto>> Release(Guid id, [FromBody] ReleaseEdoRequest request, CancellationToken ct)
         => Ok(await _edo.ReleaseAsync(id, request, UserId, Role, ct));
 
+    [HttpPost("regenerate-pdf")]
+    [Authorize(Policy = "SlStaff")]
+    public async Task<ActionResult<IReadOnlyList<EdoDto>>> RegeneratePdf(
+        [FromBody] RegenerateEdoPdfRequest request,
+        CancellationToken ct)
+        => Ok(await _edo.RegeneratePdfByContainersAsync(request.ContainerNumbers ?? Array.Empty<string>(), UserId, Role, ct));
+
+    [HttpPost("{id:guid}/regenerate-pdf")]
+    [Authorize(Policy = "SlStaff")]
+    public async Task<ActionResult<EdoDto>> RegeneratePdfById(Guid id, CancellationToken ct)
+        => Ok(await _edo.RegeneratePdfAsync(id, UserId, Role, ct));
+
     [HttpPost("{id:guid}/unlock")]
     [Authorize(Policy = "ShippingAdmin")]
     public async Task<ActionResult<EdoDto>> Unlock(Guid id, [FromBody] UnlockEdoRequest request, CancellationToken ct)
@@ -166,7 +185,7 @@ public class EdoController : ControllerBase
     }
 
     [HttpPost("{id:guid}/payments")]
-    [Authorize(Policy = "BrokerOrConsignee")]
+    [Authorize(Policy = "EdoPayToOpen")]
     public async Task<ActionResult<EdoPaymentDto>> SubmitPayment(
         Guid id,
         [FromForm] decimal amount,
@@ -175,12 +194,14 @@ public class EdoController : ControllerBase
         CancellationToken ct)
     {
         string? path = null;
-        if (receipt is not null)
+        if (receipt is null)
         {
-            UploadGuard.Validate(receipt, ".pdf", ".png", ".jpg", ".jpeg");
-            await using var stream = receipt.OpenReadStream();
-            path = await _docs.SaveAsync("edo-receipts", receipt.FileName, stream, ct);
+            return BadRequest(new { message = "Payment receipt file is required." });
         }
+
+        UploadGuard.Validate(receipt, ".pdf", ".png", ".jpg", ".jpeg");
+        await using var stream = receipt.OpenReadStream();
+        path = await _docs.SaveAsync("edo-receipts", receipt.FileName, stream, ct);
 
         await _access.EnsureEdoAccessAsync(id, UserId, Role, ct);
         return Ok(await _payments.SubmitAsync(id, new SubmitEdoPaymentRequest(amount, currency), path, UserId, Role, ct));
@@ -275,15 +296,20 @@ public class EdoPaymentsController : ControllerBase
 public class EdoRenewalsController : ControllerBase
 {
     private readonly IEdoRenewalService _renewals;
+    private readonly IDocumentStore _docs;
 
-    public EdoRenewalsController(IEdoRenewalService renewals) => _renewals = renewals;
+    public EdoRenewalsController(IEdoRenewalService renewals, IDocumentStore docs)
+    {
+        _renewals = renewals;
+        _docs = docs;
+    }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private string Role => User.FindFirstValue(ClaimTypes.Role)!;
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<RenewalDto>>> List(CancellationToken ct)
-        => Ok(await _renewals.ListAsync(ct));
+        => Ok(await _renewals.ListAsync(UserId, Role, ct));
 
     [HttpPost]
     [Authorize(Policy = "BrokerOrConsignee")]
@@ -299,6 +325,28 @@ public class EdoRenewalsController : ControllerBase
     [Authorize(Policy = "Accounting")]
     public async Task<ActionResult<RenewalDto>> VerifyPayment(Guid id, CancellationToken ct)
         => Ok(await _renewals.MarkPaymentVerifiedAsync(id, UserId, Role, ct));
+
+    [HttpPost("{id:guid}/payments")]
+    [Authorize(Policy = "BrokerOrConsignee")]
+    public async Task<ActionResult<RenewalDto>> SubmitPayment(
+        Guid id,
+        [FromForm] decimal amount,
+        [FromForm] string? paymentReference,
+        [FromForm] string? paymentChannel,
+        IFormFile receipt,
+        CancellationToken ct)
+    {
+        UploadGuard.Validate(receipt, ".pdf", ".png", ".jpg", ".jpeg", ".webp");
+        await using var stream = receipt.OpenReadStream();
+        var path = await _docs.SaveAsync("renewal-payments", receipt.FileName, stream, ct);
+        return Ok(await _renewals.SubmitPaymentAsync(
+            id,
+            new SubmitRenewalPaymentRequest(amount, paymentReference, paymentChannel),
+            path,
+            UserId,
+            Role,
+            ct));
+    }
 
     [HttpPost("{id:guid}/generate")]
     [Authorize(Policy = "SlStaff")]

@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using Optimus.Application;
 using Optimus.Application.Platform.Interfaces;
+using Optimus.Application.Security;
 using Optimus.Infrastructure;
 using Optimus.Infrastructure.Email;
 using Optimus.Infrastructure.Persistence;
@@ -110,13 +111,20 @@ try
                 return RateLimitPartition.GetNoLimiter("options");
             }
 
-            var key = httpContext.User.Identity?.Name
-                      ?? httpContext.Connection.RemoteIpAddress?.ToString()
-                      ?? "anon";
-            return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+            var cache = httpContext.RequestServices.GetRequiredService<IRateLimitRuleCache>();
+            var path = httpContext.Request.Path.Value ?? "/";
+            var role = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var rule = cache.ResolveRule(path, role);
+
+            var clientKey = httpContext.User.Identity?.Name
+                            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                            ?? "anon";
+            var partitionKey = $"{rule.Name}:{clientKey}";
+
+            return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 180,
-                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = rule.PermitLimit,
+                Window = TimeSpan.FromSeconds(rule.WindowSeconds),
                 QueueLimit = 0
             });
         });
@@ -185,6 +193,12 @@ try
         return;
     }
 
+    if (app.Environment.IsDevelopment())
+    {
+        Log.Information("Development: applying migrations and ensuring demo seed data...");
+        await DbSeeder.SeedAsync(app.Services);
+    }
+
     Log.Information("MySQL target: {DbTarget}", DatabaseConnection.DescribeForLogs(app.Configuration));
     var smtpSettings = new SmtpSettings();
     SmtpSettingsConfiguration.Bind(smtpSettings, app.Configuration);
@@ -204,6 +218,10 @@ try
         Log.Warning("Email: not configured (set Resend__ApiKey or Smtp__Password)");
     }
     app.Run();
+}
+catch (Exception ex) when (ex is Microsoft.Extensions.Hosting.HostAbortedException)
+{
+    // Expected when EF Core design-time tools (dotnet ef) build the host and abort it.
 }
 catch (Exception ex)
 {

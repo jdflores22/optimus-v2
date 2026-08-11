@@ -6,7 +6,7 @@ UNION ALL SELECT 'shipping_lines', COUNT(*) FROM shipping_lines
 UNION ALL SELECT 'manifests', COUNT(*) FROM manifests
 UNION ALL SELECT 'payments', COUNT(*) FROM payments
 UNION ALL SELECT 'electronic_delivery_orders', COUNT(*) FROM electronic_delivery_orders
-UNION ALL SELECT 'pre_advice_requests', COUNT(*) FROM pre_advice_requests
+UNION ALL SELECT 'pre_forecast_requests', COUNT(*) FROM pre_forecast_requests
 UNION ALL SELECT 'accreditation_submissions', COUNT(*) FROM accreditation_submissions
 UNION ALL SELECT 'broker_transfer_requests', COUNT(*) FROM broker_transfer_requests
 UNION ALL SELECT 'suspension_appeals', COUNT(*) FROM suspension_appeals

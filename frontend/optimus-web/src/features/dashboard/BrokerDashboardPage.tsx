@@ -36,11 +36,8 @@ import {
   useGetEdosQuery,
   useGetManifestsQuery,
   useGetWorkspacesQuery,
-  useSubmitEdoPaymentMutation,
-  useGetActivePaymentFeeQuery,
 } from '../../app/api';
 import type { EdoDto, ManifestDto } from '../../shared/types';
-import { resolveEdoFeeAmount } from '../../shared/paymentFees';
 import { formatWorkflowState } from '../../shared/formatWorkflowState';
 import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 import { SectionPanelHeader } from '../shared/DetailRow';
@@ -87,8 +84,6 @@ export function BrokerDashboardPage() {
     switchedFromState ? { name: switchedFromState, open: true } : null,
   );
   const [edoTab, setEdoTab] = useState<EdoTab>('payment');
-  const [payMessage, setPayMessage] = useState<string | null>(null);
-  const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!switchedFromState) return;
@@ -114,8 +109,6 @@ export function BrokerDashboardPage() {
   const { data: workspaces = [] } = useGetWorkspacesQuery();
   const { data: accreditations = [] } = useGetAccreditationsQuery();
   const { data: activeForm } = useGetActiveFormQuery('Broker');
-  const { data: edoFee } = useGetActivePaymentFeeQuery('edo');
-  const [submitPayment, { isLoading: paying }] = useSubmitEdoPaymentMutation();
 
   const activeWorkspace = useMemo(
     () => workspaces.find((w) => w.id === user?.activeWorkspaceConsigneeId),
@@ -169,26 +162,12 @@ export function BrokerDashboardPage() {
   const workspaceName =
     activeWorkspace?.businessName || activeWorkspace?.fullName || 'No workspace selected';
 
+  const edoPaymentsPath =
+    paymentNeeded.length > 0 ? `/edo/${paymentNeeded[0].id}/payment` : '/edo';
+
   const onRefresh = () => {
     void refetchManifests();
     void refetchEdos();
-  };
-
-  const onPay = async (edo: EdoDto) => {
-    setPayError(null);
-    setPayMessage(null);
-    try {
-      await submitPayment({
-        edoId: edo.id,
-        amount: resolveEdoFeeAmount(edoFee, edo.feeAmount),
-        currency: 'PHP',
-      }).unwrap();
-      setPayMessage(`Payment submitted for ${edo.edoNumber}`);
-      void refetchEdos();
-      setEdoTab('pending');
-    } catch (e: unknown) {
-      setPayError((e as { data?: { message?: string } })?.data?.message ?? 'Payment failed');
-    }
   };
 
   const kpis = [
@@ -319,7 +298,7 @@ export function BrokerDashboardPage() {
           <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1} justifyContent={{ lg: 'flex-end' }}>
             <Button
               component={RouterLink}
-              to="/payments"
+              to={edoPaymentsPath}
               variant="contained"
               color="error"
               startIcon={<CreditCardOutlinedIcon />}
@@ -388,17 +367,6 @@ export function BrokerDashboardPage() {
             : activeForm
               ? `Broker accreditation required. Active form: ${activeForm.name} v${activeForm.version}.`
               : 'Broker accreditation required. Submit your SAS to unlock full broker services.'}
-        </Alert>
-      )}
-
-      {payMessage && (
-        <Alert severity="success" onClose={() => setPayMessage(null)}>
-          {payMessage}
-        </Alert>
-      )}
-      {payError && (
-        <Alert severity="error" onClose={() => setPayError(null)}>
-          {payError}
         </Alert>
       )}
 
@@ -597,8 +565,7 @@ export function BrokerDashboardPage() {
                               variant="contained"
                               color="error"
                               startIcon={<CreditCardOutlinedIcon />}
-                              disabled={paying}
-                              onClick={() => void onPay(edo)}
+                              onClick={() => navigate(`/edo/${edo.id}/payment`)}
                               sx={{ textTransform: 'none', fontWeight: 600 }}
                             >
                               Pay
@@ -637,7 +604,7 @@ export function BrokerDashboardPage() {
               </Button>
               <Button
                 component={RouterLink}
-                to="/payments"
+                to={edoPaymentsPath}
                 variant="outlined"
                 fullWidth
                 startIcon={<CreditCardOutlinedIcon />}

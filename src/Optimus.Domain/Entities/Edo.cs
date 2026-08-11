@@ -102,6 +102,8 @@ public class EdoRenewalRequest : BaseEntity
     public DateTime? PaymentVerifiedAt { get; set; }
     public Guid? PaymentVerifiedById { get; set; }
     public User? PaymentVerifiedBy { get; set; }
+    public string? PaymentReceiptPath { get; set; }
+    public string? PaymentReference { get; set; }
     public string? AdditionalNotes { get; set; }
     public DateTime? CompletedAt { get; set; }
 }

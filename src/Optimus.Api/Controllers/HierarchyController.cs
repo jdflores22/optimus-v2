@@ -22,6 +22,7 @@ public class HierarchyController : ControllerBase
         AppRoles.Evaluator,
         AppRoles.Accounting,
         AppRoles.TerminalTeam,
+        AppRoles.CyStaff,
     };
 
     private readonly IHierarchyService _hierarchyService;
@@ -70,7 +71,7 @@ public class HierarchyController : ControllerBase
         {
             if (!ShippingAdminInviteRoles.Contains(request.Role))
             {
-                return BadRequest(new { message = "Shipping Lines Admin can only invite SlStaff, Evaluator, Accounting, or TerminalTeam." });
+                return BadRequest(new { message = "Shipping Lines Admin can only invite SlStaff, Evaluator, Accounting, TerminalTeam, or CyStaff." });
             }
 
             var me = await _hierarchyService.ListUsersAsync(UserId, Role, cancellationToken);

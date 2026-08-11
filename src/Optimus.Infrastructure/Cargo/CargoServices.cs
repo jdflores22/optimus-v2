@@ -46,6 +46,16 @@ public class DocumentStore : IDocumentStore
         return $"/uploads/{category}/{safe}";
     }
 
+    public string SavePdfBytes(string category, string fileName, byte[] content)
+    {
+        var dir = Path.Combine(_root, category);
+        Directory.CreateDirectory(dir);
+        var safe = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}_{Path.GetFileName(fileName)}";
+        var full = Path.Combine(dir, safe);
+        File.WriteAllBytes(full, content);
+        return $"/uploads/{category}/{safe}";
+    }
+
     public string CreateAccreditationCertificatePdf(AccreditationCertificatePdfRequest request)
     {
         var dir = Path.Combine(_root, "certificates");
@@ -152,7 +162,13 @@ public class PaymentFeeService : IPaymentFeeService
 
         if (fee is null)
         {
-            var amount = feeType == "edo" ? 750m : 500m;
+            var normalized = feeType.Trim().ToLowerInvariant();
+            var amount = normalized switch
+            {
+                "edo" => 750m,
+                "detention" => 150m,
+                _ => 500m
+            };
             return new PaymentFeeDto(Guid.Empty, feeType, amount, true, null, null, DateTime.UtcNow);
         }
 
@@ -169,13 +185,19 @@ public class PaymentFeeService : IPaymentFeeService
 
     public async Task<PaymentFeeDto> UpsertAsync(UpsertPaymentFeeRequest request, string? qrPath, Guid actorId, CancellationToken ct = default)
     {
-        if (!string.Equals(request.FeeType, "edo", StringComparison.OrdinalIgnoreCase))
+        var normalized = request.FeeType.Trim().ToLowerInvariant();
+        if (normalized is not ("edo" or "detention"))
         {
-            throw new InvalidOperationException("Only eDO access fees can be configured.");
+            throw new InvalidOperationException("Unsupported fee type.");
+        }
+
+        if (request.Amount <= 0)
+        {
+            throw new InvalidOperationException("Amount must be greater than zero.");
         }
 
         var active = await _db.PaymentFeeConfigurations
-            .Where(x => x.FeeType == request.FeeType && x.IsActive)
+            .Where(x => x.FeeType == normalized && x.IsActive)
             .ToListAsync(ct);
         foreach (var item in active)
         {
@@ -184,12 +206,14 @@ public class PaymentFeeService : IPaymentFeeService
 
         var entity = new PaymentFeeConfiguration
         {
-            FeeType = request.FeeType,
+            FeeType = normalized,
             Amount = request.Amount,
             PreviousAmount = active.FirstOrDefault()?.Amount,
             ConfiguredById = actorId,
             IsActive = true,
-            QrCodePath = qrPath ?? active.FirstOrDefault()?.QrCodePath
+            QrCodePath = normalized == "edo"
+                ? qrPath ?? active.FirstOrDefault()?.QrCodePath
+                : null
         };
         _db.PaymentFeeConfigurations.Add(entity);
         await _db.SaveChangesAsync(ct);
@@ -272,6 +296,11 @@ public class ManifestWorkflowService : IManifestWorkflowService
     public async Task<IReadOnlyList<ManifestDto>> ListAsync(Guid? shippingLineId, Guid? brokerId, Guid? consigneeId, CancellationToken ct = default)
     {
         var q = Query();
+        if (!brokerId.HasValue && !consigneeId.HasValue)
+        {
+            shippingLineId ??= await SoleShippingLine.RequireIdAsync(_db, ct);
+        }
+
         if (shippingLineId.HasValue) q = q.Where(x => x.ShippingLineId == shippingLineId);
         if (brokerId.HasValue) q = q.Where(x => x.BrokerId == brokerId);
         if (consigneeId.HasValue) q = q.Where(x => x.ConsigneeId == consigneeId);
@@ -283,7 +312,7 @@ public class ManifestWorkflowService : IManifestWorkflowService
         Guid actorId, string actorRole, CancellationToken ct = default)
     {
         EnsureRole(actorRole, AppRoles.SlStaff, AppRoles.ShippingLinesAdmin, AppRoles.SystemAdmin);
-        var lineId = await ResolveActorShippingLineIdAsync(actorId, actorRole, ct);
+        var lineId = await SoleShippingLine.ResolveForActorAsync(_db, actorId, actorRole, ct);
 
         var applicantIds = await _db.AccreditationSubmissions.AsNoTracking()
             .Where(a =>
@@ -987,36 +1016,8 @@ public class ManifestWorkflowService : IManifestWorkflowService
         }
     }
 
-    private async Task<Guid> ResolveActorShippingLineIdAsync(Guid actorId, string actorRole, CancellationToken ct)
-    {
-        if (actorRole == AppRoles.SystemAdmin)
-        {
-            return await SoleShippingLine.RequireIdAsync(_db, ct);
-        }
-
-        var actor = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorId, ct)
-                    ?? throw new UnauthorizedAccessException("User not found.");
-
-        if (actor.ManagedShippingLineId.HasValue)
-        {
-            return actor.ManagedShippingLineId.Value;
-        }
-
-        if (actor.ShippingLineAdminId.HasValue)
-        {
-            var adminLine = await _db.Users.AsNoTracking()
-                .Where(u => u.Id == actor.ShippingLineAdminId)
-                .Select(u => u.ManagedShippingLineId)
-                .FirstOrDefaultAsync(ct);
-            if (adminLine.HasValue) return adminLine.Value;
-        }
-
-        var pref = await _db.UserShippingLinePreferences.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.UserId == actorId, ct);
-        if (pref?.LastSelectedShippingLineId is Guid lineId) return lineId;
-
-        return await SoleShippingLine.RequireIdAsync(_db, ct);
-    }
+    private async Task<Guid> ResolveActorShippingLineIdAsync(Guid actorId, string actorRole, CancellationToken ct) =>
+        await SoleShippingLine.ResolveForActorAsync(_db, actorId, actorRole, ct);
 
     private static ManifestDto Map(Manifest x) =>
         new(

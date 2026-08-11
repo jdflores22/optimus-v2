@@ -14,6 +14,7 @@ public class OptimusDbContext : DbContext
     public DbSet<Consignee> Consignees => Set<Consignee>();
     public DbSet<StaffUser> StaffUsers => Set<StaffUser>();
     public DbSet<TerminalTeamUser> TerminalTeamUsers => Set<TerminalTeamUser>();
+    public DbSet<ContainerYardUser> ContainerYardUsers => Set<ContainerYardUser>();
     public DbSet<Trucker> Truckers => Set<Trucker>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ShippingLine> ShippingLines => Set<ShippingLine>();
@@ -48,7 +49,9 @@ public class OptimusDbContext : DbContext
     public DbSet<ContainerAllocationAudit> ContainerAllocationAudits => Set<ContainerAllocationAudit>();
     public DbSet<DwellTimeConfiguration> DwellTimeConfigurations => Set<DwellTimeConfiguration>();
     public DbSet<DwellTimeEvent> DwellTimeEvents => Set<DwellTimeEvent>();
-    public DbSet<PreAdviceRequest> PreAdviceRequests => Set<PreAdviceRequest>();
+    public DbSet<PreForecastRequest> PreForecastRequests => Set<PreForecastRequest>();
+    public DbSet<TruckerPreForecastSubmission> TruckerPreForecastSubmissions => Set<TruckerPreForecastSubmission>();
+    public DbSet<TruckerPreForecastPhoto> TruckerPreForecastPhotos => Set<TruckerPreForecastPhoto>();
     public DbSet<GeotagPhoto> GeotagPhotos => Set<GeotagPhoto>();
     public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
     public DbSet<FormConfiguration> FormConfigurations => Set<FormConfiguration>();

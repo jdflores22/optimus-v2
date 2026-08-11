@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -128,10 +129,10 @@ public class TerminalService : ITerminalService
         var entity = await _db.Terminals.FirstOrDefaultAsync(x => x.Id == id, ct)
                      ?? throw new KeyNotFoundException("Terminal not found.");
 
-        if (await _db.PreAdviceRequests.AnyAsync(x => x.TerminalId == id, ct))
+        if (await _db.PreForecastRequests.AnyAsync(x => x.TerminalId == id, ct))
         {
             throw new InvalidOperationException(
-                "Cannot delete terminal with existing pre-advice requests. Please deactivate instead.");
+                "Cannot delete terminal with existing pre-forecast requests. Please deactivate instead.");
         }
 
         _db.Terminals.Remove(entity);
@@ -334,16 +335,100 @@ public class CyAllocationService : ICyAllocationService
 
         var allocatedTeu = Math.Max(0, request.AllocatedCapacityTeu);
 
+        var previousStaffUserId = entity.StaffUserId;
+
         entity.ShippingLineId = request.ShippingLineId;
         entity.TerminalId = request.TerminalId;
         entity.StaffUserId = request.StaffUserId;
         entity.AllocatedCapacityTeu = allocatedTeu;
         entity.Capacity20Ft = Math.Max(0, request.Capacity20Ft);
         entity.Capacity40Ft = Math.Max(0, request.Capacity40Ft);
+
+        await ValidateCyStaffContactAsync(request.StaffUserId, terminal, entity.Id, ct);
+        await SyncCyStaffTerminalLinkAsync(request.StaffUserId, previousStaffUserId, terminal, entity.Id, ct);
+
         await _db.SaveChangesAsync(ct);
         await _activity.LogAsync(actorId, "cy_allocation.upsert", nameof(ShippingLineTerminalAllocation), entity.Id, null, ct);
         return (await ListAsync(entity.ShippingLineId, request.TerminalId, activeTerminalsOnly: false, containerYardsOnly: false, ct))
             .First(x => x.Id == entity.Id);
+    }
+
+    private async Task ValidateCyStaffContactAsync(
+        Guid? staffUserId,
+        Terminal terminal,
+        Guid allocationId,
+        CancellationToken ct)
+    {
+        if (!staffUserId.HasValue || terminal.Identity != TerminalIdentity.ContainerYard)
+        {
+            return;
+        }
+
+        var staff = await _db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == staffUserId.Value, ct)
+            ?? throw new InvalidOperationException("CY staff contact not found.");
+
+        if (!string.Equals(staff.Role, AppRoles.CyStaff, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Only Container Yard (CyStaff) users can be assigned as a CY contact.");
+        }
+
+        var conflict = await _db.ShippingLineTerminalAllocations.AsNoTracking()
+            .Include(x => x.Terminal)
+            .Where(x =>
+                x.StaffUserId == staffUserId.Value
+                && x.TerminalId != terminal.Id
+                && x.Id != allocationId
+                && x.Terminal.Identity == TerminalIdentity.ContainerYard)
+            .Select(x => x.Terminal.Name)
+            .FirstOrDefaultAsync(ct);
+
+        if (conflict is not null)
+        {
+            throw new InvalidOperationException(
+                $"{staff.FullName} is already the CY contact for {conflict}. Each depot staff account can only belong to one container yard.");
+        }
+    }
+
+    private async Task SyncCyStaffTerminalLinkAsync(
+        Guid? newStaffUserId,
+        Guid? previousStaffUserId,
+        Terminal terminal,
+        Guid allocationId,
+        CancellationToken ct)
+    {
+        if (terminal.Identity != TerminalIdentity.ContainerYard)
+        {
+            return;
+        }
+
+        if (newStaffUserId.HasValue)
+        {
+            var cyUser = await _db.ContainerYardUsers.FirstOrDefaultAsync(x => x.Id == newStaffUserId.Value, ct);
+            if (cyUser is not null)
+            {
+                cyUser.AssignedTerminalIdsJson = JsonSerializer.Serialize(new[] { terminal.Id.ToString() });
+            }
+        }
+
+        if (previousStaffUserId.HasValue && previousStaffUserId != newStaffUserId)
+        {
+            var stillAssignedElsewhere = await _db.ShippingLineTerminalAllocations.AsNoTracking()
+                .Include(x => x.Terminal)
+                .AnyAsync(x =>
+                    x.StaffUserId == previousStaffUserId.Value
+                    && x.Id != allocationId
+                    && x.Terminal.Identity == TerminalIdentity.ContainerYard, ct);
+
+            if (!stillAssignedElsewhere)
+            {
+                var previousCyUser = await _db.ContainerYardUsers.FirstOrDefaultAsync(x => x.Id == previousStaffUserId.Value, ct);
+                if (previousCyUser is not null)
+                {
+                    previousCyUser.AssignedTerminalIdsJson = null;
+                }
+            }
+        }
     }
 
     public async Task<IReadOnlyList<CyAllocationDto>> ListAsync(
@@ -379,12 +464,21 @@ public class ContainerInventoryService : IContainerInventoryService
     private readonly OptimusDbContext _db;
     private readonly IActivityLogService _activity;
     private readonly IDocumentStore _docs;
+    private readonly ICyScopeService _cyScope;
+    private readonly INotificationService _notifications;
 
-    public ContainerInventoryService(OptimusDbContext db, IActivityLogService activity, IDocumentStore docs)
+    public ContainerInventoryService(
+        OptimusDbContext db,
+        IActivityLogService activity,
+        IDocumentStore docs,
+        ICyScopeService cyScope,
+        INotificationService notifications)
     {
         _db = db;
         _activity = activity;
         _docs = docs;
+        _cyScope = cyScope;
+        _notifications = notifications;
     }
 
     public async Task<ContainerDto> CreateAsync(CreateContainerRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
@@ -421,6 +515,33 @@ public class ContainerInventoryService : IContainerInventoryService
         return Map(entity);
     }
 
+    public async Task EnsureAccessAsync(Guid containerId, Guid actorId, string actorRole, CancellationToken ct = default)
+    {
+        if (actorRole is AppRoles.Trucker or AppRoles.Broker or AppRoles.Consignee)
+        {
+            throw new UnauthorizedAccessException("You do not have access to this container.");
+        }
+
+        if (actorRole == AppRoles.CyStaff)
+        {
+            await _cyScope.EnsureContainerYardAccessAsync(actorId, containerId, ct);
+            return;
+        }
+
+        var shippingLineId = await _db.Containers.AsNoTracking()
+            .Where(x => x.Id == containerId)
+            .Select(x => x.ShippingLineId)
+            .FirstOrDefaultAsync(ct);
+
+        if (shippingLineId == Guid.Empty)
+        {
+            throw new KeyNotFoundException("Container not found.");
+        }
+
+        var actorLineId = await SoleShippingLine.ResolveForActorAsync(_db, actorId, actorRole, ct);
+        SoleShippingLine.EnsureMatches(shippingLineId, actorLineId);
+    }
+
     public async Task<ContainerInventoryItemDto> GetInventoryItemAsync(Guid id, CancellationToken ct = default)
     {
         var entity = await Query().FirstOrDefaultAsync(x => x.Id == id, ct)
@@ -431,6 +552,7 @@ public class ContainerInventoryService : IContainerInventoryService
     public async Task<ContainerDetailDto> GetDetailByNumberAsync(string containerNumber, Guid? shippingLineId, CancellationToken ct = default)
     {
         var number = containerNumber.Trim().ToUpperInvariant();
+        shippingLineId ??= await SoleShippingLine.RequireIdAsync(_db, ct);
         var q = _db.Containers.AsNoTracking()
             .Include(x => x.ShippingLine)
             .Include(x => x.ContainerType)
@@ -439,12 +561,7 @@ public class ContainerInventoryService : IContainerInventoryService
             .Include(x => x.Manifest)
             .Include(x => x.AllocationAudits).ThenInclude(a => a.ChangedBy)
             .Include(x => x.DwellEvents)
-            .Where(x => x.ContainerNumber == number);
-
-        if (shippingLineId.HasValue)
-        {
-            q = q.Where(x => x.ShippingLineId == shippingLineId);
-        }
+            .Where(x => x.ContainerNumber == number && x.ShippingLineId == shippingLineId);
 
         var entity = await q.FirstOrDefaultAsync(ct)
                      ?? throw new KeyNotFoundException("Container not found or you do not have access to view this container.");
@@ -454,8 +571,8 @@ public class ContainerInventoryService : IContainerInventoryService
 
     public async Task<IReadOnlyList<ContainerDto>> ListAsync(Guid? shippingLineId, string? status, string? search, CancellationToken ct = default)
     {
-        var q = Query();
-        if (shippingLineId.HasValue) q = q.Where(x => x.ShippingLineId == shippingLineId);
+        shippingLineId ??= await SoleShippingLine.RequireIdAsync(_db, ct);
+        var q = Query().Where(x => x.ShippingLineId == shippingLineId);
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ContainerStatus>(status, true, out var st))
         {
             q = q.Where(x => x.Status == st);
@@ -478,13 +595,14 @@ public class ContainerInventoryService : IContainerInventoryService
         int page,
         int pageSize,
         string? terminalIdentity = null,
+        IReadOnlyList<Guid>? terminalIds = null,
         CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = pageSize <= 0 ? 50 : Math.Clamp(pageSize, 1, 100);
 
         var identityFilter = ParseTerminalIdentityFilter(terminalIdentity);
-        var q = InventoryQuery(shippingLineId, depot, search, identityFilter);
+        var q = InventoryQuery(shippingLineId, depot, search, identityFilter, terminalIds);
         var totalCount = await q.CountAsync(ct);
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Min(page, totalPages);
@@ -496,12 +614,12 @@ public class ContainerInventoryService : IContainerInventoryService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var allForStats = await InventoryQuery(shippingLineId, depot, search, identityFilter)
+        var allForStats = await InventoryQuery(shippingLineId, depot, search, identityFilter, terminalIds)
             .Include(x => x.ContainerSize)
             .Include(x => x.CyAllocation)!.ThenInclude(a => a!.Terminal)
             .ToListAsync(ct);
 
-        var stats = await BuildInventoryStatsAsync(shippingLineId, allForStats, identityFilter, depot, ct);
+        var stats = await BuildInventoryStatsAsync(shippingLineId, allForStats, identityFilter, depot, terminalIds, ct);
         var shippingLineName = shippingLineId.HasValue
             ? await _db.ShippingLines.AsNoTracking()
                 .Where(x => x.Id == shippingLineId)
@@ -519,9 +637,61 @@ public class ContainerInventoryService : IContainerInventoryService
             stats);
     }
 
+    public async Task<ContainerInventoryPageDto> PreForecastPageAsync(
+        string? search,
+        int page,
+        int pageSize,
+        IReadOnlyList<Guid> terminalIds,
+        CancellationToken ct = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = pageSize <= 0 ? 50 : Math.Clamp(pageSize, 1, 100);
+
+        var q = InventoryQuery(
+            shippingLineId: null,
+            depot: null,
+            search: search,
+            identityFilter: TerminalIdentity.ContainerYard,
+            terminalIds: terminalIds,
+            allocationStatus: AllocationStatus.PreForecast);
+
+        var totalCount = await q.CountAsync(ct);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
+        var items = await q
+            .OrderByDescending(x => x.AllocatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var allForStats = await InventoryQuery(
+                shippingLineId: null,
+                depot: null,
+                search: search,
+                identityFilter: TerminalIdentity.ContainerYard,
+                terminalIds: terminalIds,
+                allocationStatus: AllocationStatus.PreForecast)
+            .Include(x => x.ContainerSize)
+            .Include(x => x.CyAllocation)!.ThenInclude(a => a!.Terminal)
+            .ToListAsync(ct);
+
+        var stats = await BuildInventoryStatsAsync(null, allForStats, TerminalIdentity.ContainerYard, null, terminalIds, ct);
+
+        return new ContainerInventoryPageDto(
+            items.Select(MapInventoryItem).ToList(),
+            totalCount,
+            page,
+            pageSize,
+            totalPages,
+            "Assigned pre-forecasts",
+            stats);
+    }
+
     public async Task<IReadOnlyList<string>> ListInventoryDepotsAsync(
         Guid? shippingLineId,
         string? terminalIdentity = null,
+        IReadOnlyList<Guid>? terminalIds = null,
         CancellationToken ct = default)
     {
         var identityFilter = ParseTerminalIdentityFilter(terminalIdentity);
@@ -539,6 +709,11 @@ public class ContainerInventoryService : IContainerInventoryService
             q = q.Where(x => x.Terminal.Identity == identityFilter.Value);
         }
 
+        if (terminalIds is { Count: > 0 })
+        {
+            q = q.Where(x => terminalIds.Contains(x.TerminalId));
+        }
+
         return await q
             .Select(x => x.Terminal.Name)
             .Distinct()
@@ -549,8 +724,9 @@ public class ContainerInventoryService : IContainerInventoryService
     public async Task<IReadOnlyList<ContainerDto>> SearchForReturnAsync(string query, CancellationToken ct = default)
     {
         var q = query.Trim().ToUpperInvariant();
+        var lineId = await SoleShippingLine.RequireIdAsync(_db, ct);
         var items = await Query()
-            .Where(x => x.Status == ContainerStatus.AvailableForReturn && x.ContainerNumber.Contains(q))
+            .Where(x => x.ShippingLineId == lineId && x.Status == ContainerStatus.AvailableForReturn && x.ContainerNumber.Contains(q))
             .OrderBy(x => x.ContainerNumber)
             .Take(50)
             .ToListAsync(ct);
@@ -568,6 +744,7 @@ public class ContainerInventoryService : IContainerInventoryService
         }
 
         var allocation = await _db.ShippingLineTerminalAllocations
+            .Include(x => x.Terminal)
             .Include(x => x.Containers).ThenInclude(c => c.ContainerSize)
             .FirstOrDefaultAsync(x => x.Id == request.CyAllocationId, ct)
             ?? throw new KeyNotFoundException("CY allocation not found.");
@@ -606,6 +783,20 @@ public class ContainerInventoryService : IContainerInventoryService
             Reason = request.Reason
         });
         await _db.SaveChangesAsync(ct);
+
+        var cyUserIds = await _cyScope.GetCyUserIdsForTerminalAsync(allocation.TerminalId, ct);
+        foreach (var cyUserId in cyUserIds)
+        {
+            await _notifications.NotifyAsync(
+                cyUserId,
+                "Pre-forecast assigned",
+                $"Container {container.ContainerNumber} was assigned to your yard ({allocation.Terminal?.Name ?? "CY"}).",
+                "yard.pre_forecast",
+                nameof(Container),
+                container.Id,
+                ct);
+        }
+
         return await GetAsync(id, ct);
     }
 
@@ -621,8 +812,17 @@ public class ContainerInventoryService : IContainerInventoryService
         return await AllocateAsync(id, new AllocateContainerRequest(request.NewCyAllocationId, request.Reason), actorId, actorRole, ct);
     }
 
-    public async Task<ContainerDto> LockAllocationAsync(Guid id, Guid actorId, CancellationToken ct = default)
+    public async Task<ContainerDto> LockAllocationAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default)
     {
+        if (actorRole == AppRoles.CyStaff)
+        {
+            await _cyScope.EnsureContainerYardAccessAsync(actorId, id, ct);
+        }
+        else if (actorRole is not (AppRoles.SlStaff or AppRoles.ShippingLinesAdmin or AppRoles.SystemAdmin))
+        {
+            throw new UnauthorizedAccessException("Not allowed to confirm pre-forecast allocations.");
+        }
+
         var container = await _db.Containers.FirstOrDefaultAsync(x => x.Id == id, ct)
                         ?? throw new KeyNotFoundException("Container not found.");
         if (container.AllocationStatus != AllocationStatus.PreForecast)
@@ -702,8 +902,8 @@ public class ContainerInventoryService : IContainerInventoryService
             allocations = allocations.Where(x => x.Terminal.Identity == identityFilter.Value).ToList();
         }
 
-        var pendingPa = await _db.PreAdviceRequests.AsNoTracking()
-            .Where(x => x.Status == PreAdviceStatus.Pending)
+        var pendingPa = await _db.PreForecastRequests.AsNoTracking()
+            .Where(x => x.Status == PreForecastRequestStatus.Pending)
             .GroupBy(x => x.TerminalId)
             .Select(g => new { TerminalId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.TerminalId, x => x.Count, ct);
@@ -744,10 +944,10 @@ public class ContainerInventoryService : IContainerInventoryService
     {
         var rows = await UtilizationReportAsync(terminalIdentity, shippingLineId, ct);
         var sb = new StringBuilder();
-        sb.AppendLine("Terminal,Identity,Operator,AllocatedTEU,UsedTEU,Utilization%,AvailableForReturn,AtTerminal,PendingPreAdvice");
+        sb.AppendLine("Terminal,Identity,Operator,AllocatedTEU,UsedTEU,Utilization%,AvailableForReturn,AtTerminal,PendingPreForecast");
         foreach (var r in rows)
         {
-            sb.AppendLine($"{r.TerminalName},{r.TerminalIdentity},{r.TerminalOperator},{r.AllocatedTeu},{r.UsedTeu},{r.UtilizationPercent},{r.AvailableForReturn},{r.AtTerminal},{r.PendingPreAdvice}");
+            sb.AppendLine($"{r.TerminalName},{r.TerminalIdentity},{r.TerminalOperator},{r.AllocatedTeu},{r.UsedTeu},{r.UtilizationPercent},{r.AvailableForReturn},{r.AtTerminal},{r.PendingPreForecast}");
         }
 
         var title = identityFilterLabel(terminalIdentity);
@@ -775,10 +975,19 @@ public class ContainerInventoryService : IContainerInventoryService
         Guid? shippingLineId,
         string? depot,
         string? search,
-        TerminalIdentity? identityFilter = null)
+        TerminalIdentity? identityFilter = null,
+        IReadOnlyList<Guid>? terminalIds = null,
+        AllocationStatus? allocationStatus = null)
     {
-        var q = Query()
-            .Where(x => x.AllocationStatus == AllocationStatus.Allocated || x.AllocationStatus == AllocationStatus.PreForecast);
+        var q = Query();
+        if (allocationStatus.HasValue)
+        {
+            q = q.Where(x => x.AllocationStatus == allocationStatus.Value);
+        }
+        else
+        {
+            q = q.Where(x => x.AllocationStatus == AllocationStatus.Allocated || x.AllocationStatus == AllocationStatus.PreForecast);
+        }
 
         if (shippingLineId.HasValue)
         {
@@ -788,6 +997,11 @@ public class ContainerInventoryService : IContainerInventoryService
         if (identityFilter.HasValue)
         {
             q = q.Where(x => x.CyAllocation != null && x.CyAllocation.Terminal.Identity == identityFilter.Value);
+        }
+
+        if (terminalIds is { Count: > 0 })
+        {
+            q = q.Where(x => x.CyAllocation != null && terminalIds.Contains(x.CyAllocation.TerminalId));
         }
 
         if (!string.IsNullOrWhiteSpace(depot))
@@ -824,6 +1038,7 @@ public class ContainerInventoryService : IContainerInventoryService
         IReadOnlyList<Container> containers,
         TerminalIdentity? identityFilter,
         string? depotName,
+        IReadOnlyList<Guid>? terminalIds,
         CancellationToken ct)
     {
         var total20 = 0;
@@ -858,6 +1073,11 @@ public class ContainerInventoryService : IContainerInventoryService
         {
             var depot = depotName.Trim();
             allocations = allocations.Where(x => x.Terminal.Name == depot).ToList();
+        }
+
+        if (terminalIds is { Count: > 0 })
+        {
+            allocations = allocations.Where(x => terminalIds.Contains(x.TerminalId)).ToList();
         }
 
         var term20 = 0;

@@ -104,11 +104,16 @@ public static class DependencyInjection
             options.AddPolicy("SlStaff", p => p.RequireRole(AppRoles.SlStaff, AppRoles.ShippingLinesAdmin, AppRoles.SystemAdmin));
             options.AddPolicy("Accounting", p => p.RequireRole(AppRoles.Accounting, AppRoles.SystemAdmin));
             options.AddPolicy("BrokerOrConsignee", p => p.RequireRole(AppRoles.Broker, AppRoles.Consignee, AppRoles.SystemAdmin));
+            options.AddPolicy("EdoPayToOpen", p => p.RequireRole(
+                AppRoles.Broker, AppRoles.Consignee, AppRoles.Trucker, AppRoles.SystemAdmin));
             options.AddPolicy("EdoRelease", p => p.RequireRole(
                 AppRoles.SlStaff, AppRoles.ShippingLinesAdmin, AppRoles.TerminalTeam, AppRoles.SystemAdmin));
-            options.AddPolicy("EdoPaymentAdmin", p => p.RequireRole(AppRoles.SystemAdmin));
+            options.AddPolicy("EdoPaymentAdmin", p => p.RequireRole(AppRoles.Accounting, AppRoles.SystemAdmin));
             options.AddPolicy("TerminalTeam", p => p.RequireRole(
                 AppRoles.TerminalTeam, AppRoles.SystemAdmin, AppRoles.ShippingLinesAdmin));
+            options.AddPolicy("CyStaff", p => p.RequireRole(AppRoles.CyStaff, AppRoles.SystemAdmin));
+            options.AddPolicy("LockContainerAllocation", p => p.RequireRole(
+                AppRoles.SlStaff, AppRoles.CyStaff, AppRoles.ShippingLinesAdmin, AppRoles.SystemAdmin));
             options.AddPolicy("Trucker", p => p.RequireRole(AppRoles.Trucker, AppRoles.SystemAdmin));
             options.AddPolicy("YardAdmin", p => p.RequireRole(
                 AppRoles.SystemAdmin, AppRoles.ShippingLinesAdmin, AppRoles.SlStaff, AppRoles.TerminalTeam));
@@ -117,7 +122,8 @@ public static class DependencyInjection
                 AppRoles.ShippingLinesAdmin,
                 AppRoles.SlStaff,
                 AppRoles.Accounting,
-                AppRoles.TerminalTeam));
+                AppRoles.TerminalTeam,
+                AppRoles.CyStaff));
             options.AddPolicy("Evaluator", p => p.RequireRole(AppRoles.Evaluator, AppRoles.SystemAdmin));
             options.AddPolicy("Consignee", p => p.RequireRole(AppRoles.Consignee, AppRoles.SystemAdmin));
         });
@@ -148,6 +154,7 @@ public static class DependencyInjection
         services.AddScoped<IMessageTemplateService, MessageTemplateService>();
         services.AddScoped<INotificationService, EnhancedNotificationService>();
         services.AddScoped<ISystemSettingsService, SystemSettingsService>();
+        services.AddSingleton<IRateLimitRuleCache, RateLimitRuleCache>();
         services.AddScoped<IRateLimitAdminService, RateLimitAdminService>();
         services.AddScoped<IDocumentTemplateService, DocumentTemplateService>();
         services.AddScoped<IScheduledReportService, ScheduledReportService>();
@@ -159,9 +166,11 @@ public static class DependencyInjection
         services.AddScoped<ITerminalService, TerminalService>();
         services.AddScoped<IContainerCatalogService, ContainerCatalogService>();
         services.AddScoped<ICyAllocationService, CyAllocationService>();
+        services.AddScoped<ICyScopeService, CyScopeService>();
         services.AddScoped<IContainerInventoryService, ContainerInventoryService>();
         services.AddScoped<IDwellService, DwellService>();
-        services.AddScoped<IPreAdviceService, PreAdviceService>();
+        services.AddScoped<IPreForecastService, PreForecastService>();
+        services.AddScoped<ITruckerPreForecastService, TruckerPreForecastService>();
         services.AddScoped<ITruckerTokenService, TruckerTokenService>();
         services.AddScoped<IFormBuilderService, FormBuilderService>();
         services.AddScoped<ILocationService, LocationService>();

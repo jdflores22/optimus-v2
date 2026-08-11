@@ -52,7 +52,7 @@ export function EdoPaymentReviewPage() {
   const navigate = useNavigate();
   const backPath = searchParams.get('from') === 'validation' ? '/edo/payment-validation' : '/edo/payment-validation';
   const { user, accessToken } = useSelector((state: RootState) => state.auth);
-  const canValidate = user?.role === 'SystemAdmin';
+  const canValidate = user?.role === 'SystemAdmin' || user?.role === 'Accounting';
 
   const { data: payment, error, isLoading, refetch } = useGetEdoPaymentQuery(id, {
     skip: !id || !canValidate,

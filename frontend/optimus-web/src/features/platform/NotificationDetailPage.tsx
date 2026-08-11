@@ -26,6 +26,10 @@ import {
   type NotificationPaymentAction,
   type NotificationPaymentState,
 } from '../../shared/notificationPaymentActions';
+import {
+  isPreForecastDetentionBrokerNotification,
+  resolvePreForecastNotificationPath,
+} from '../yard/preForecastPaths';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
 function fileUrl(path: string) {
@@ -86,7 +90,7 @@ function PaymentActionButtons({
   );
 }
 
-function relatedPath(n: NotificationDto): string | null {
+function relatedPath(n: NotificationDto, role?: string): string | null {
   const manifestId = manifestIdFromNotification(n);
   if (manifestId) return `/manifests/${manifestId}`;
 
@@ -100,8 +104,15 @@ function relatedPath(n: NotificationDto): string | null {
       return '/appeals';
     case 'dwell':
       return '/dwell';
+    case 'pre_forecast':
     case 'pre_advice':
-      return '/pre-advice';
+      return '/pre-forecast';
+    case 'trucker_pre_forecast':
+    case 'yard.pre_forecast':
+      if (n.subjectType === 'TruckerPreForecastSubmission' && n.subjectId) {
+        return resolvePreForecastNotificationPath(n, role) ?? '/pre-forecast';
+      }
+      return '/pre-forecast';
     default:
       return null;
   }
@@ -172,16 +183,23 @@ export function NotificationDetailPage() {
         <Button component={RouterLink} to="/notifications" sx={{ alignSelf: 'flex-start' }}>
           Back to alerts
         </Button>
-        <Alert severity="error">Alert not found.</Alert>
+        <Alert severity="error">
+          Alert not found for your account. Open it from your own alerts list, or ask an admin if you were sent a
+          link from another role&apos;s inbox.
+        </Alert>
       </Stack>
     );
   }
 
   if (isLoading || !data) {
-    return <Typography>Loading...</Typography>;
+    return (
+      <Stack spacing={2} alignItems="center" py={6}>
+        <Typography color="text.secondary">Loading alert…</Typography>
+      </Stack>
+    );
   }
 
-  const related = relatedPath(data);
+  const related = relatedPath(data, user?.role);
 
   return (
     <WorkflowPage
@@ -256,8 +274,20 @@ export function NotificationDetailPage() {
             </Button>
           )}
           {!manifestPath && related && (
-            <Button component={RouterLink} to={related} variant="outlined">
-              Open related page
+            <Button
+              component={RouterLink}
+              to={related}
+              variant={data && isPreForecastDetentionBrokerNotification(data, user?.role) ? 'contained' : 'outlined'}
+              color={data && isPreForecastDetentionBrokerNotification(data, user?.role) ? 'success' : 'inherit'}
+              startIcon={
+                data && isPreForecastDetentionBrokerNotification(data, user?.role) ? (
+                  <PaymentsOutlinedIcon />
+                ) : undefined
+              }
+            >
+              {data && isPreForecastDetentionBrokerNotification(data, user?.role)
+                ? 'View billing & pay detention'
+                : 'Open related page'}
             </Button>
           )}
         </>

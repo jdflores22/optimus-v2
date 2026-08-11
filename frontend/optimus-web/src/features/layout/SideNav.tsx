@@ -16,9 +16,12 @@ import {
   useGetFinalPaymentsQuery,
   useGetPendingEdoPaymentsQuery,
   useGetTransfersQuery,
+  useGetTruckerIntakeSubmissionsQuery,
 } from '../../app/api';
-import { getNavGroups } from './navConfig';
+import { getNavGroups, navLinkEnd } from './navConfig';
 import { useBrokerAccreditation } from '../../shared/useBrokerAccreditation';
+import { preForecastActionQueueCount } from '../yard/preForecastIntakeFilters';
+import { countTruckerPendingEdoPayments } from '../yard/truckerEdoPayments';
 
 type SideNavProps = {
   role?: string | null;
@@ -30,11 +33,32 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
   const { isBroker, brokerAccredited } = useBrokerAccreditation();
   const navOptions = isBroker ? { brokerAccredited } : undefined;
   const groups = getNavGroups(role, navOptions);
+  const allNavItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);
   const needsApprovalBadge = role === 'ShippingLinesAdmin';
   const needsAppealBadges = role === 'ShippingLinesAdmin';
   const needsTransferBadges = role === 'ShippingLinesAdmin' || role === 'SlStaff';
   const needsPendingPaymentsBadge = role === 'Accounting';
+  const needsEdoPaymentValidationBadge = role === 'SystemAdmin' || role === 'Accounting';
   const needsSystemAdminBadges = role === 'SystemAdmin';
+  const needsPreForecastIntakeBadge =
+    role === 'TerminalTeam' || role === 'ShippingLinesAdmin' || role === 'SlStaff' || role === 'Accounting';
+  const needsCyScheduleBadge = role === 'CyStaff';
+  const needsDetentionBillingsBadge = role === 'Broker' || role === 'Consignee';
+  const needsTruckerSubmissionsBadge = role === 'Trucker';
+  const needsTruckerEdoPaymentsBadge = role === 'Trucker';
+  const needsPreForecastQueueData = needsPreForecastIntakeBadge || needsCyScheduleBadge;
+  const { data: truckerIntake = [] } = useGetTruckerIntakeSubmissionsQuery(undefined, {
+    skip: !needsPreForecastQueueData,
+    pollingInterval: needsPreForecastQueueData ? 30_000 : 0,
+  });
+  const { data: detentionBillings = [] } = useGetTruckerIntakeSubmissionsQuery('AwaitingDetentionPayment', {
+    skip: !needsDetentionBillingsBadge,
+    pollingInterval: needsDetentionBillingsBadge ? 30_000 : 0,
+  });
+  const { data: truckerSubmissions = [] } = useGetTruckerIntakeSubmissionsQuery(undefined, {
+    skip: !needsTruckerSubmissionsBadge,
+    pollingInterval: needsTruckerSubmissionsBadge ? 30_000 : 0,
+  });
   const { data: accreditations = [] } = useGetAccreditationsQuery(undefined, {
     skip: !needsApprovalBadge,
     pollingInterval: needsApprovalBadge ? 30_000 : 0,
@@ -51,8 +75,8 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
     pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
   });
   const { data: pendingEdoPayments = [] } = useGetPendingEdoPaymentsQuery(undefined, {
-    skip: !needsSystemAdminBadges,
-    pollingInterval: needsSystemAdminBadges ? 30_000 : 0,
+    skip: !needsEdoPaymentValidationBadge,
+    pollingInterval: needsEdoPaymentValidationBadge ? 30_000 : 0,
   });
   const { data: appeals = [] } = useGetAppealsQuery(undefined, {
     skip: !needsAppealBadges,
@@ -80,6 +104,20 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
     () => transfers.filter((t) => t.status === 'Pending').length,
     [transfers],
   );
+  const preForecastQueueCount = useMemo(
+    () => preForecastActionQueueCount(truckerIntake, role ?? ''),
+    [truckerIntake, role],
+  );
+
+  const truckerInProgressCount = useMemo(
+    () => truckerSubmissions.filter((x) => !['Completed', 'Cancelled'].includes(x.status)).length,
+    [truckerSubmissions],
+  );
+
+  const truckerEdoPaymentsCount = useMemo(
+    () => countTruckerPendingEdoPayments(truckerSubmissions),
+    [truckerSubmissions],
+  );
 
   const badgeFor = (
     badgeKey?:
@@ -88,14 +126,34 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
       | 'pendingEdoPayments'
       | 'pendingEdoRelease'
       | 'pendingAppeals'
-      | 'pendingTransfers',
+      | 'pendingTransfers'
+      | 'pendingPreForecastIntake'
+      | 'pendingCyScheduleConfirm'
+      | 'pendingDetentionBillings'
+      | 'truckerPreForecastInProgress'
+      | 'truckerEdoPayments',
   ) => {
     if (badgeKey === 'awaitingFinalApprovals') return awaitingFinalCount;
     if (badgeKey === 'pendingPayments') return needsPendingPaymentsBadge ? pendingPaymentsCount : 0;
-    if (badgeKey === 'pendingEdoPayments') return needsSystemAdminBadges ? pendingEdoPayments.length : 0;
+    if (badgeKey === 'pendingEdoPayments') return needsEdoPaymentValidationBadge ? pendingEdoPayments.length : 0;
     if (badgeKey === 'pendingEdoRelease') return needsSystemAdminBadges ? pendingEdoReleaseCount : 0;
     if (badgeKey === 'pendingAppeals') return needsAppealBadges ? pendingAppealsCount : 0;
     if (badgeKey === 'pendingTransfers') return needsTransferBadges ? pendingTransfersCount : 0;
+    if (badgeKey === 'pendingPreForecastIntake') {
+      return needsPreForecastIntakeBadge ? preForecastQueueCount : 0;
+    }
+    if (badgeKey === 'pendingCyScheduleConfirm') {
+      return needsCyScheduleBadge ? preForecastQueueCount : 0;
+    }
+    if (badgeKey === 'pendingDetentionBillings') {
+      return needsDetentionBillingsBadge ? detentionBillings.length : 0;
+    }
+    if (badgeKey === 'truckerPreForecastInProgress') {
+      return needsTruckerSubmissionsBadge ? truckerInProgressCount : 0;
+    }
+    if (badgeKey === 'truckerEdoPayments') {
+      return needsTruckerEdoPaymentsBadge ? truckerEdoPaymentsCount : 0;
+    }
     return 0;
   };
 
@@ -148,7 +206,7 @@ export function SideNav({ role, onNavigate, dense }: SideNavProps) {
                   key={item.id}
                   component={NavLink}
                   to={item.path}
-                  end={item.exact ?? item.path === '/'}
+                  end={navLinkEnd(item, allNavItems)}
                   onClick={onNavigate}
                   sx={{
                     mx: 1,

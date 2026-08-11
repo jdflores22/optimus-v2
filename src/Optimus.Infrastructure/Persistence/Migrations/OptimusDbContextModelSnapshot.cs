@@ -61,12 +61,12 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FormConfigurationId")
                         .HasColumnType("char(36)");
 
-                    b.Property<Guid>("ShippingLineId")
-                        .HasColumnType("char(36)");
-
                     b.Property<string>("SasIdNumber")
                         .HasMaxLength(30)
                         .HasColumnType("varchar(30)");
+
+                    b.Property<Guid>("ShippingLineId")
+                        .HasColumnType("char(36)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -91,10 +91,10 @@ namespace Optimus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FormConfigurationId");
 
-                    b.HasIndex("ShippingLineId");
-
                     b.HasIndex("SasIdNumber")
                         .IsUnique();
+
+                    b.HasIndex("ShippingLineId");
 
                     b.HasIndex("ApplicantId", "ShippingLineId")
                         .IsUnique();
@@ -961,11 +961,11 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("varchar(40)");
 
-                    b.Property<DateTime?>("TransactionAt")
-                        .HasColumnType("datetime(6)");
-
                     b.Property<Guid>("SubmittedById")
                         .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("TransactionAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -1069,6 +1069,14 @@ namespace Optimus.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("OverdueDays")
                         .HasColumnType("int");
+
+                    b.Property<string>("PaymentReceiptPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
 
                     b.Property<bool>("PaymentVerified")
                         .HasColumnType("tinyint(1)");
@@ -1423,7 +1431,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
-                    b.Property<Guid>("PreAdviceRequestId")
+                    b.Property<Guid>("PreForecastRequestId")
                         .HasColumnType("char(36)");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -1435,7 +1443,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PreAdviceRequestId");
+                    b.HasIndex("PreForecastRequestId");
 
                     b.ToTable("geotag_photos", (string)null);
                 });
@@ -1951,7 +1959,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.ToTable("pending_users", (string)null);
                 });
 
-            modelBuilder.Entity("Optimus.Domain.Entities.PreAdviceRequest", b =>
+            modelBuilder.Entity("Optimus.Domain.Entities.PreForecastRequest", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2028,11 +2036,11 @@ namespace Optimus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TerminalId");
 
+                    b.HasIndex("TruckerId");
+
                     b.HasIndex("VerifiedById");
 
-                    b.HasIndex("TruckerId", "Status");
-
-                    b.ToTable("pre_advice_requests", (string)null);
+                    b.ToTable("pre_forecast_requests", (string)null);
                 });
 
             modelBuilder.Entity("Optimus.Domain.Entities.Province", b =>
@@ -2779,6 +2787,170 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.ToTable("terminal_slots", (string)null);
                 });
 
+            modelBuilder.Entity("Optimus.Domain.Entities.TruckerPreForecastPhoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("OriginalName")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubmissionId", "Category");
+
+                    b.ToTable("trucker_pre_forecast_photos", (string)null);
+                });
+
+            modelBuilder.Entity("Optimus.Domain.Entities.TruckerPreForecastSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("AssignedSlotId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("AssignedTerminalId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ContainerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("CyConfirmedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("CyConfirmedById")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("CyConfirmedReturnDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CyNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<decimal>("DetentionAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DetentionAtPreferredDate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("DetentionRateAtCalculation")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EdoVerificationToken")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<Guid>("ExpiredEdoId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("ExtraDaysDetentionAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("ExtraDaysWaived")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<Guid?>("NewEdoId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("OverdueDays")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("PreferredTerminalId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ReleaseDocumentPath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<Guid?>("RenewalRequestId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("ReturnDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ScheduleDeltaDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("TerminalNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<Guid>("TruckerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("TruckerPreferredReturnDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedSlotId");
+
+                    b.HasIndex("AssignedTerminalId");
+
+                    b.HasIndex("CyConfirmedById");
+
+                    b.HasIndex("ExpiredEdoId");
+
+                    b.HasIndex("NewEdoId");
+
+                    b.HasIndex("PreferredTerminalId");
+
+                    b.HasIndex("RenewalRequestId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TruckerId");
+
+                    b.HasIndex("ContainerId", "CreatedAt");
+
+                    b.ToTable("trucker_pre_forecast_submissions", (string)null);
+                });
+
             modelBuilder.Entity("Optimus.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2851,8 +3023,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(128)");
 
                     b.Property<string>("ProfilePhotoPath")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -3038,6 +3209,26 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .HasColumnType("longtext");
 
                     b.HasDiscriminator().HasValue("consignee");
+                });
+
+            modelBuilder.Entity("Optimus.Domain.Entities.ContainerYardUser", b =>
+                {
+                    b.HasBaseType("Optimus.Domain.Entities.User");
+
+                    b.Property<string>("AssignedTerminalIdsJson")
+                        .HasColumnType("json");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
+                    b.ToTable("users", t =>
+                        {
+                            t.Property("Department")
+                                .HasColumnName("ContainerYardUser_Department");
+                        });
+
+                    b.HasDiscriminator().HasValue("container_yard");
                 });
 
             modelBuilder.Entity("Optimus.Domain.Entities.StaffUser", b =>
@@ -3580,13 +3771,13 @@ namespace Optimus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Optimus.Domain.Entities.GeotagPhoto", b =>
                 {
-                    b.HasOne("Optimus.Domain.Entities.PreAdviceRequest", "PreAdviceRequest")
+                    b.HasOne("Optimus.Domain.Entities.PreForecastRequest", "PreForecastRequest")
                         .WithMany("GeotagPhotos")
-                        .HasForeignKey("PreAdviceRequestId")
+                        .HasForeignKey("PreForecastRequestId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("PreAdviceRequest");
+                    b.Navigation("PreForecastRequest");
                 });
 
             modelBuilder.Entity("Optimus.Domain.Entities.InAppNotification", b =>
@@ -3749,7 +3940,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Navigation("ShippingLineAdmin");
                 });
 
-            modelBuilder.Entity("Optimus.Domain.Entities.PreAdviceRequest", b =>
+            modelBuilder.Entity("Optimus.Domain.Entities.PreForecastRequest", b =>
                 {
                     b.HasOne("Optimus.Domain.Entities.TerminalSlot", "AssignedSlot")
                         .WithMany()
@@ -3757,7 +3948,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Optimus.Domain.Entities.Container", "Container")
-                        .WithMany("PreAdviceRequests")
+                        .WithMany("PreForecastRequests")
                         .HasForeignKey("ContainerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -3989,6 +4180,87 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Navigation("Terminal");
                 });
 
+            modelBuilder.Entity("Optimus.Domain.Entities.TruckerPreForecastPhoto", b =>
+                {
+                    b.HasOne("Optimus.Domain.Entities.TruckerPreForecastSubmission", "Submission")
+                        .WithMany("Photos")
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Submission");
+                });
+
+            modelBuilder.Entity("Optimus.Domain.Entities.TruckerPreForecastSubmission", b =>
+                {
+                    b.HasOne("Optimus.Domain.Entities.TerminalSlot", "AssignedSlot")
+                        .WithMany()
+                        .HasForeignKey("AssignedSlotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Optimus.Domain.Entities.Terminal", "AssignedTerminal")
+                        .WithMany()
+                        .HasForeignKey("AssignedTerminalId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Optimus.Domain.Entities.Container", "Container")
+                        .WithMany()
+                        .HasForeignKey("ContainerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Optimus.Domain.Entities.User", "CyConfirmedBy")
+                        .WithMany()
+                        .HasForeignKey("CyConfirmedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Optimus.Domain.Entities.ElectronicDeliveryOrder", "ExpiredEdo")
+                        .WithMany()
+                        .HasForeignKey("ExpiredEdoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Optimus.Domain.Entities.ElectronicDeliveryOrder", "NewEdo")
+                        .WithMany()
+                        .HasForeignKey("NewEdoId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_trucker_pre_forecast_submissions_electronic_delivery_orders~1");
+
+                    b.HasOne("Optimus.Domain.Entities.Terminal", "PreferredTerminal")
+                        .WithMany()
+                        .HasForeignKey("PreferredTerminalId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Optimus.Domain.Entities.EdoRenewalRequest", "RenewalRequest")
+                        .WithMany()
+                        .HasForeignKey("RenewalRequestId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Optimus.Domain.Entities.Trucker", "Trucker")
+                        .WithMany()
+                        .HasForeignKey("TruckerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedSlot");
+
+                    b.Navigation("AssignedTerminal");
+
+                    b.Navigation("Container");
+
+                    b.Navigation("CyConfirmedBy");
+
+                    b.Navigation("ExpiredEdo");
+
+                    b.Navigation("NewEdo");
+
+                    b.Navigation("PreferredTerminal");
+
+                    b.Navigation("RenewalRequest");
+
+                    b.Navigation("Trucker");
+                });
+
             modelBuilder.Entity("Optimus.Domain.Entities.User", b =>
                 {
                     b.HasOne("Optimus.Domain.Entities.ShippingLine", "ManagedShippingLine")
@@ -4064,7 +4336,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
 
                     b.Navigation("DwellEvents");
 
-                    b.Navigation("PreAdviceRequests");
+                    b.Navigation("PreForecastRequests");
                 });
 
             modelBuilder.Entity("Optimus.Domain.Entities.ElectronicDeliveryOrder", b =>
@@ -4089,7 +4361,7 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Navigation("StateHistory");
                 });
 
-            modelBuilder.Entity("Optimus.Domain.Entities.PreAdviceRequest", b =>
+            modelBuilder.Entity("Optimus.Domain.Entities.PreForecastRequest", b =>
                 {
                     b.Navigation("GeotagPhotos");
                 });
@@ -4126,6 +4398,11 @@ namespace Optimus.Infrastructure.Persistence.Migrations
                     b.Navigation("Allocations");
 
                     b.Navigation("Slots");
+                });
+
+            modelBuilder.Entity("Optimus.Domain.Entities.TruckerPreForecastSubmission", b =>
+                {
+                    b.Navigation("Photos");
                 });
 
             modelBuilder.Entity("Optimus.Domain.Entities.User", b =>

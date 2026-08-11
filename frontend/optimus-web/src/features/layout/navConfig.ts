@@ -31,6 +31,7 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import AnchorOutlinedIcon from '@mui/icons-material/AnchorOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 
 export const ALL_ROLES = [
   'SystemAdmin',
@@ -39,6 +40,7 @@ export const ALL_ROLES = [
   'Evaluator',
   'Accounting',
   'TerminalTeam',
+  'CyStaff',
   'Broker',
   'Consignee',
   'Trucker',
@@ -60,7 +62,12 @@ export type NavItem = {
     | 'pendingEdoPayments'
     | 'pendingEdoRelease'
     | 'pendingAppeals'
-    | 'pendingTransfers';
+    | 'pendingTransfers'
+    | 'pendingPreForecastIntake'
+    | 'pendingCyScheduleConfirm'
+    | 'pendingDetentionBillings'
+    | 'truckerPreForecastInProgress'
+    | 'truckerEdoPayments';
 };
 
 export type NavGroup = {
@@ -71,7 +78,7 @@ export type NavGroup = {
 
 const STAFF = ['ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Accounting'];
 const RELEASE = ['SlStaff', 'ShippingLinesAdmin', 'TerminalTeam', 'SystemAdmin'];
-const PAYMENT_ADMIN = ['SystemAdmin'];
+const PAYMENT_ADMIN = ['SystemAdmin', 'Accounting'];
 const ADMIN = ['SystemAdmin', 'ShippingLinesAdmin'];
 const HIERARCHY = ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Accounting'];
 const YARD = ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Trucker'];
@@ -174,11 +181,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: TimerOutlinedIcon,
       },
       {
-        id: 'pre-advice',
-        label: 'Pre-advice',
-        path: '/pre-advice',
-        roles: YARD,
+        id: 'pre-forecast',
+        label: 'Pre-forecast',
+        path: '/pre-forecast',
+        roles: [...YARD, 'Trucker', 'CyStaff', 'Accounting'],
         icon: DirectionsBoatOutlinedIcon,
+        badgeKey: 'pendingPreForecastIntake',
       },
       {
         id: 'utilization',
@@ -321,11 +329,19 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             exact: true,
           },
           {
+            id: 'manifest-payments',
+            label: 'Manifest Payments',
+            path: '/manifest-payments',
+            roles: ['Broker'],
+            icon: ReceiptLongOutlinedIcon,
+          },
+          {
             id: 'payments',
             label: 'Detention Billings',
             path: '/payments',
             roles: ['Broker'],
             icon: PaymentsOutlinedIcon,
+            badgeKey: 'pendingDetentionBillings',
           },
           {
             id: 'renewals',
@@ -420,11 +436,26 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             exact: true,
           },
           {
+            id: 'manifest-payments',
+            label: 'Manifest Payments',
+            path: '/manifest-payments',
+            roles: ['Consignee'],
+            icon: ReceiptLongOutlinedIcon,
+          },
+          {
             id: 'payments',
-            label: 'Payments',
+            label: 'Detention Billings',
             path: '/payments',
             roles: ['Consignee'],
             icon: PaymentsOutlinedIcon,
+            badgeKey: 'pendingDetentionBillings',
+          },
+          {
+            id: 'renewals',
+            label: 'Renewals',
+            path: '/edo/renewals',
+            roles: ['Consignee'],
+            icon: ReplayOutlinedIcon,
           },
         ],
       },
@@ -490,6 +521,19 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             path: '/repositioning',
             roles: ['ShippingLinesAdmin'],
             icon: MoveUpOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'billing',
+        label: 'Billing',
+        items: [
+          {
+            id: 'detention-rate',
+            label: 'Detention Rate',
+            path: '/admin/detention-rate',
+            roles: ['ShippingLinesAdmin'],
+            icon: TimerOutlinedIcon,
           },
         ],
       },
@@ -703,6 +747,13 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             roles: ['SystemAdmin'],
             icon: ReceiptLongOutlinedIcon,
           },
+          {
+            id: 'detention-rate',
+            label: 'Detention Rate',
+            path: '/admin/detention-rate',
+            roles: ['SystemAdmin'],
+            icon: TimerOutlinedIcon,
+          },
         ],
       },
       {
@@ -742,6 +793,13 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             path: '/admin/system-settings',
             roles: ['SystemAdmin'],
             icon: SettingsOutlinedIcon,
+          },
+          {
+            id: 'versions',
+            label: 'Release notes',
+            path: '/versions',
+            roles: ['SystemAdmin'],
+            icon: HistoryOutlinedIcon,
           },
         ],
       },
@@ -816,6 +874,14 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             icon: WarehouseOutlinedIcon,
           },
           {
+            id: 'pre-forecast',
+            label: 'Pre-forecast renewals',
+            path: '/pre-forecast',
+            roles: ['SlStaff'],
+            icon: DirectionsBoatOutlinedIcon,
+            badgeKey: 'pendingPreForecastIntake',
+          },
+          {
             id: 'repositioning',
             label: 'Repositioning',
             path: '/repositioning',
@@ -869,11 +935,41 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             badgeKey: 'pendingPayments',
           },
           {
+            id: 'edo-payment-validation',
+            label: 'eDO Payment Validation',
+            path: '/edo/payment-validation',
+            roles: ['Accounting'],
+            icon: FactCheckOutlinedIcon,
+            badgeKey: 'pendingEdoPayments',
+          },
+          {
+            id: 'renewals',
+            label: 'Renewals',
+            path: '/edo/renewals',
+            roles: ['Accounting'],
+            icon: ReplayOutlinedIcon,
+          },
+          {
+            id: 'pre-forecast',
+            label: 'Pre-forecast intake',
+            path: '/pre-forecast',
+            roles: ['Accounting'],
+            icon: ListAltOutlinedIcon,
+            badgeKey: 'pendingPreForecastIntake',
+          },
+          {
             id: 'manifests',
             label: 'Manifests',
             path: '/manifests',
             roles: ['Accounting'],
             icon: DescriptionOutlinedIcon,
+          },
+          {
+            id: 'detention-rate',
+            label: 'Detention Rate',
+            path: '/admin/detention-rate',
+            roles: ['Accounting'],
+            icon: TimerOutlinedIcon,
           },
         ],
       },
@@ -971,11 +1067,12 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
         label: 'Gate Operations',
         items: [
           {
-            id: 'pre-advice',
-            label: 'Pre-advice',
-            path: '/pre-advice',
+            id: 'pre-forecast',
+            label: 'Pre-forecast',
+            path: '/pre-forecast',
             roles: ['TerminalTeam'],
             icon: DirectionsBoatOutlinedIcon,
+            badgeKey: 'pendingPreForecastIntake',
           },
           {
             id: 'edo-release',
@@ -990,6 +1087,45 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
             path: '/dwell',
             roles: ['TerminalTeam'],
             icon: TimerOutlinedIcon,
+          },
+        ],
+      },
+    ];
+  }
+
+  if (r === 'CyStaff') {
+    return [
+      {
+        id: 'home',
+        label: 'Home',
+        items: [
+          {
+            id: 'dashboard',
+            label: 'Dashboard',
+            path: '/',
+            roles: ['CyStaff'],
+            icon: DashboardOutlinedIcon,
+          },
+        ],
+      },
+      {
+        id: 'yard',
+        label: 'Container Yard',
+        items: [
+          {
+            id: 'pre-forecast',
+            label: 'Pre-forecast',
+            path: '/pre-forecast',
+            roles: ['CyStaff'],
+            icon: DirectionsBoatOutlinedIcon,
+            badgeKey: 'pendingCyScheduleConfirm',
+          },
+          {
+            id: 'container-inventory',
+            label: 'Container inventory',
+            path: '/container-inventory',
+            roles: ['CyStaff'],
+            icon: WarehouseOutlinedIcon,
           },
         ],
       },
@@ -1016,11 +1152,27 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
         label: 'Gate & Pickup',
         items: [
           {
-            id: 'pre-advice',
-            label: 'Pre-advice',
-            path: '/pre-advice',
+            id: 'pre-forecast',
+            label: 'Pre-forecast',
+            path: '/pre-forecast',
             roles: ['Trucker'],
             icon: DirectionsBoatOutlinedIcon,
+            badgeKey: 'truckerPreForecastInProgress',
+          },
+          {
+            id: 'trucker-payments',
+            label: 'eDO Payments',
+            path: '/trucker/payments',
+            roles: ['Trucker'],
+            icon: PaymentsOutlinedIcon,
+            badgeKey: 'truckerEdoPayments',
+          },
+          {
+            id: 'renewals',
+            label: 'Renewed eDO',
+            path: '/edo/renewals',
+            roles: ['Trucker'],
+            icon: ReplayOutlinedIcon,
           },
         ],
       },
@@ -1042,15 +1194,16 @@ export function getQuickActions(role: string | undefined | null, options?: NavAc
   const prefs: Record<string, string[]> = {
     SystemAdmin: ['dashboard', 'edo-payment-validation', 'edo-release-queue', 'user-management'],
     ShippingLinesAdmin: ['dashboard', 'approvals', 'manifests', 'edo-release'],
-    SlStaff: ['dashboard', 'manifests', 'edo', 'edo-release'],
+    SlStaff: ['dashboard', 'manifests', 'pre-forecast', 'edo-release'],
     Evaluator: ['dashboard', 'sas', 'audit-reports', 'hierarchy'],
-    Accounting: ['dashboard', 'payments', 'manifests', 'audit-reports'],
-    TerminalTeam: ['dashboard', 'pre-advice', 'edo-release', 'dwell'],
+    Accounting: ['dashboard', 'payments', 'edo-payment-validation', 'pre-forecast'],
+    TerminalTeam: ['dashboard', 'pre-forecast', 'edo-release', 'dwell'],
+    CyStaff: ['dashboard', 'pre-forecast', 'container-inventory'],
     Broker: options?.brokerAccredited === false
       ? ['dashboard', 'sas']
-      : ['dashboard', 'manifests', 'edo', 'payments'],
-    Consignee: ['dashboard', 'manifests', 'brokers', 'payments'],
-    Trucker: ['dashboard', 'pre-advice'],
+      : ['dashboard', 'manifests', 'manifest-payments', 'payments'],
+    Consignee: ['dashboard', 'manifests', 'manifest-payments', 'payments'],
+    Trucker: ['dashboard', 'pre-forecast', 'trucker-payments', 'renewals', 'profile'],
   };
 
   const ids = prefs[r] ?? ['dashboard', 'profile'];
@@ -1068,3 +1221,37 @@ export function getBottomNavItems(role: string | undefined | null, options?: Nav
 }
 
 export const DRAWER_WIDTH = 260;
+
+/** NavLink `end` — parent paths must not stay active on child routes (e.g. /pre-forecast vs /pre-forecast/submissions). */
+export function navLinkEnd(item: NavItem, allItems: NavItem[]): boolean {
+  if (item.exact === true) return true;
+  if (item.exact === false) return false;
+  if (item.path === '/') return true;
+  return allItems.some((other) => other.path !== item.path && other.path.startsWith(`${item.path}/`));
+}
+
+/** Pick the most specific nav item matching the current pathname (for bottom nav highlight). */
+export function findActiveNavIndex(pathname: string, items: NavItem[]): number {
+  let bestIdx = -1;
+  let bestLen = -1;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.path === '/') {
+      if (pathname === '/' && item.path.length > bestLen) {
+        bestIdx = i;
+        bestLen = item.path.length;
+      }
+      continue;
+    }
+    const matches =
+      pathname === item.path ||
+      (!navLinkEnd(item, items) && pathname.startsWith(`${item.path}/`));
+    if (matches && item.path.length > bestLen) {
+      bestIdx = i;
+      bestLen = item.path.length;
+    }
+  }
+
+  return bestIdx;
+}

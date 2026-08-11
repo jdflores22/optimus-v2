@@ -633,9 +633,11 @@ export function ManifestsPage() {
         title={isBroker || isConsignee ? 'Manifest Queue' : 'All Manifests'}
         subtitle="NOA-centric queue with richer workflow visibility, closer to the V1 manifest-workflow view."
         actions={
-          <Button component={RouterLink} to="/payments" size="small" startIcon={<ReceiptLongOutlinedIcon />} sx={{ textTransform: 'none' }}>
-            Payments
-          </Button>
+          (isBroker || isConsignee) ? (
+            <Button component={RouterLink} to="/manifest-payments" size="small" startIcon={<ReceiptLongOutlinedIcon />} sx={{ textTransform: 'none' }}>
+              Manifest payments
+            </Button>
+          ) : undefined
         }
       >
         <Box sx={{ ...tableScrollSx, mx: 0, px: 0 }}>

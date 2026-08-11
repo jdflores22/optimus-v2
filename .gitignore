@@ -17,5 +17,6 @@ deploy-config.ps1
 smtp-config.ps1
 scripts/.hostinger-deploy-manifest.json
 **/logs/
+**/wwwroot/uploads/
 artifacts/
 **/dev-dist/

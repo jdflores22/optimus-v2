@@ -12,6 +12,7 @@ export const APP_ROLES = [
   'Evaluator',
   'Accounting',
   'TerminalTeam',
+  'CyStaff',
   'Broker',
   'Consignee',
   'Trucker',
@@ -31,18 +32,20 @@ const MANIFEST_STAFF = ['ShippingLinesAdmin', 'SlStaff'] as const;
 const MANIFEST_BROKER = ['Broker', 'Consignee'] as const;
 const PAYMENTS_PAGE = ['Accounting', 'Broker', 'Consignee'] as const;
 const EDO_LIST = ['ShippingLinesAdmin', 'SlStaff', 'Broker', 'Consignee'] as const;
-const EDO_RENEWALS = ['ShippingLinesAdmin', 'SlStaff', 'Broker', 'Consignee'] as const;
+const EDO_RENEWALS = ['ShippingLinesAdmin', 'SlStaff', 'Accounting', 'Broker', 'Consignee', 'Trucker'] as const;
 const EDO_RELEASE = ['SlStaff', 'ShippingLinesAdmin', 'TerminalTeam', 'SystemAdmin'] as const;
 /** Matches backend EnsureEdoAccessAsync — staff, terminal, accounting, plus broker/consignee owners. */
 const EDO_DETAIL = [
   ...EDO_LIST,
+  'Trucker',
   'SystemAdmin',
   'TerminalTeam',
   'Accounting',
 ] as const;
+const EDO_PAY_TO_OPEN = ['Trucker', 'Broker', 'Consignee'] as const;
 const YARD_STAFF = ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'] as const;
-const INVENTORY = ['ShippingLinesAdmin', 'SlStaff', 'Accounting', 'TerminalTeam'] as const;
-const OPS_REPOSITION = ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam'] as const;
+const INVENTORY = ['ShippingLinesAdmin', 'SlStaff', 'Accounting', 'TerminalTeam', 'CyStaff', 'SystemAdmin'] as const;
+const OPS_REPOSITION = ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'SystemAdmin'] as const;
 const STAFF_AUDIT = ['ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Accounting'] as const;
 const ADMIN_HIERARCHY = ['SystemAdmin', 'ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Accounting'] as const;
 
@@ -61,6 +64,7 @@ const ROUTE_RULES: RouteRule[] = [
   { pattern: /^\/admin\/form-builder$/, roles: ['SystemAdmin'] },
   { pattern: /^\/admin\/document-templates$/, roles: ['SystemAdmin'] },
   { pattern: /^\/admin\/payment-fees$/, roles: ['SystemAdmin'] },
+  { pattern: /^\/admin\/detention-rate$/, roles: ['SystemAdmin', 'ShippingLinesAdmin', 'Accounting'] },
   { pattern: /^\/admin\/reports\/cy-utilization$/, roles: ['SystemAdmin'] },
   { pattern: /^\/admin\/reports\/port-utilization$/, roles: ['SystemAdmin'] },
   { pattern: /^\/admin\/notification-metrics$/, roles: ['SystemAdmin'] },
@@ -94,18 +98,39 @@ const ROUTE_RULES: RouteRule[] = [
 
   { pattern: /^\/payments\/final\/[^/]+$/, roles: ['Accounting'] },
   { pattern: /^\/payments$/, roles: PAYMENTS_PAGE },
+  { pattern: /^\/manifest-payments$/, roles: MANIFEST_BROKER },
 
-  { pattern: /^\/edo\/payment-validation(\/[^/]+)?$/, roles: ['SystemAdmin'] },
+  { pattern: /^\/edo\/payment-validation(\/[^/]+)?$/, roles: ['Accounting', 'SystemAdmin'] },
   { pattern: /^\/edo\/release(\/payments\/[^/]+)?$/, roles: EDO_RELEASE },
   { pattern: /^\/edo\/renewals$/, roles: EDO_RENEWALS },
   { pattern: /^\/edo$/, roles: EDO_LIST },
+  { pattern: /^\/edo\/[^/]+\/payment$/, roles: EDO_PAY_TO_OPEN },
   { pattern: /^\/edo\/[^/]+$/, roles: EDO_DETAIL },
 
+  { pattern: /^\/trucker\/payments$/, roles: ['Trucker'] },
+
+  { pattern: /^\/pre-forecast\/yard$/, roles: ['CyStaff'] },
+  {
+    pattern: /^\/pre-forecast\/submissions\/[^/]+\/review$/,
+    roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'SystemAdmin'],
+  },
+  {
+    pattern: /^\/pre-forecast\/[0-9a-f-]{36}\/billing$/,
+    roles: ['Accounting', 'SystemAdmin'],
+  },
+  {
+    pattern: /^\/pre-forecast\/[0-9a-f-]{36}\/detention-payment$/,
+    roles: ['Broker', 'Consignee', 'SystemAdmin'],
+  },
+  {
+    pattern: /^\/pre-forecast\/(submissions\/[^/]+|[0-9a-f-]{36})$/,
+    roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Trucker', 'CyStaff', 'Accounting', 'SystemAdmin'],
+  },
+  { pattern: /^\/pre-forecast$/, roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Trucker', 'CyStaff', 'Accounting', 'SystemAdmin'] },
   { pattern: /^\/container-inventory$/, roles: INVENTORY },
   { pattern: /^\/container\/[^/]+\/details$/, roles: INVENTORY },
   { pattern: /^\/yard$/, roles: YARD_STAFF },
   { pattern: /^\/dwell$/, roles: YARD_STAFF },
-  { pattern: /^\/pre-advice$/, roles: ['ShippingLinesAdmin', 'SlStaff', 'TerminalTeam', 'Trucker'] },
   { pattern: /^\/reports\/utilization$/, roles: YARD_STAFF },
 
   { pattern: /^\/sas$/, roles: ['ShippingLinesAdmin', 'SlStaff', 'Evaluator', 'Broker', 'Consignee'] },

@@ -7,7 +7,8 @@ public enum UserType
     Broker = 2,
     Consignee = 3,
     TerminalTeam = 4,
-    Trucker = 5
+    Trucker = 5,
+    ContainerYard = 6
 }
 
 public enum PendingUserStatus

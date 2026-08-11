@@ -4,9 +4,12 @@ export async function openEdoFile(
   edoId: string,
   kind: 'download' | 'qr',
   accessToken: string,
+  cacheKey?: string | null,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/edo/${edoId}/${kind}`, {
+  const bust = encodeURIComponent(cacheKey ?? String(Date.now()));
+  const res = await fetch(`${API_BASE_URL}/api/edo/${edoId}/${kind}?v=${bust}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
   });
   if (!res.ok) {
     let message = 'Could not open eDO file.';

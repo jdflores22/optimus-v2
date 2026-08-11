@@ -24,6 +24,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import AutorenewOutlinedIcon from '@mui/icons-material/AutorenewOutlined';
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import ExpandMoreOutlinedIcon from '@mui/icons-material/ExpandMoreOutlined';
 import FileCopyOutlinedIcon from '@mui/icons-material/FileCopyOutlined';
@@ -31,12 +32,17 @@ import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import { Link as RouterLink } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import {
   useBatchGenerateEdoMutation,
   useGenerateEdoMutation,
   useGetEdoGenerationQueueQuery,
+  useRegenerateEdoPdfMutation,
 } from '../../app/api';
+import type { RootState } from '../../app/store';
 import type { EdoGenerationContainerDto, EdoGenerationGroupDto } from '../../shared/types';
+import { openEdoFile } from '../../shared/edoDownload';
+import { TABLE_ACTIONS_HEADER, TableViewLink } from '../shared/TableViewLink';
 import { dialogActionsSx } from '../../shared/responsiveLayout';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 
@@ -101,9 +107,12 @@ function groupSearchText(group: EdoGenerationGroupDto) {
 }
 
 export function EdoGenerationPage() {
+  const { accessToken } = useSelector((state: RootState) => state.auth);
   const { data, isLoading, isFetching, refetch } = useGetEdoGenerationQueueQuery();
   const [generateEdo, { isLoading: generatingOne }] = useGenerateEdoMutation();
   const [batchGenerate, { isLoading: generatingBatch }] = useBatchGenerateEdoMutation();
+  const [regeneratePdf] = useRegenerateEdoPdfMutation();
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const [tab, setTab] = useState<TabKey>('pending');
   const [search, setSearch] = useState('');
@@ -139,6 +148,24 @@ export function EdoGenerationPage() {
   };
 
   const isGroupOpen = (manifestId: string) => expanded[manifestId] !== false;
+
+  const handleRegenerateRow = async (row: EdoGenerationContainerDto, openAfter: boolean) => {
+    if (!row.edoId || !accessToken) return;
+    setError(null);
+    setMessage(null);
+    setRegeneratingId(row.edoId);
+    try {
+      const updated = await regeneratePdf(row.edoId).unwrap();
+      setMessage(`Regenerated ICS PDF for ${row.containerNumber}.`);
+      if (openAfter) {
+        await openEdoFile(row.edoId, 'download', accessToken, updated.pdfPath);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : `Could not regenerate PDF for ${row.containerNumber}.`);
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
 
   const openGenerateConfirm = (payload: GenerateIntent) => {
     setIntent(payload);
@@ -523,6 +550,7 @@ export function EdoGenerationPage() {
                         <TableCell>Status</TableCell>
                         <TableCell>Generated</TableCell>
                         <TableCell>Expires</TableCell>
+                        <TableCell align="right">{TABLE_ACTIONS_HEADER}</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -563,6 +591,27 @@ export function EdoGenerationPage() {
                           </TableCell>
                           <TableCell>{formatDate(row.edoGeneratedAt)}</TableCell>
                           <TableCell>{formatDate(row.edoExpiresAt)}</TableCell>
+                          <TableCell align="right">
+                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                              {row.edoId && (
+                                <>
+                                  <IconButton
+                                    size="small"
+                                    title="Regenerate PDF (ICS template)"
+                                    disabled={regeneratingId === row.edoId}
+                                    onClick={() => void handleRegenerateRow(row, true)}
+                                  >
+                                    {regeneratingId === row.edoId ? (
+                                      <CircularProgress size={18} />
+                                    ) : (
+                                      <AutorenewOutlinedIcon fontSize="small" />
+                                    )}
+                                  </IconButton>
+                                  <TableViewLink to={`/edo/${row.edoId}?tab=files`} />
+                                </>
+                              )}
+                            </Stack>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

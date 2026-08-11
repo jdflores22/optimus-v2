@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useVerifyDocumentQuery } from '../../app/api';
 
 export function VerifyDocumentPage() {
-  const { token = '' } = useParams();
+  const params = useParams();
+  const token = params.token ?? '';
   const { data, error, isLoading } = useVerifyDocumentQuery(token, { skip: !token });
 
   if (isLoading) return <Typography>Verifying...</Typography>;
@@ -17,14 +18,9 @@ export function VerifyDocumentPage() {
         <Paper sx={{ p: 2 }}>
           <Typography>Type: {data.documentType}</Typography>
           <Typography>Number: {data.documentNumber}</Typography>
-          <Typography>Status: {data.status}</Typography>
-          <Typography>Manifest: {data.manifestNumber}</Typography>
+          <Typography>Status: {data.status ?? '—'}</Typography>
           <Typography>
-            Generated:{' '}
-            {data.generatedAt ? new Date(data.generatedAt).toLocaleString() : '-'}
-          </Typography>
-          <Typography>
-            Expires: {data.expiresAt ? new Date(data.expiresAt).toLocaleString() : '-'}
+            Expires: {data.expiresAt ? new Date(data.expiresAt).toLocaleString() : '—'}
           </Typography>
         </Paper>
       )}

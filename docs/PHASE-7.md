@@ -11,7 +11,7 @@ Production-readiness pass: security hardening, performance indexes, regression/U
 | JWT refresh rotation | Existing |
 | Refresh reuse → revoke token family | Added |
 | Account lockout (5 fails / 15 min) | Existing |
-| Global rate limiter (180/min) | Existing; admin `RateLimitRule` is config inventory (document intent) |
+| Global rate limiter (180/min) | Wired to DB `RateLimitRule` cache (path-prefix + role); admin upsert invalidates cache |
 | Upload validation (size/ext) | `UploadGuard` on all upload endpoints |
 | IDOR ownership | `IResourceAuthorizationService` on manifest/eDO/pre-advice get + payment submit |
 

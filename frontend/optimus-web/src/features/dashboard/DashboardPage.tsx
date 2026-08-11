@@ -24,15 +24,19 @@ import {
   useGetNotificationsQuery,
   useGetPendingEdoPaymentsQuery,
   useGetPendingPaymentsQuery,
-  useGetPreAdvicesQuery,
+  useGetPreForecastsQuery,
   useGetRepositioningQuery,
   useGetShippingAdminBrokersQuery,
   useGetShippingAdminConsigneesQuery,
   useGetTerminalsQuery,
+  useGetTruckerIntakeSubmissionsQuery,
   useGetUtilizationQuery,
 } from '../../app/api';
 import { getQuickActions } from '../layout/navConfig';
 import { ContractTeuLocationCard } from './ContractTeuLocationCard';
+import { CyStaffDashboardSection } from './CyStaffDashboardSection';
+import { cyIntakeCountsByTerminal } from '../yard/cyIntakeCounts';
+import { preForecastActionQueueCount } from '../yard/preForecastIntakeFilters';
 import { isContainerYardTerminal, isPortTerminal } from '../../shared/terminalTaxonomy';
 import { formatTerminalAddressSummary } from '../../shared/terminalAddressHelpers';
 import { computeContractTeu } from '../../shared/teuUtils';
@@ -63,8 +67,9 @@ export function DashboardPage() {
   const isLocationDashboard = role === 'SlStaff' || isShippingAdmin;
   const isAccounting = role === 'Accounting' || role === 'SystemAdmin';
   const isRelease = ['SlStaff', 'ShippingLinesAdmin', 'TerminalTeam'].includes(role);
-  const isEdoPaymentAdmin = role === 'SystemAdmin';
+  const isEdoPaymentAdmin = role === 'SystemAdmin' || role === 'Accounting';
   const isCargo = role === 'SystemAdmin' || isStaff || isAccounting;
+  const isCyStaff = role === 'CyStaff';
   const isTerminal = role === 'TerminalTeam' || role === 'SystemAdmin';
   const isTrucker = role === 'Trucker' || role === 'SystemAdmin';
   const isEvaluator = role === 'Evaluator' || role === 'SystemAdmin' || isShippingAdmin;
@@ -85,8 +90,8 @@ export function DashboardPage() {
   const { data: pendingEdoPayments = [] } = useGetPendingEdoPaymentsQuery(undefined, {
     skip: !isEdoPaymentAdmin,
   });
-  const { data: preAdvices = [], refetch: refetchPreAdvices } = useGetPreAdvicesQuery(undefined, {
-    skip: !(isTerminal || isTrucker || isStaff),
+  const { data: preForecasts = [], refetch: refetchPreForecasts } = useGetPreForecastsQuery(undefined, {
+    skip: role !== 'ShippingLinesAdmin',
   });
   const { data: accreditations = [] } = useGetAccreditationsQuery(undefined, {
     skip: !isEvaluator,
@@ -117,6 +122,19 @@ export function DashboardPage() {
   const { data: repositioning = [], refetch: refetchRepositioning } = useGetRepositioningQuery(undefined, {
     skip: !isLocationDashboard,
   });
+  const { data: truckerIntake = [], refetch: refetchTruckerIntake } = useGetTruckerIntakeSubmissionsQuery(undefined, {
+    skip: !(isLocationDashboard || isTerminal || isTrucker || isAccounting),
+    pollingInterval: isLocationDashboard || isTerminal ? 60_000 : 0,
+  });
+
+  const { data: cyIntake = [] } = useGetTruckerIntakeSubmissionsQuery(undefined, {
+    skip: !isCyStaff,
+    pollingInterval: isCyStaff ? 30_000 : 0,
+  });
+  const cyPendingSchedule = useMemo(
+    () => cyIntake.filter((s) => s.status === 'PendingCySchedule').length,
+    [cyIntake],
+  );
 
   const stats: WorkflowStat[] = [];
   if (isCargo) {
@@ -144,13 +162,10 @@ export function DashboardPage() {
   if (isAccounting) {
     stats.push({ label: 'Pending payments', value: pendingPayments.length, hint: 'Awaiting validation', tone: 'warning' });
   }
-  if (isTerminal || isTrucker || isStaff) {
-    const pendingPa = preAdvices.filter((p) =>
-      ['Submitted', 'Pending', 'PendingVerification', 'InProgress'].includes(p.status),
-    );
+  if (isTerminal || isTrucker || isStaff || isAccounting) {
     stats.push({
-      label: 'Pre-advice',
-      value: pendingPa.length || preAdvices.length,
+      label: 'Pre-forecast',
+      value: preForecastActionQueueCount(truckerIntake, role),
       hint: 'Terminal handoff queue',
       tone: 'info',
     });
@@ -166,6 +181,20 @@ export function DashboardPage() {
       tone: 'warning',
     });
   }
+  if (isCyStaff) {
+    stats.push({
+      label: 'Confirm return date',
+      value: cyPendingSchedule,
+      hint: 'Terminal assigned pre-forecasts',
+      tone: cyPendingSchedule ? 'warning' : 'success',
+    });
+    stats.push({
+      label: 'Intake in progress',
+      value: cyIntake.filter((s) => !['Completed', 'Cancelled'].includes(s.status)).length,
+      hint: 'At your depot',
+      tone: 'info',
+    });
+  }
   stats.push({ label: 'Unread alerts', value: unread.length, hint: 'Operational notifications', tone: unread.length ? 'error' : 'success' });
 
   const uniqueStats: WorkflowStat[] = stats.filter(
@@ -179,7 +208,7 @@ export function DashboardPage() {
       focus: [
         { label: 'Accreditations', value: accreditations.length, hint: 'Evaluator + final approval pipeline', to: '/sas' },
         { label: 'Release queue', value: releaseQueue?.readyToRelease ?? 0, hint: 'eDOs ready after admin validation', to: '/edo/release' },
-        { label: 'Inventory', value: preAdvices.length, hint: 'Terminal requests and yard pressure', to: '/container-inventory' },
+        { label: 'Inventory', value: preForecasts.length, hint: 'Terminal requests and yard pressure', to: '/container-inventory' },
       ],
     },
     SlStaff: {
@@ -205,6 +234,7 @@ export function DashboardPage() {
       subtitle: 'Keep manifest payment validations and billing moving without handoff delays.',
       focus: [
         { label: 'Manifest payments', value: pendingPayments.length, hint: 'Billing receipts to validate', to: '/payments' },
+        { label: 'eDO payments', value: pendingEdoPayments.length, hint: 'Broker/consignee pay-to-open receipts', to: '/edo/payment-validation' },
         { label: 'Unread alerts', value: unread.length, hint: 'Exceptions and failed submissions', to: '/notifications' },
       ],
     },
@@ -219,11 +249,45 @@ export function DashboardPage() {
     },
     TerminalTeam: {
       eyebrow: 'Terminal operations',
-      subtitle: 'Handle pre-advice verification, release readiness, and dwell pressure from one terminal-focused hub.',
+      subtitle: 'Handle pre-forecast verification, release readiness, and dwell pressure from one terminal-focused hub.',
       focus: [
-        { label: 'Pending pre-advice', value: preAdvices.length, hint: 'Requests awaiting terminal action', to: '/pre-advice' },
+        {
+          label: 'Pending pre-forecast',
+          value: preForecastActionQueueCount(truckerIntake, 'TerminalTeam'),
+          hint: 'Requests awaiting terminal action',
+          to: '/pre-forecast',
+        },
         { label: 'Release queue', value: releaseQueue?.readyToRelease ?? 0, hint: 'Packages ready for gate release', to: '/edo/release' },
-        { label: 'Dwell watch', value: preAdvices.filter((p) => p.status === 'Pending').length, hint: 'Containers needing attention', to: '/dwell' },
+        {
+          label: 'Dwell watch',
+          value: truckerIntake.filter((s) => s.status === 'PendingTerminalAssignment').length,
+          hint: 'Containers needing attention',
+          to: '/dwell',
+        },
+      ],
+    },
+    CyStaff: {
+      eyebrow: 'Container yard',
+      subtitle: 'Review terminal-assigned empty return pre-forecasts and confirm which day your depot is free.',
+      focus: [
+        {
+          label: 'Confirm return date',
+          value: cyPendingSchedule,
+          hint: 'Terminal assigned — awaiting your schedule',
+          to: '/pre-forecast',
+        },
+        {
+          label: 'In progress',
+          value: cyIntake.filter((s) => !['Completed', 'Cancelled'].includes(s.status)).length,
+          hint: 'All intake at your yard',
+          to: '/pre-forecast?tab=submissions',
+        },
+        {
+          label: 'Yard inventory',
+          value: 'Open',
+          hint: 'Containers at your assigned yard',
+          to: '/container-inventory',
+        },
       ],
     },
   } as const;
@@ -244,13 +308,14 @@ export function DashboardPage() {
     await Promise.all([
       refetchManifests(),
       refetchEdos(),
-      refetchPreAdvices(),
+      refetchPreForecasts(),
       refetchTerminals(),
       refetchAllocations(),
       refetchContainers(),
       refetchUtilization(),
       refetchRepositioning(),
       refetchReleaseQueue(),
+      refetchTruckerIntake(),
     ]);
   };
 
@@ -288,6 +353,10 @@ export function DashboardPage() {
       allocated40: number;
       pending20: number;
       pending40: number;
+      intakePreForecast20: number;
+      intakePreForecast40: number;
+      intakeConfirmed20: number;
+      intakeConfirmed40: number;
       utilizationPct: number;
       inbound: number;
       atPort: number;
@@ -296,6 +365,14 @@ export function DashboardPage() {
 
     const contractPortCards: ContractLocationCard[] = [];
     const contractCyCards: ContractLocationCard[] = [];
+    const contractTerminalIds = new Set(contractAllocations.map((a) => a.terminalId));
+    const scopedTruckerIntake = truckerIntake.filter(
+      (s) =>
+        s.status !== 'Cancelled' &&
+        s.assignedTerminalId &&
+        contractTerminalIds.has(s.assignedTerminalId),
+    );
+    const intakeByTerminal = cyIntakeCountsByTerminal(scopedTruckerIntake);
 
     for (const allocation of contractAllocations) {
       const terminal = terminalById.get(allocation.terminalId);
@@ -313,9 +390,17 @@ export function DashboardPage() {
       );
       const allocated20 = localContainers.filter((c) => c.sizeCode?.includes('20')).length;
       const allocated40 = localContainers.filter((c) => c.sizeCode?.includes('40')).length;
-      const pendingPreAdvice = utilRow?.pendingPreAdvice ?? 0;
-      const pending20 = Math.round(pendingPreAdvice / 2);
-      const pending40 = Math.max(pendingPreAdvice - pending20, 0);
+      const pendingPreForecast = utilRow?.pendingPreForecast ?? 0;
+      const pending20 = Math.round(pendingPreForecast / 2);
+      const pending40 = Math.max(pendingPreForecast - pending20, 0);
+      const intakeCounts = intakeByTerminal.get(allocation.terminalId) ?? {
+        preForecast20: 0,
+        preForecast40: 0,
+        confirmed20: 0,
+        confirmed40: 0,
+        preForecast: 0,
+        confirmed: 0,
+      };
       const inboundTotal = manifests.filter((m) => !m.billingId).length;
       const outboundTotal = outboundRequests
         .filter((r) => r.destinationTerminalName === terminal.name)
@@ -336,6 +421,10 @@ export function DashboardPage() {
         allocated40,
         pending20: isContainerYardTerminal(terminal.identity) ? pending20 : 0,
         pending40: isContainerYardTerminal(terminal.identity) ? pending40 : 0,
+        intakePreForecast20: isContainerYardTerminal(terminal.identity) ? intakeCounts.preForecast20 : 0,
+        intakePreForecast40: isContainerYardTerminal(terminal.identity) ? intakeCounts.preForecast40 : 0,
+        intakeConfirmed20: isContainerYardTerminal(terminal.identity) ? intakeCounts.confirmed20 : 0,
+        intakeConfirmed40: isContainerYardTerminal(terminal.identity) ? intakeCounts.confirmed40 : 0,
         utilizationPct: capacityTeu ? Math.round((usedTeu / capacityTeu) * 1000) / 10 : 0,
         inbound: inboundTotal,
         atPort: utilRow?.atTerminal ?? allocated20 + allocated40,
@@ -349,12 +438,17 @@ export function DashboardPage() {
       }
     }
 
-    const contractTerminalIds = new Set(
-      [...contractPortCards, ...contractCyCards].map((card) => card.terminalId),
-    );
     const scopedUtilization = utilization.filter((row) => contractTerminalIds.has(row.terminalId));
     const totalAtPort = scopedUtilization.reduce((sum, row) => sum + row.atTerminal, 0);
-    const totalPreForecast = scopedUtilization.reduce((sum, row) => sum + row.pendingPreAdvice, 0);
+    const totalIntakePreForecast = contractCyCards.reduce(
+      (sum, card) => sum + card.intakePreForecast20 + card.intakePreForecast40,
+      0,
+    );
+    const totalIntakeConfirmed = contractCyCards.reduce(
+      (sum, card) => sum + card.intakeConfirmed20 + card.intakeConfirmed40,
+      0,
+    );
+    const totalPreForecast = totalIntakePreForecast;
     const totalUsedTeu = scopedUtilization.reduce((sum, row) => sum + row.usedTeu, 0);
     const totalAllocatedTeu = [...contractPortCards, ...contractCyCards].reduce(
       (sum, card) => sum + card.capacityTeu,
@@ -374,6 +468,8 @@ export function DashboardPage() {
       manifestsMonth,
       totalAtPort,
       totalPreForecast,
+      totalIntakePreForecast,
+      totalIntakeConfirmed,
       totalUsedTeu,
       totalAllocatedTeu,
       containersAtCy,
@@ -393,7 +489,39 @@ export function DashboardPage() {
     contractAllocations,
     repositioning,
     edos,
+    truckerIntake,
   ]);
+
+  if (isCyStaff && user?.id) {
+    return (
+      <WorkflowPage
+        eyebrow="Container yard"
+        title={`${greetingForNow()}, ${user.firstName || 'team'}`}
+        subtitle="Terminal-assigned empty returns appear here — open each pre-forecast to confirm your depot free day."
+        chips={
+          <>
+            <Chip
+              label={`${cyPendingSchedule} to confirm`}
+              size="small"
+              color={cyPendingSchedule ? 'warning' : 'success'}
+              component={RouterLink}
+              to="/pre-forecast"
+              clickable
+            />
+            <Chip label={`${unread.length} alerts`} size="small" color={unread.length ? 'error' : 'default'} component={RouterLink} to="/notifications" clickable />
+          </>
+        }
+        actions={
+          <Button component={RouterLink} to="/pre-forecast" variant="contained">
+            Pre-forecast queue
+          </Button>
+        }
+        stats={uniqueStats}
+      >
+        <CyStaffDashboardSection userId={user.id} />
+      </WorkflowPage>
+    );
+  }
 
   if (isLocationDashboard && slStaffDashboard) {
     const awaitingFinal = accreditations.filter((a) => a.status === 'AwaitingFinalApproval').length;
@@ -488,8 +616,8 @@ export function DashboardPage() {
           </Box>
         </WorkflowSection>
 
-        <WorkflowSection title="Container yards (CY)" subtitle="Return-location capacity, current occupancy, and near-term intake pressure.">
-          <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' } }}>
+        <WorkflowSection title="Container yards (CY)" subtitle="Return-location capacity, current occupancy, and trucker pre-forecast intake at your contract yards.">
+          <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(5, 1fr)' } }}>
             <SummaryCard
               label="Container yards"
               value={slStaffDashboard.contractCyCards.length}
@@ -508,18 +636,31 @@ export function DashboardPage() {
             />
             <SummaryCard
               label="Pre-forecast"
-              value={slStaffDashboard.totalPreForecast}
-              hint="Announced - pending arrival"
-              detail={`${slStaffDashboard.pendingOutbound} tied to outbound movement`}
-              badges={slStaffDashboard.contractCyCards.slice(0, 2).map((yard) => `${yard.code} ${yard.pending20 + yard.pending40}`)}
+              value={slStaffDashboard.totalIntakePreForecast}
+              hint="Terminal assigned — awaiting CY date"
+              detail={`${slStaffDashboard.totalIntakeConfirmed} CY-confirmed return slot${slStaffDashboard.totalIntakeConfirmed === 1 ? '' : 's'}`}
+              badges={slStaffDashboard.contractCyCards.slice(0, 2).map(
+                (yard) => `${yard.code} ${yard.intakePreForecast20 + yard.intakePreForecast40} pf`,
+              )}
               icon={<ScheduleOutlinedIcon fontSize="small" />}
               tone="warning"
+            />
+            <SummaryCard
+              label="CY confirmed"
+              value={slStaffDashboard.totalIntakeConfirmed}
+              hint="Return dates confirmed by depot"
+              detail={`${slStaffDashboard.totalIntakePreForecast} still awaiting CY confirmation`}
+              badges={slStaffDashboard.contractCyCards.slice(0, 2).map(
+                (yard) => `${yard.code} +${yard.intakeConfirmed20 + yard.intakeConfirmed40}`,
+              )}
+              icon={<Inventory2OutlinedIcon fontSize="small" />}
+              tone="success"
             />
             <SummaryCard
               label="CY capacity"
               value={`${slStaffDashboard.totalUsedTeu} / ${slStaffDashboard.totalAllocatedTeu || 0} TEUs`}
               hint={`${slStaffDashboard.totalAllocatedTeu ? Math.round((slStaffDashboard.totalUsedTeu / slStaffDashboard.totalAllocatedTeu) * 1000) / 10 : 0}% full`}
-              detail={`${slStaffDashboard.containersAtCy.length} at yard · ${slStaffDashboard.totalPreForecast} pre-forecast`}
+              detail={`${slStaffDashboard.containersAtCy.length} at yard · ${slStaffDashboard.totalIntakePreForecast} pre-forecast · ${slStaffDashboard.totalIntakeConfirmed} confirmed`}
               badges={slStaffDashboard.contractCyCards.slice(0, 2).map((yard) => `${yard.code} ${yard.utilizationPct}%`)}
               icon={<QueryStatsOutlinedIcon fontSize="small" />}
               tone="info"
@@ -581,7 +722,10 @@ export function DashboardPage() {
             </Alert>
           ) : (
             <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
-              {slStaffDashboard.contractCyCards.map((yard) => (
+              {slStaffDashboard.contractCyCards.map((yard) => {
+                const intakePf = yard.intakePreForecast20 + yard.intakePreForecast40;
+                const intakeOk = yard.intakeConfirmed20 + yard.intakeConfirmed40;
+                return (
                 <ContractTeuLocationCard
                   key={yard.id}
                   name={yard.name}
@@ -596,11 +740,20 @@ export function DashboardPage() {
                   capacity40={yard.capacity40}
                   allocated20={yard.allocated20}
                   allocated40={yard.allocated40}
-                  pending20={yard.pending20}
-                  pending40={yard.pending40}
-                  footerAction={{ label: 'Request Export / Repo', to: '/repositioning' }}
+                  intakePreForecast20={yard.intakePreForecast20}
+                  intakePreForecast40={yard.intakePreForecast40}
+                  intakeConfirmed20={yard.intakeConfirmed20}
+                  intakeConfirmed40={yard.intakeConfirmed40}
+                  footerAction={
+                    intakePf > 0
+                      ? { label: `${intakePf} pre-forecast at CY`, to: '/pre-forecast' }
+                      : intakeOk > 0
+                        ? { label: `${intakeOk} confirmed · view intake`, to: '/pre-forecast?tab=submissions' }
+                        : { label: 'View pre-forecast intake', to: '/pre-forecast' }
+                  }
                 />
-              ))}
+                );
+              })}
             </Box>
           )}
         </WorkflowSection>

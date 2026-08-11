@@ -1,3 +1,6 @@
+using Optimus.Application.Cargo.Dtos;
+using Optimus.Domain.Enums;
+
 namespace Optimus.Application.Yard.Dtos;
 
 public record TerminalDto(
@@ -141,7 +144,7 @@ public record DwellEventDto(
 
 public record PauseResumeDwellRequest(string? Reason);
 
-public record PreAdviceDto(
+public record PreForecastDto(
     Guid Id,
     Guid ContainerId,
     string ContainerNumber,
@@ -170,7 +173,7 @@ public record GeotagPhotoDto(
     DateTime CapturedAt,
     bool IsVerified);
 
-public record SubmitPreAdviceRequest(
+public record SubmitPreForecastRequest(
     Guid ContainerId,
     Guid TerminalId,
     Guid? SlotId,
@@ -178,8 +181,8 @@ public record SubmitPreAdviceRequest(
     double? Latitude,
     double? Longitude);
 
-public record VerifyPreAdviceRequest(bool Approve, Guid? SlotId, string? RejectionReason, string? Notes);
-public record CompletePreAdviceRequest(string? EdoNumber);
+public record VerifyPreForecastRequest(bool Approve, Guid? SlotId, string? RejectionReason, string? Notes);
+public record CompletePreForecastRequest(string? EdoNumber);
 
 public record TruckerTokenDto(string ApiToken, DateTime ExpiresAt);
 public record UtilizationReportDto(
@@ -192,7 +195,7 @@ public record UtilizationReportDto(
     decimal UtilizationPercent,
     int AvailableForReturn,
     int AtTerminal,
-    int PendingPreAdvice);
+    int PendingPreForecast);
 
 public record ContainerInventoryItemDto(
     Guid Id,
@@ -326,3 +329,115 @@ public record NotificationDto(
     DateTime CreatedAt,
     string? SubjectType = null,
     Guid? SubjectId = null);
+
+public record TruckerPreForecastSearchResultDto(
+    Guid ContainerId,
+    string ContainerNumber,
+    Guid? EdoId,
+    string? EdoNumber,
+    string? EdoStatus,
+    DateTime? EdoExpiresAt,
+    bool EdoExpired,
+    int OverdueDays,
+    decimal EstimatedDetention,
+    Guid? ManifestId,
+    string? BrokerName,
+    string? ConsigneeName,
+    Guid? BrokerId,
+    Guid? ConsigneeId,
+    string? ContainerSize = null,
+    string? ContainerType = null,
+    string? ContainerStatus = null,
+    string? CyLocation = null,
+    string? ManifestNumber = null,
+    string? BlNumber = null,
+    string? VesselName = null,
+    string? VoyageNumber = null,
+    string? ShippingLineName = null);
+
+public record TruckerPreForecastVerifyDto(
+    bool Valid,
+    string Message,
+    string? VerificationToken,
+    TruckerPreForecastSearchResultDto? Match);
+
+public record TruckerPreForecastPhotoInput(
+    ContainerPhotoCategory Category,
+    string FilePath,
+    string? OriginalName,
+    string? Comment);
+
+public record TruckerPreForecastPhotoDto(
+    Guid Id,
+    string Category,
+    string Label,
+    string FilePath,
+    string? OriginalName,
+    string? Comment);
+
+public record TruckerPreForecastSubmissionDto(
+    Guid Id,
+    Guid ContainerId,
+    string ContainerNumber,
+    string? SizeCode,
+    Guid ExpiredEdoId,
+    string ExpiredEdoNumber,
+    Guid? RenewalRequestId,
+    string Status,
+    DateTime ReturnDate,
+    decimal DetentionAmount,
+    int OverdueDays,
+    bool AwaitingDetentionPayment,
+    string Message,
+    IReadOnlyList<TruckerPreForecastPhotoDto> Photos,
+    DateTime TruckerPreferredReturnDate,
+    int ScheduleDeltaDays = 0,
+    decimal DetentionAtPreferredDate = 0,
+    decimal ExtraDaysDetentionAmount = 0,
+    bool ExtraDaysWaived = false,
+    Guid? PreferredTerminalId = null,
+    string? PreferredTerminalName = null,
+    Guid? AssignedTerminalId = null,
+    string? AssignedTerminalName = null,
+    Guid? AssignedSlotId = null,
+    DateOnly? AssignedSlotDate = null,
+    DateTime? CyConfirmedReturnDate = null,
+    string? TerminalNotes = null,
+    string? CyNotes = null,
+    Guid? NewEdoId = null,
+    string? NewEdoNumber = null,
+    string? TruckerName = null,
+    string? ShippingLineBrandName = null,
+    bool EdoExpired = false,
+    string? ManifestNumber = null,
+    string? BrokerName = null,
+    string? ConsigneeName = null,
+    string? DetentionBillingPdfPath = null,
+    decimal? DetentionBillingBaseAmount = null,
+    decimal? DetentionBillingExtraAmount = null,
+    DateTime? FreeTimeUntil = null,
+    DateTime? ExpiredEdoExpiresAt = null,
+    decimal DetentionRatePerDay = 150,
+    decimal DetentionRateAtCalculation = 0,
+    int OverdueDaysAtPreferred = 0,
+    int OverdueDaysAtCyConfirmed = 0,
+    bool DetentionPaymentReceiptSubmitted = false,
+    string? DetentionPaymentReceiptPath = null,
+    string? RenewalEdoStatus = null,
+    string? RenewalEdoPaymentStatus = null);
+
+public record AssignTruckerPreForecastTerminalRequest(
+    Guid TerminalId,
+    Guid? SlotId,
+    string? Notes);
+
+public record ConfirmCyPreForecastScheduleRequest(
+    DateTime ConfirmedReturnDate,
+    bool Approve,
+    string? Notes);
+
+public record FinalizePreForecastAccountingRequest(
+    decimal? AdjustedDetentionAmount,
+    bool? WaiveExtraDays,
+    string? Notes,
+    IReadOnlyList<BillingChargeLineDto>? ChargeLines = null);

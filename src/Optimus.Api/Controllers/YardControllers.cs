@@ -6,6 +6,7 @@ using Optimus.Application.Cargo.Interfaces;
 using Optimus.Application.Yard.Dtos;
 using Optimus.Application.Yard.Interfaces;
 using Optimus.Application.Security;
+using Optimus.Domain.Enums;
 using Optimus.Infrastructure.Storage;
 using Optimus.Shared.Constants;
 
@@ -160,11 +161,34 @@ public class CyAllocationsController : ControllerBase
 public class ContainersController : ControllerBase
 {
     private readonly IContainerInventoryService _containers;
-    public ContainersController(IContainerInventoryService containers) => _containers = containers;
+    private readonly ICyScopeService _cyScope;
+
+    public ContainersController(IContainerInventoryService containers, ICyScopeService cyScope)
+    {
+        _containers = containers;
+        _cyScope = cyScope;
+    }
+
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private string Role => User.FindFirstValue(ClaimTypes.Role)!;
     private Guid? ActiveShippingLineId =>
         Guid.TryParse(User.FindFirstValue("shipping_line_id"), out var id) ? id : null;
+
+    private async Task<IReadOnlyList<Guid>?> ResolveCyTerminalScopeAsync(CancellationToken ct)
+    {
+        if (!string.Equals(Role, AppRoles.CyStaff, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var ids = await _cyScope.GetAssignedTerminalIdsAsync(UserId, ct);
+        if (ids.Count == 0)
+        {
+            throw new UnauthorizedAccessException("No container yard is assigned to your account.");
+        }
+
+        return ids;
+    }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ContainerDto>>> List(
@@ -181,14 +205,39 @@ public class ContainersController : ControllerBase
         [FromQuery] Guid? shippingLineId = null,
         [FromQuery] string? terminalIdentity = null,
         CancellationToken ct = default)
-        => Ok(await _containers.InventoryPageAsync(
-            shippingLineId ?? ActiveShippingLineId,
+    {
+        var terminalScope = await ResolveCyTerminalScopeAsync(ct);
+        var lineId = string.Equals(Role, AppRoles.CyStaff, StringComparison.Ordinal)
+            ? null
+            : shippingLineId ?? ActiveShippingLineId;
+
+        return Ok(await _containers.InventoryPageAsync(
+            lineId,
             depot,
             search,
             page,
             pageSize,
             terminalIdentity,
+            terminalScope,
             ct));
+    }
+
+    [HttpGet("pre-forecast")]
+    [Authorize(Policy = "CyStaff")]
+    public async Task<ActionResult<ContainerInventoryPageDto>> PreForecast(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var terminalScope = await _cyScope.GetAssignedTerminalIdsAsync(UserId, ct);
+        if (terminalScope.Count == 0)
+        {
+            return Unauthorized(new { message = "No container yard is assigned to your account." });
+        }
+
+        return Ok(await _containers.PreForecastPageAsync(search, page, pageSize, terminalScope, ct));
+    }
 
     [HttpGet("inventory/depots")]
     [Authorize(Policy = "ContainerInventory")]
@@ -196,12 +245,26 @@ public class ContainersController : ControllerBase
         [FromQuery] Guid? shippingLineId = null,
         [FromQuery] string? terminalIdentity = null,
         CancellationToken ct = default)
-        => Ok(await _containers.ListInventoryDepotsAsync(shippingLineId ?? ActiveShippingLineId, terminalIdentity, ct));
+    {
+        var terminalScope = await ResolveCyTerminalScopeAsync(ct);
+        var lineId = string.Equals(Role, AppRoles.CyStaff, StringComparison.Ordinal)
+            ? null
+            : shippingLineId ?? ActiveShippingLineId;
+
+        return Ok(await _containers.ListInventoryDepotsAsync(lineId, terminalIdentity, terminalScope, ct));
+    }
 
     [HttpGet("inventory/{id:guid}")]
     [Authorize(Policy = "ContainerInventory")]
     public async Task<ActionResult<ContainerInventoryItemDto>> InventoryItem(Guid id, CancellationToken ct)
-        => Ok(await _containers.GetInventoryItemAsync(id, ct));
+    {
+        if (string.Equals(Role, AppRoles.CyStaff, StringComparison.Ordinal))
+        {
+            await _cyScope.EnsureContainerYardAccessAsync(UserId, id, ct);
+        }
+
+        return Ok(await _containers.GetInventoryItemAsync(id, ct));
+    }
 
     [HttpGet("by-number/{containerNumber}/details")]
     [Authorize(Policy = "ContainerInventory")]
@@ -247,7 +310,10 @@ public class ContainersController : ControllerBase
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ContainerDto>> Get(Guid id, CancellationToken ct)
-        => Ok(await _containers.GetAsync(id, ct));
+    {
+        await _containers.EnsureAccessAsync(id, UserId, Role, ct);
+        return Ok(await _containers.GetAsync(id, ct));
+    }
 
     [HttpPost]
     [Authorize(Policy = "SlStaff")]
@@ -265,9 +331,9 @@ public class ContainersController : ControllerBase
         => Ok(await _containers.ReallocateAsync(id, request, UserId, Role, ct));
 
     [HttpPost("{id:guid}/lock-allocation")]
-    [Authorize(Policy = "SlStaff")]
+    [Authorize(Policy = "LockContainerAllocation")]
     public async Task<ActionResult<ContainerDto>> Lock(Guid id, CancellationToken ct)
-        => Ok(await _containers.LockAllocationAsync(id, UserId, ct));
+        => Ok(await _containers.LockAllocationAsync(id, UserId, Role, ct));
 
     [HttpPut("{id:guid}/stack")]
     [Authorize(Policy = "YardAdmin")]
@@ -330,17 +396,17 @@ public class DwellController : ControllerBase
 }
 
 [ApiController]
-[Route("api/v1/pre-advice")]
+[Route("api/v1/pre-forecast")]
 [Authorize]
-public class PreAdviceController : ControllerBase
+public class PreForecastController : ControllerBase
 {
-    private readonly IPreAdviceService _preadvice;
+    private readonly IPreForecastService _preForecast;
     private readonly IDocumentStore _docs;
     private readonly IResourceAuthorizationService _access;
 
-    public PreAdviceController(IPreAdviceService preadvice, IDocumentStore docs, IResourceAuthorizationService access)
+    public PreForecastController(IPreForecastService preForecast, IDocumentStore docs, IResourceAuthorizationService access)
     {
-        _preadvice = preadvice;
+        _preForecast = preForecast;
         _docs = docs;
         _access = access;
     }
@@ -349,22 +415,26 @@ public class PreAdviceController : ControllerBase
     private string Role => User.FindFirstValue(ClaimTypes.Role)!;
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<PreAdviceDto>>> List([FromQuery] string? status, CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<PreForecastDto>>> List([FromQuery] string? status, CancellationToken ct)
     {
-        Guid? truckerId = Role == "Trucker" ? UserId : null;
-        return Ok(await _preadvice.ListAsync(status, truckerId, ct));
+        if (Role != AppRoles.Trucker)
+        {
+            return Ok(Array.Empty<PreForecastDto>());
+        }
+
+        return Ok(await _preForecast.ListAsync(status, UserId, ct));
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<PreAdviceDto>> Get(Guid id, CancellationToken ct)
+    public async Task<ActionResult<PreForecastDto>> Get(Guid id, CancellationToken ct)
     {
-        await _access.EnsurePreAdviceAccessAsync(id, UserId, Role, ct);
-        return Ok(await _preadvice.GetAsync(id, ct));
+        await _access.EnsurePreForecastAccessAsync(id, UserId, Role, ct);
+        return Ok(await _preForecast.GetAsync(id, ct));
     }
 
     [HttpPost]
     [Authorize(Policy = "Trucker")]
-    public async Task<ActionResult<PreAdviceDto>> Submit(
+    public ActionResult<PreForecastDto> Submit(
         [FromForm] Guid containerId,
         [FromForm] Guid terminalId,
         [FromForm] Guid? slotId,
@@ -373,28 +443,151 @@ public class PreAdviceController : ControllerBase
         [FromForm] double longitude,
         IFormFile photo,
         CancellationToken ct)
-    {
-        UploadGuard.Validate(photo, ".png", ".jpg", ".jpeg", ".webp");
-        await using var stream = photo.OpenReadStream();
-        var path = await _docs.SaveAsync("geotag", photo.FileName, stream, ct);
-        return Ok(await _preadvice.SubmitAsync(
-            new SubmitPreAdviceRequest(containerId, terminalId, slotId, paymentReference, latitude, longitude),
-            path, UserId, ct));
-    }
+        => StatusCode(StatusCodes.Status410Gone, new
+        {
+            message = "Legacy pre-forecast is retired. Use trucker intake at /api/v1/pre-forecast/intake.",
+        });
 
     [HttpPost("{id:guid}/verify")]
     [Authorize(Policy = "TerminalTeam")]
-    public async Task<ActionResult<PreAdviceDto>> Verify(Guid id, [FromBody] VerifyPreAdviceRequest request, CancellationToken ct)
-        => Ok(await _preadvice.VerifyAsync(id, request, UserId, Role, ct));
+    public ActionResult<PreForecastDto> Verify(Guid id, [FromBody] VerifyPreForecastRequest request, CancellationToken ct)
+        => StatusCode(StatusCodes.Status410Gone, new
+        {
+            message = "Legacy pre-forecast is retired. Use trucker intake at /api/v1/pre-forecast/intake.",
+        });
 
     [HttpPost("{id:guid}/complete")]
     [Authorize(Policy = "TerminalTeam")]
-    public async Task<ActionResult<PreAdviceDto>> Complete(Guid id, [FromBody] CompletePreAdviceRequest request, CancellationToken ct)
-        => Ok(await _preadvice.CompleteAsync(id, request, UserId, Role, ct));
+    public ActionResult<PreForecastDto> Complete(Guid id, [FromBody] CompletePreForecastRequest request, CancellationToken ct)
+        => StatusCode(StatusCodes.Status410Gone, new
+        {
+            message = "Legacy pre-forecast is retired. Use trucker intake at /api/v1/pre-forecast/intake.",
+        });
 
     [HttpPost("{id:guid}/cancel")]
-    public async Task<ActionResult<PreAdviceDto>> Cancel(Guid id, CancellationToken ct)
-        => Ok(await _preadvice.CancelAsync(id, UserId, Role, ct));
+    public async Task<ActionResult<PreForecastDto>> Cancel(Guid id, CancellationToken ct)
+        => Ok(await _preForecast.CancelAsync(id, UserId, Role, ct));
+}
+
+[ApiController]
+[Route("api/v1/pre-forecast/intake")]
+[Authorize]
+public class TruckerPreForecastController : ControllerBase
+{
+    private readonly ITruckerPreForecastService _preforecast;
+    private readonly IDocumentStore _docs;
+
+    public TruckerPreForecastController(ITruckerPreForecastService preforecast, IDocumentStore docs)
+    {
+        _preforecast = preforecast;
+        _docs = docs;
+    }
+
+    private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private string Role => User.FindFirstValue(ClaimTypes.Role)!;
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<TruckerPreForecastSubmissionDto>>> List(
+        [FromQuery] string? status,
+        CancellationToken ct)
+        => Ok(await _preforecast.ListAsync(status, UserId, Role, ct));
+
+    [HttpGet("search")]
+    [Authorize(Policy = "Trucker")]
+    public async Task<ActionResult<IReadOnlyList<TruckerPreForecastSearchResultDto>>> Search(
+        [FromQuery] string q,
+        CancellationToken ct)
+        => Ok(await _preforecast.SearchAsync(q ?? string.Empty, ct));
+
+    [HttpGet("verify/{token}")]
+    [Authorize(Policy = "Trucker")]
+    public async Task<ActionResult<TruckerPreForecastVerifyDto>> Verify(string token, CancellationToken ct)
+        => Ok(await _preforecast.VerifyByTokenAsync(token, ct));
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<TruckerPreForecastSubmissionDto>> Get(Guid id, CancellationToken ct)
+        => Ok(await _preforecast.GetAsync(id, UserId, Role, ct));
+
+    [HttpPost]
+    [Authorize(Policy = "Trucker")]
+    [RequestSizeLimit(52_428_800)]
+    public async Task<ActionResult<TruckerPreForecastSubmissionDto>> Submit(
+        [FromForm] string verificationToken,
+        [FromForm] DateTime returnDate,
+        [FromForm] Guid? preferredTerminalId,
+        IFormFile releaseDocument,
+        IFormFile photoFlooring,
+        IFormFile photoRightSideIn,
+        IFormFile photoLeftSideIn,
+        IFormFile photoBack,
+        IFormFile photoFront,
+        IFormFile photoLeftSideOut,
+        IFormFile photoRightSideOut,
+        IFormFile? photoOthers,
+        CancellationToken ct)
+    {
+        UploadGuard.Validate(releaseDocument, ".pdf", ".png", ".jpg", ".jpeg", ".webp");
+        await using var releaseStream = releaseDocument.OpenReadStream();
+        var releasePath = await _docs.SaveAsync("pre-forecast-release", releaseDocument.FileName, releaseStream, ct);
+
+        var photoInputs = new List<TruckerPreForecastPhotoInput>();
+        await AddPhotoAsync(photoInputs, ContainerPhotoCategory.Flooring, photoFlooring, ct);
+        await AddPhotoAsync(photoInputs, ContainerPhotoCategory.RightSideIn, photoRightSideIn, ct);
+        await AddPhotoAsync(photoInputs, ContainerPhotoCategory.LeftSideIn, photoLeftSideIn, ct);
+        await AddPhotoAsync(photoInputs, ContainerPhotoCategory.Back, photoBack, ct);
+        await AddPhotoAsync(photoInputs, ContainerPhotoCategory.Front, photoFront, ct);
+        await AddPhotoAsync(photoInputs, ContainerPhotoCategory.LeftSideOut, photoLeftSideOut, ct);
+        await AddPhotoAsync(photoInputs, ContainerPhotoCategory.RightSideOut, photoRightSideOut, ct);
+        if (photoOthers is not null)
+        {
+            await AddPhotoAsync(photoInputs, ContainerPhotoCategory.Others, photoOthers, ct);
+        }
+
+        return Ok(await _preforecast.SubmitAsync(
+            verificationToken,
+            returnDate,
+            releasePath,
+            photoInputs,
+            UserId,
+            preferredTerminalId,
+            ct));
+    }
+
+    [HttpPost("{id:guid}/assign-terminal")]
+    [Authorize(Policy = "YardAdmin")]
+    public async Task<ActionResult<TruckerPreForecastSubmissionDto>> AssignTerminal(
+        Guid id,
+        [FromBody] AssignTruckerPreForecastTerminalRequest request,
+        CancellationToken ct)
+        => Ok(await _preforecast.AssignTerminalAsync(id, request, UserId, Role, ct));
+
+    [HttpPost("{id:guid}/confirm-cy-schedule")]
+    [Authorize(Policy = "CyStaff")]
+    public async Task<ActionResult<TruckerPreForecastSubmissionDto>> ConfirmCySchedule(
+        Guid id,
+        [FromBody] ConfirmCyPreForecastScheduleRequest request,
+        CancellationToken ct)
+        => Ok(await _preforecast.ConfirmCyScheduleAsync(id, request, UserId, Role, ct));
+
+    [HttpPost("{id:guid}/finalize-accounting")]
+    [Authorize(Policy = "Accounting")]
+    public async Task<ActionResult<TruckerPreForecastSubmissionDto>> FinalizeAccounting(
+        Guid id,
+        [FromBody] FinalizePreForecastAccountingRequest request,
+        CancellationToken ct)
+        => Ok(await _preforecast.FinalizeAccountingAsync(id, request, UserId, Role, ct));
+
+    private async Task AddPhotoAsync(
+        List<TruckerPreForecastPhotoInput> list,
+        ContainerPhotoCategory category,
+        IFormFile file,
+        CancellationToken ct)
+    {
+        UploadGuard.Validate(file, ".png", ".jpg", ".jpeg", ".webp");
+        await using var stream = file.OpenReadStream();
+        var path = await _docs.SaveAsync("pre-forecast-photos", file.FileName, stream, ct);
+        list.Add(new TruckerPreForecastPhotoInput(category, path, file.FileName, null));
+    }
 }
 
 [ApiController]

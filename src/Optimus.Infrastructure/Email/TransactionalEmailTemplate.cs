@@ -63,10 +63,10 @@ public static class TransactionalEmailTemplate
                 }),
             AppRoles.Trucker => new RoleWelcomeContent(
                 "Trucker",
-                "Your trucker account is active. You can now sign in and use OPTIMUS for pre-advice and yard-related submissions.",
+                "Your trucker account is active. You can now sign in and use OPTIMUS for pre-forecast and yard-related submissions.",
                 new[]
                 {
-                    "Submit pre-advice for container movements",
+                    "Submit pre-forecast for container movements",
                     "Support yard and gate operations digitally",
                     "Keep your company and vehicle details up to date",
                 }),

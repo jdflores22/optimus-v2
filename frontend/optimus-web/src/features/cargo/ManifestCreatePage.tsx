@@ -119,7 +119,7 @@ export function ManifestCreatePage() {
         capacity40: allocation.capacity40Ft,
         allocated20,
         allocated40,
-        preForecast: utilizationRow?.pendingPreAdvice ?? 0,
+        preForecast: utilizationRow?.pendingPreForecast ?? 0,
         available20: Math.max(allocation.capacity20Ft - allocated20, 0),
         available40: Math.max(allocation.capacity40Ft - allocated40, 0),
         utilizationPct:

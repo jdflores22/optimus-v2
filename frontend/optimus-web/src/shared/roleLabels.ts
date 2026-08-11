@@ -5,6 +5,7 @@ const ROLE_LABELS: Record<string, string> = {
   Evaluator: 'Evaluator',
   Accounting: 'Accounting',
   TerminalTeam: 'Terminal Team',
+  CyStaff: 'Container Yard',
   Broker: 'Broker',
   Consignee: 'Consignee',
   Trucker: 'Trucker',

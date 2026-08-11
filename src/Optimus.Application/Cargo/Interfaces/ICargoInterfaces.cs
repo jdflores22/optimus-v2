@@ -54,5 +54,6 @@ public interface IDocumentStore
 {
     Task<string> SaveAsync(string category, string fileName, Stream content, CancellationToken ct = default);
     string CreatePlaceholderPdf(string category, string title, string body);
+    string SavePdfBytes(string category, string fileName, byte[] content);
     string CreateAccreditationCertificatePdf(AccreditationCertificatePdfRequest request);
 }

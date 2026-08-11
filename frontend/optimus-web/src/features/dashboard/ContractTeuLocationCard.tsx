@@ -14,8 +14,15 @@ export type ContractTeuLocationCardProps = {
   capacity40: number;
   allocated20: number;
   allocated40: number;
+  /** Legacy inventory pre-forecast (SL allocation). */
   pending20?: number;
   pending40?: number;
+  /** Trucker intake: terminal assigned, awaiting CY date — by size. */
+  intakePreForecast20?: number;
+  intakePreForecast40?: number;
+  /** Trucker intake: CY confirmed return slot — by size. */
+  intakeConfirmed20?: number;
+  intakeConfirmed40?: number;
   footerAction?: { label: string; to: string };
   unitLimit20Label?: string;
   unitLimit40Label?: string;
@@ -50,13 +57,18 @@ function UnitLimitRow({
   used,
   limit,
   pending,
+  preForecast,
+  confirmed,
 }: {
   label: string;
   used: number;
   limit: number;
   pending?: number;
+  preForecast?: number;
+  confirmed?: number;
 }) {
-  const pct = limit ? Math.round((used / limit) * 1000) / 10 : 0;
+  const pipeline = used + (preForecast ?? 0) + (confirmed ?? 0) + (pending ?? 0);
+  const pct = limit ? Math.round((pipeline / limit) * 1000) / 10 : 0;
 
   return (
     <Box sx={{ mb: 1.5 }}>
@@ -68,11 +80,21 @@ function UnitLimitRow({
           {pct}%
         </Typography>
       </Stack>
-      <Stack direction="row" alignItems="baseline" spacing={0.5} mb={0.75}>
+      <Stack direction="row" alignItems="baseline" spacing={0.5} mb={0.75} flexWrap="wrap" useFlexGap>
         <Typography fontWeight={800} fontSize="1.05rem">
           {used}
         </Typography>
-        {pending != null && pending > 0 && (
+        {(preForecast ?? 0) > 0 && (
+          <Typography fontWeight={700} fontSize="0.95rem" color="warning.main">
+            +{preForecast} pre-forecast
+          </Typography>
+        )}
+        {(confirmed ?? 0) > 0 && (
+          <Typography fontWeight={700} fontSize="0.95rem" color="success.main">
+            +{confirmed}
+          </Typography>
+        )}
+        {pending != null && pending > 0 && preForecast == null && (
           <Typography fontWeight={700} fontSize="0.95rem" color="warning.main">
             +{pending} pending
           </Typography>
@@ -100,12 +122,26 @@ export function ContractTeuLocationCard({
   allocated40,
   pending20,
   pending40,
+  intakePreForecast20,
+  intakePreForecast40,
+  intakeConfirmed20,
+  intakeConfirmed40,
   footerAction,
   unitLimit20Label = '20ft Returns',
   unitLimit40Label = '40ft Returns',
   typeLabel,
 }: ContractTeuLocationCardProps) {
-  const utilizationPct = capacityTeu ? Math.round((usedTeu / capacityTeu) * 1000) / 10 : 0;
+  const teuPreForecast = (intakePreForecast20 ?? 0) + (intakePreForecast40 ?? 0);
+  const teuConfirmed = (intakeConfirmed20 ?? 0) + (intakeConfirmed40 ?? 0);
+  const teuPipeline = usedTeu + teuPreForecast + teuConfirmed;
+  const utilizationPct = capacityTeu ? Math.round((teuPipeline / capacityTeu) * 1000) / 10 : 0;
+
+  const showIntakeBySize =
+    kind === 'cy' &&
+    (intakePreForecast20 != null ||
+      intakePreForecast40 != null ||
+      intakeConfirmed20 != null ||
+      intakeConfirmed40 != null);
 
   return (
     <Paper
@@ -159,7 +195,7 @@ export function ContractTeuLocationCard({
         </Typography>
       </Stack>
 
-      <Stack direction="row" alignItems="baseline" spacing={0.5} mb={1}>
+      <Stack direction="row" alignItems="baseline" spacing={0.5} mb={1} flexWrap="wrap" useFlexGap>
         <Typography fontWeight={800} fontSize="1.65rem" lineHeight={1}>
           {usedTeu}
         </Typography>
@@ -170,18 +206,42 @@ export function ContractTeuLocationCard({
 
       <UtilizationBar pct={utilizationPct} />
 
-      <Stack direction="row" spacing={2} mt={1.25} mb={1.5}>
+      <Stack direction="row" spacing={2} mt={1.25} mb={1.5} flexWrap="wrap" useFlexGap>
         <Typography variant="body2" color="text.secondary">
           20ft:{' '}
           <Typography component="span" fontWeight={700} color="text.primary">
             {allocated20}
           </Typography>
+          {showIntakeBySize && (intakePreForecast20 ?? 0) > 0 && (
+            <Typography component="span" fontWeight={700} color="warning.main">
+              {' '}
+              +{intakePreForecast20} pf
+            </Typography>
+          )}
+          {showIntakeBySize && (intakeConfirmed20 ?? 0) > 0 && (
+            <Typography component="span" fontWeight={700} color="success.main">
+              {' '}
+              +{intakeConfirmed20}
+            </Typography>
+          )}
         </Typography>
         <Typography variant="body2" color="text.secondary">
           40ft:{' '}
           <Typography component="span" fontWeight={700} color="text.primary">
             {allocated40}
           </Typography>
+          {showIntakeBySize && (intakePreForecast40 ?? 0) > 0 && (
+            <Typography component="span" fontWeight={700} color="warning.main">
+              {' '}
+              +{intakePreForecast40} pf
+            </Typography>
+          )}
+          {showIntakeBySize && (intakeConfirmed40 ?? 0) > 0 && (
+            <Typography component="span" fontWeight={700} color="success.main">
+              {' '}
+              +{intakeConfirmed40}
+            </Typography>
+          )}
         </Typography>
       </Stack>
 
@@ -198,8 +258,22 @@ export function ContractTeuLocationCard({
         UNIT LIMITS
       </Typography>
 
-      <UnitLimitRow label={unitLimit20Label} used={allocated20} limit={capacity20} pending={pending20} />
-      <UnitLimitRow label={unitLimit40Label} used={allocated40} limit={capacity40} pending={pending40} />
+      <UnitLimitRow
+        label={unitLimit20Label}
+        used={allocated20}
+        limit={capacity20}
+        pending={showIntakeBySize ? undefined : pending20}
+        preForecast={showIntakeBySize ? intakePreForecast20 : undefined}
+        confirmed={showIntakeBySize ? intakeConfirmed20 : undefined}
+      />
+      <UnitLimitRow
+        label={unitLimit40Label}
+        used={allocated40}
+        limit={capacity40}
+        pending={showIntakeBySize ? undefined : pending40}
+        preForecast={showIntakeBySize ? intakePreForecast40 : undefined}
+        confirmed={showIntakeBySize ? intakeConfirmed40 : undefined}
+      />
 
       {footerAction && (
         <Button

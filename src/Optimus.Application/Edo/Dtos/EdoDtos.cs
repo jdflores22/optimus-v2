@@ -24,7 +24,11 @@ public record EdoDto(
     DateTime? PaymentSubmittedAt = null,
     string? ReleasedByName = null,
     DateTime? PaymentValidatedAt = null,
-    string? PaymentValidatedByName = null);
+    string? PaymentValidatedByName = null,
+    bool IsRenewed = false,
+    string? RenewedFromEdoNumber = null,
+    Guid? PreForecastSubmissionId = null,
+    string? RenewalPayorRole = null);
 
 public record GenerateEdoRequest(
     Guid ManifestId,
@@ -53,6 +57,8 @@ public record GenerationSessionDto(
     DateTime? CompletedAt);
 
 public record ReleaseEdoRequest(bool Approve, string? RejectionReason);
+
+public record RegenerateEdoPdfRequest(IReadOnlyList<string>? ContainerNumbers);
 
 public record SubmitEdoPaymentRequest(decimal Amount, string Currency);
 
@@ -167,14 +173,25 @@ public record RenewalDto(
     Guid ExpiredEdoId,
     string ExpiredEdoNumber,
     Guid? NewEdoId,
+    string? NewEdoNumber,
+    string? ContainerNumber,
+    bool IsPreForecast,
+    Guid? PreForecastSubmissionId,
     string Status,
     int OverdueDays,
     decimal DetentionChargeAmount,
     bool PaymentVerified,
+    bool PaymentReceiptSubmitted,
+    string? PaymentReceiptPath,
     DateTime RequestedAt,
     DateTime? CompletedAt);
 
 public record ReviewRenewalRequest(bool Approve, string? Notes);
+
+public record SubmitRenewalPaymentRequest(
+    decimal Amount,
+    string? PaymentReference,
+    string? PaymentChannel);
 
 public record DocumentVerifyDto(
     bool Valid,

@@ -98,6 +98,7 @@ public class RoleAcceptanceService : IRoleAcceptanceService
             AppRoles.Broker => new Broker { UserType = UserType.Broker },
             AppRoles.Consignee => new Consignee { UserType = UserType.Consignee, BusinessName = $"{pending.FirstName} {pending.LastName}" },
             AppRoles.TerminalTeam => new TerminalTeamUser { UserType = UserType.TerminalTeam },
+            AppRoles.CyStaff => new ContainerYardUser { UserType = UserType.ContainerYard },
             AppRoles.Trucker => new Trucker { UserType = UserType.Trucker },
             AppRoles.SystemAdmin => new User { UserType = UserType.SystemAdmin },
             _ => new StaffUser { UserType = UserType.Staff }
@@ -434,6 +435,7 @@ public class HierarchyService : IHierarchyService
         AppRoles.Evaluator,
         AppRoles.Accounting,
         AppRoles.TerminalTeam,
+        AppRoles.CyStaff,
     };
 
     private readonly OptimusDbContext _db;
@@ -526,6 +528,9 @@ public class HierarchyService : IHierarchyService
                 break;
             case TerminalTeamUser terminal:
                 terminal.Department = NormalizeOptional(request.Department);
+                break;
+            case ContainerYardUser cy:
+                cy.Department = NormalizeOptional(request.Department);
                 break;
             case Trucker trucker:
                 trucker.PhoneNumber = NormalizeOptional(request.PhoneNumber);

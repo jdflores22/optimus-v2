@@ -27,7 +27,7 @@ public enum ContainerStatus
 {
     Pending = 0,
     AvailableForReturn = 1,
-    PaApproved = 2,
+    PreForecastApproved = 2,
     InTransit = 3,
     AtTerminal = 4,
     Returned = 5,
@@ -43,7 +43,7 @@ public enum AllocationStatus
     Released = 3
 }
 
-public enum PreAdviceStatus
+public enum PreForecastRequestStatus
 {
     Pending = 0,
     Verified = 1,
@@ -61,4 +61,33 @@ public enum DwellEventType
     AutomaticReturn = 4,
     ManualCalculation = 5,
     StatusChange = 6
+}
+
+public enum TruckerPreForecastStatus
+{
+    ReadyForProcessing = 0,
+    AwaitingDetentionPayment = 1,
+    PendingReview = 2,
+    Completed = 3,
+    Cancelled = 4,
+    PendingTerminalAssignment = 5,
+    PendingCySchedule = 6,
+    CyScheduleConfirmed = 7,
+    PendingAccountingReview = 8,
+    AwaitingRenewalPayment = 9,
+}
+
+/// <summary>ICS standard container identity views for pre-forecast photo dossier.</summary>
+public enum ContainerPhotoCategory
+{
+    Flooring = 0,
+    RightSideIn = 1,
+    LeftSideIn = 2,
+    Back = 3,
+    Front = 4,
+    LeftSideOut = 5,
+    RightSideOut = 6,
+    Damage = 7,
+    Others = 8,
+    CroEdo = 9
 }

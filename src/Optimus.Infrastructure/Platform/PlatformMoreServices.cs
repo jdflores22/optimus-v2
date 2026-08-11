@@ -8,6 +8,7 @@ using Optimus.Application.Cargo.Dtos;
 using Optimus.Application.Cargo.Interfaces;
 using Optimus.Application.Platform.Dtos;
 using Optimus.Application.Platform.Interfaces;
+using Optimus.Application.Security;
 using Optimus.Domain.Entities;
 using Optimus.Domain.Enums;
 using Optimus.Infrastructure.Persistence;
@@ -48,7 +49,13 @@ public class SystemSettingsService : ISystemSettingsService
 public class RateLimitAdminService : IRateLimitAdminService
 {
     private readonly OptimusDbContext _db;
-    public RateLimitAdminService(OptimusDbContext db) => _db = db;
+    private readonly IRateLimitRuleCache _rateLimitCache;
+
+    public RateLimitAdminService(OptimusDbContext db, IRateLimitRuleCache rateLimitCache)
+    {
+        _db = db;
+        _rateLimitCache = rateLimitCache;
+    }
 
     public async Task<IReadOnlyList<RateLimitRuleDto>> ListAsync(CancellationToken ct = default)
     {
@@ -77,6 +84,7 @@ public class RateLimitAdminService : IRateLimitAdminService
         entity.WindowSeconds = Math.Max(1, request.WindowSeconds);
         entity.IsActive = request.IsActive;
         await _db.SaveChangesAsync(ct);
+        _rateLimitCache.Invalidate();
         return Map(entity);
     }
 

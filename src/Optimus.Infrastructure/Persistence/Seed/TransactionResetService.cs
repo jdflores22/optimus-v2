@@ -11,8 +11,10 @@ public class TransactionResetService : ITransactionResetService
 {
     private static readonly string[] TransactionTables = new[]
     {
+        "trucker_pre_forecast_photos",
+        "trucker_pre_forecast_submissions",
         "geotag_photos",
-        "pre_advice_requests",
+        "pre_forecast_requests",
         "dwell_time_events",
         "container_allocation_audits",
         "repositioning_request_items",

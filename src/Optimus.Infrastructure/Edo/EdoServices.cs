@@ -4,12 +4,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Optimus.Application.Cargo.Interfaces;
 using Optimus.Application.Edo.Dtos;
 using Optimus.Application.Edo.Interfaces;
 using Optimus.Domain.Entities;
 using Optimus.Domain.Enums;
+using Optimus.Infrastructure.Email;
 using Optimus.Infrastructure.Persistence;
+using Optimus.Infrastructure.Shipping;
 using Optimus.Infrastructure.Storage;
 using Optimus.Shared.Constants;
 using QRCoder;
@@ -30,14 +33,19 @@ public class QrCodeService : IQrCodeService
     {
         var dir = Path.Combine(_root, category);
         Directory.CreateDirectory(dir);
-        using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
-        var png = new PngByteQRCode(data);
-        var bytes = png.GetGraphic(8);
+        var bytes = CreatePngBytes(payload);
         var file = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}.png";
         var full = Path.Combine(dir, file);
         File.WriteAllBytes(full, bytes);
         return $"/uploads/{category}/{file}";
+    }
+
+    public byte[] CreatePngBytes(string payload, int pixelsPerModule = 5)
+    {
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
+        var png = new PngByteQRCode(data);
+        return png.GetGraphic(pixelsPerModule);
     }
 }
 
@@ -48,25 +56,35 @@ public class EdoService : IEdoService
     private readonly IQrCodeService _qr;
     private readonly IActivityLogService _activity;
     private readonly IPaymentFeeService _fees;
+    private readonly IUploadRootProvider _uploads;
+    private readonly AppSettings _appSettings;
 
     public EdoService(
         OptimusDbContext db,
         IDocumentStore docs,
         IQrCodeService qr,
         IActivityLogService activity,
-        IPaymentFeeService fees)
+        IPaymentFeeService fees,
+        IUploadRootProvider uploads,
+        IOptions<AppSettings> appSettings)
     {
         _db = db;
         _docs = docs;
         _qr = qr;
         _activity = activity;
         _fees = fees;
+        _uploads = uploads;
+        _appSettings = appSettings.Value;
     }
 
     public async Task<EdoDto> GenerateAsync(GenerateEdoRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
     {
         EnsureRole(actorRole, AppRoles.SlStaff, AppRoles.ShippingLinesAdmin, AppRoles.SystemAdmin);
-        var manifest = await _db.Manifests.FirstOrDefaultAsync(x => x.Id == request.ManifestId, ct)
+        var manifest = await _db.Manifests
+            .Include(x => x.Broker)
+            .Include(x => x.Consignee)
+            .Include(x => x.ShippingLine)
+            .FirstOrDefaultAsync(x => x.Id == request.ManifestId, ct)
                        ?? throw new KeyNotFoundException("Manifest not found.");
 
         if (manifest.WorkflowState is not (WorkflowState.PaymentVerified or WorkflowState.EdoGenerated or WorkflowState.EdoReleased))
@@ -100,7 +118,11 @@ public class EdoService : IEdoService
     public async Task<GenerationSessionDto> BatchGenerateAsync(BatchGenerateEdoRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
     {
         EnsureRole(actorRole, AppRoles.SlStaff, AppRoles.ShippingLinesAdmin, AppRoles.SystemAdmin);
-        var manifest = await _db.Manifests.FirstOrDefaultAsync(x => x.Id == request.ManifestId, ct)
+        var manifest = await _db.Manifests
+            .Include(x => x.Broker)
+            .Include(x => x.Consignee)
+            .Include(x => x.ShippingLine)
+            .FirstOrDefaultAsync(x => x.Id == request.ManifestId, ct)
                        ?? throw new KeyNotFoundException("Manifest not found.");
         if (manifest.WorkflowState is not (WorkflowState.PaymentVerified or WorkflowState.EdoGenerated or WorkflowState.EdoReleased))
         {
@@ -187,15 +209,91 @@ public class EdoService : IEdoService
             .Where(p => p.EdoId == edo.Id)
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync(ct);
-        return Map(edo, edo.Manifest.ManifestNumber, payment);
+        var preForecast = await _db.TruckerPreForecastSubmissions.AsNoTracking()
+            .Where(x => x.NewEdoId == edo.Id)
+            .Select(x => new { x.Id })
+            .FirstOrDefaultAsync(ct);
+        return Map(
+            edo,
+            edo.Manifest.ManifestNumber,
+            payment,
+            preForecast?.Id,
+            preForecast is not null ? AppRoles.Trucker : null);
     }
 
-    public async Task<IReadOnlyList<EdoDto>> ListAsync(Guid? manifestId, string? status, Guid? brokerId = null, Guid? consigneeId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EdoDto>> ListAsync(
+        Guid? manifestId,
+        string? status,
+        Guid actorId,
+        string actorRole,
+        Guid? brokerId = null,
+        Guid? consigneeId = null,
+        CancellationToken ct = default)
     {
         var q = _db.ElectronicDeliveryOrders.AsNoTracking().Include(x => x.Manifest).AsQueryable();
-        if (manifestId.HasValue) q = q.Where(x => x.ManifestId == manifestId);
-        if (brokerId.HasValue) q = q.Where(x => x.Manifest.BrokerId == brokerId);
-        if (consigneeId.HasValue) q = q.Where(x => x.Manifest.ConsigneeId == consigneeId);
+        if (manifestId.HasValue)
+        {
+            q = q.Where(x => x.ManifestId == manifestId);
+        }
+
+        switch (actorRole)
+        {
+            case AppRoles.Broker:
+                q = q.Where(x => x.Manifest.BrokerId == actorId);
+                break;
+            case AppRoles.Consignee:
+                q = q.Where(x => x.Manifest.ConsigneeId == actorId);
+                break;
+            case AppRoles.Trucker:
+            {
+                var truckerEdoIds = await _db.TruckerPreForecastSubmissions.AsNoTracking()
+                    .Where(x => x.TruckerId == actorId)
+                    .Select(x => new { x.ExpiredEdoId, x.NewEdoId })
+                    .ToListAsync(ct);
+                var ids = truckerEdoIds
+                    .SelectMany(x => new[] { x.ExpiredEdoId, x.NewEdoId })
+                    .Where(id => id.HasValue)
+                    .Select(id => id!.Value)
+                    .Distinct()
+                    .ToList();
+                if (ids.Count == 0)
+                {
+                    return Array.Empty<EdoDto>();
+                }
+
+                q = q.Where(x => ids.Contains(x.Id));
+                break;
+            }
+            case AppRoles.SlStaff:
+            case AppRoles.ShippingLinesAdmin:
+            case AppRoles.TerminalTeam:
+            case AppRoles.Evaluator:
+            case AppRoles.Accounting:
+            {
+                var lineId = await SoleShippingLine.ResolveForActorAsync(_db, actorId, actorRole, ct);
+                q = q.Where(x => x.ShippingLineId == lineId);
+                break;
+            }
+            case AppRoles.SystemAdmin:
+            {
+                var lineId = await SoleShippingLine.RequireIdAsync(_db, ct);
+                q = q.Where(x => x.ShippingLineId == lineId);
+                break;
+            }
+            default:
+                return Array.Empty<EdoDto>();
+        }
+
+        if (brokerId.HasValue)
+        {
+            q = q.Where(x => x.Manifest.BrokerId == brokerId);
+        }
+
+        if (consigneeId.HasValue)
+        {
+            q = q.Where(x => x.Manifest.ConsigneeId == consigneeId);
+        }
+
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<EdoStatus>(status, true, out var st))
         {
             q = q.Where(x => x.Status == st);
@@ -205,6 +303,9 @@ public class EdoService : IEdoService
         var payments = await LoadLatestPaymentsAsync(items.Select(x => x.Id).ToList(), ct);
         return items.Select(x => Map(x, x.Manifest.ManifestNumber, payments.GetValueOrDefault(x.Id))).ToList();
     }
+
+    private async Task<Guid> ResolveActorShippingLineIdAsync(Guid actorId, string actorRole, CancellationToken ct) =>
+        await SoleShippingLine.ResolveForActorAsync(_db, actorId, actorRole, ct);
 
     public async Task<EdoReleaseQueueDto> ListReleaseQueueAsync(Guid? shippingLineId = null, CancellationToken ct = default)
     {
@@ -516,6 +617,14 @@ public class EdoService : IEdoService
             var version = await _db.EdoVersions.FirstOrDefaultAsync(x => x.EdoId == edo.Id && x.IsCurrent, ct);
             if (version is not null) version.Status = EdoStatus.Released;
 
+            var manifest = await _db.Manifests
+                .Include(x => x.Broker)
+                .Include(x => x.Consignee)
+                .Include(x => x.ShippingLine)
+                .FirstAsync(x => x.Id == edo.ManifestId, ct);
+            await ApplyEdoPdfAsync(edo, manifest, actorId, ct);
+            if (version is not null) version.PdfPath = edo.PdfPath;
+
             if (edo.Manifest.WorkflowState == WorkflowState.EdoGenerated)
             {
                 var mf = edo.Manifest.WorkflowState;
@@ -554,6 +663,211 @@ public class EdoService : IEdoService
         await _db.SaveChangesAsync(ct);
         await _activity.LogAsync(actorId, request.Approve ? "edo.release" : "edo.reject", nameof(ElectronicDeliveryOrder), edo.Id, edo.EdoNumber, ct);
         return Map(edo, edo.Manifest.ManifestNumber);
+    }
+
+    public async Task<bool> TryAutoReleasePreForecastRenewalAsync(Guid edoId, Guid actorId, CancellationToken ct = default)
+    {
+        var isPreForecastRenewal = await _db.TruckerPreForecastSubmissions
+            .AsNoTracking()
+            .AnyAsync(x => x.NewEdoId == edoId, ct);
+        if (!isPreForecastRenewal)
+        {
+            return false;
+        }
+
+        var edo = await _db.ElectronicDeliveryOrders
+            .Include(x => x.Manifest)
+            .FirstOrDefaultAsync(x => x.Id == edoId, ct);
+        if (edo is null || edo.Status != EdoStatus.PendingRelease)
+        {
+            return false;
+        }
+
+        var paid = await _db.EdoPayments.AnyAsync(
+            x => x.EdoId == edoId && x.Status == PaymentStatus.Verified,
+            ct);
+        if (!paid)
+        {
+            return false;
+        }
+
+        // Pre-forecast auto-release is triggered by trucker/accounting; PDF signatory must stay shipping-line staff.
+        var signatoryId = edo.GeneratedById;
+        var triggerActorId = actorId == Guid.Empty ? signatoryId : actorId;
+        var from = edo.Status;
+        edo.Status = EdoStatus.Released;
+        edo.ReleasedAt = DateTime.UtcNow;
+        edo.ReleasedById = signatoryId;
+
+        var version = await _db.EdoVersions.FirstOrDefaultAsync(x => x.EdoId == edo.Id && x.IsCurrent, ct);
+        if (version is not null)
+        {
+            version.Status = EdoStatus.Released;
+        }
+
+        var manifest = await _db.Manifests
+            .Include(x => x.Broker)
+            .Include(x => x.Consignee)
+            .Include(x => x.ShippingLine)
+            .FirstAsync(x => x.Id == edo.ManifestId, ct);
+        await ApplyEdoPdfAsync(edo, manifest, signatoryId, ct);
+        if (version is not null)
+        {
+            version.PdfPath = edo.PdfPath;
+        }
+
+        if (edo.Manifest.WorkflowState == WorkflowState.EdoGenerated)
+        {
+            var mf = edo.Manifest.WorkflowState;
+            edo.Manifest.WorkflowState = WorkflowState.EdoReleased;
+            _db.WorkflowStateHistories.Add(new WorkflowStateHistory
+            {
+                ManifestId = edo.ManifestId,
+                FromState = mf,
+                ToState = WorkflowState.EdoReleased,
+                ActorId = triggerActorId,
+                ActorRole = AppRoles.SystemAdmin,
+                TransitionReason = "Pre-forecast renewed eDO auto-released after pay-to-open validation"
+            });
+        }
+
+        _db.EdoReleaseHistories.Add(new EdoReleaseHistory
+        {
+            EdoId = edo.Id,
+            FromStatus = from,
+            ToStatus = edo.Status,
+            ActorId = triggerActorId,
+            RejectionReason = "Auto-released after pre-forecast pay-to-open validation"
+        });
+
+        await _db.SaveChangesAsync(ct);
+        await _activity.LogAsync(
+            triggerActorId,
+            "edo.auto_release_pre_forecast",
+            nameof(ElectronicDeliveryOrder),
+            edo.Id,
+            edo.EdoNumber,
+            ct);
+        return true;
+    }
+
+    public async Task EnsureEdoPdfSignatoryAsync(Guid edoId, CancellationToken ct = default)
+    {
+        var edo = await _db.ElectronicDeliveryOrders
+            .FirstOrDefaultAsync(x => x.Id == edoId, ct);
+        if (edo is null || edo.Status != EdoStatus.Released)
+        {
+            return;
+        }
+
+        var needsRepair = !edo.ReleasedById.HasValue;
+        if (!needsRepair && edo.ReleasedById.HasValue)
+        {
+            var releasedByRole = await _db.Users.AsNoTracking()
+                .Where(x => x.Id == edo.ReleasedById.Value)
+                .Select(x => x.Role)
+                .FirstOrDefaultAsync(ct);
+            needsRepair = !IsShippingLineSignatory(releasedByRole);
+        }
+
+        if (!needsRepair)
+        {
+            return;
+        }
+
+        edo.ReleasedById = edo.GeneratedById;
+        var manifest = await _db.Manifests
+            .Include(x => x.Broker)
+            .Include(x => x.Consignee)
+            .Include(x => x.ShippingLine)
+            .FirstAsync(x => x.Id == edo.ManifestId, ct);
+        await ApplyEdoPdfAsync(edo, manifest, edo.GeneratedById, ct);
+
+        var version = await _db.EdoVersions.FirstOrDefaultAsync(x => x.EdoId == edo.Id && x.IsCurrent, ct);
+        if (version is not null)
+        {
+            version.PdfPath = edo.PdfPath;
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<EdoDto> RegeneratePdfAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default)
+    {
+        EnsureRole(actorRole, AppRoles.SlStaff, AppRoles.ShippingLinesAdmin, AppRoles.SystemAdmin);
+        var edo = await _db.ElectronicDeliveryOrders.FirstOrDefaultAsync(x => x.Id == id, ct)
+                  ?? throw new KeyNotFoundException("eDO/CRO not found.");
+
+        if (actorRole == AppRoles.SlStaff)
+        {
+            var staffLineId = await _db.UserShippingLinePreferences.AsNoTracking()
+                .Where(x => x.UserId == actorId)
+                .Select(x => x.LastSelectedShippingLineId)
+                .FirstOrDefaultAsync(ct);
+            if (staffLineId.HasValue && edo.ShippingLineId != staffLineId.Value)
+            {
+                throw new UnauthorizedAccessException("This eDO belongs to another shipping line.");
+            }
+        }
+
+        var manifest = await _db.Manifests
+            .Include(x => x.Broker)
+            .Include(x => x.Consignee)
+            .Include(x => x.ShippingLine)
+            .FirstAsync(x => x.Id == edo.ManifestId, ct);
+
+        await ApplyEdoPdfAsync(edo, manifest, actorId, ct);
+
+        var version = await _db.EdoVersions.FirstOrDefaultAsync(x => x.EdoId == edo.Id && x.IsCurrent, ct);
+        if (version is not null)
+        {
+            version.PdfPath = edo.PdfPath;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        await _activity.LogAsync(actorId, "edo.regenerate_pdf", nameof(ElectronicDeliveryOrder), edo.Id, edo.EdoNumber, ct);
+        return Map(edo, manifest.ManifestNumber);
+    }
+
+    public async Task<IReadOnlyList<EdoDto>> RegeneratePdfByContainersAsync(
+        IReadOnlyList<string> containerNumbers,
+        Guid actorId,
+        string actorRole,
+        CancellationToken ct = default)
+    {
+        if (containerNumbers.Count == 0)
+        {
+            throw new InvalidOperationException("At least one container number is required.");
+        }
+
+        var normalized = containerNumbers
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var edos = await _db.ElectronicDeliveryOrders.AsNoTracking()
+            .Where(x => x.ContainerNumber != null && normalized.Contains(x.ContainerNumber))
+            .OrderByDescending(x => x.GeneratedAt)
+            .ToListAsync(ct);
+
+        var latestByContainer = edos
+            .GroupBy(x => x.ContainerNumber!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
+
+        var missing = normalized.Where(n => !latestByContainer.ContainsKey(n)).ToList();
+        if (missing.Count > 0)
+        {
+            throw new KeyNotFoundException($"No eDO/CRO found for container(s): {string.Join(", ", missing)}");
+        }
+
+        var results = new List<EdoDto>();
+        foreach (var container in normalized)
+        {
+            results.Add(await RegeneratePdfAsync(latestByContainer[container], actorId, actorRole, ct));
+        }
+
+        return results;
     }
 
     public async Task<EdoDto> UnlockAsync(Guid id, UnlockEdoRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
@@ -631,10 +945,6 @@ public class EdoService : IEdoService
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var container = string.IsNullOrWhiteSpace(containerNumber) ? "GENERAL" : containerNumber.Trim();
         var edoNumber = $"EDO-{DateTime.UtcNow:yyyyMMdd}-{container}-{Random.Shared.Next(100, 999)}";
-        var verifyUrl = $"/verify/document/{token}";
-        var qrPath = _qr.CreatePngFile("edo-qr", verifyUrl);
-        var pdf = _docs.CreatePlaceholderPdf("edo", $"eDO/CRO {edoNumber}",
-            $"Manifest={manifest.ManifestNumber}\nContainer={container}\nVerify={verifyUrl}\nExpires={expiresAt}");
 
         var edo = new ElectronicDeliveryOrder
         {
@@ -643,9 +953,6 @@ public class EdoService : IEdoService
             ShippingLineId = manifest.ShippingLineId,
             ContainerNumber = container,
             FeeAmount = fee.Amount,
-            PdfPath = pdf,
-            QrPayload = verifyUrl,
-            QrImagePath = qrPath,
             Status = requirePayment ? EdoStatus.PendingValidation : EdoStatus.PendingRelease,
             GeneratedById = actorId,
             GeneratedAt = DateTime.UtcNow,
@@ -656,10 +963,12 @@ public class EdoService : IEdoService
             Version = 1
         };
 
+        await ApplyEdoPdfAsync(edo, manifest, actorId, ct);
+
         edo.Versions.Add(new EdoVersion
         {
             VersionNumber = 1,
-            PdfPath = pdf,
+            PdfPath = edo.PdfPath,
             EdoNumber = edoNumber,
             Status = edo.Status,
             CreatedById = actorId,
@@ -688,6 +997,101 @@ public class EdoService : IEdoService
         return edo;
     }
 
+    private static bool IsShippingLineSignatory(string? role) =>
+        role is AppRoles.SlStaff or AppRoles.ShippingLinesAdmin or AppRoles.Evaluator or AppRoles.SystemAdmin;
+
+    private async Task<User?> ResolveEdoAuthorizedByAsync(ElectronicDeliveryOrder edo, CancellationToken ct)
+    {
+        async Task<User?> LoadIfSignatory(Guid userId)
+        {
+            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId, ct);
+            return user is not null && IsShippingLineSignatory(user.Role) ? user : null;
+        }
+
+        if (edo.ReleasedById.HasValue)
+        {
+            var fromReleased = await LoadIfSignatory(edo.ReleasedById.Value);
+            if (fromReleased is not null)
+            {
+                return fromReleased;
+            }
+        }
+
+        var fromGenerated = await LoadIfSignatory(edo.GeneratedById);
+        if (fromGenerated is not null)
+        {
+            return fromGenerated;
+        }
+
+        var evaluator = await (
+            from pref in _db.UserShippingLinePreferences.AsNoTracking()
+            join user in _db.Users.AsNoTracking() on pref.UserId equals user.Id
+            where pref.LastSelectedShippingLineId == edo.ShippingLineId
+                  && user.Role == AppRoles.Evaluator
+            select user
+        ).FirstOrDefaultAsync(ct);
+        if (evaluator is not null)
+        {
+            return evaluator;
+        }
+
+        var slStaff = await (
+            from pref in _db.UserShippingLinePreferences.AsNoTracking()
+            join user in _db.Users.AsNoTracking() on pref.UserId equals user.Id
+            where pref.LastSelectedShippingLineId == edo.ShippingLineId
+                  && user.Role == AppRoles.SlStaff
+            select user
+        ).FirstOrDefaultAsync(ct);
+        if (slStaff is not null)
+        {
+            return slStaff;
+        }
+
+        return await _db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.ManagedShippingLineId == edo.ShippingLineId && x.Role == AppRoles.ShippingLinesAdmin,
+                ct);
+    }
+
+    private async Task ApplyEdoPdfAsync(
+        ElectronicDeliveryOrder edo,
+        Manifest manifest,
+        Guid actorId,
+        CancellationToken ct)
+    {
+        var shippingLine = manifest.ShippingLine
+            ?? await _db.ShippingLines.AsNoTracking().FirstAsync(x => x.Id == manifest.ShippingLineId, ct);
+
+        var preparedBy = await _db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == edo.GeneratedById, ct);
+        var authorizedBy = await ResolveEdoAuthorizedByAsync(edo, ct);
+
+        Container? container = null;
+        if (!string.IsNullOrWhiteSpace(edo.ContainerNumber) && !string.Equals(edo.ContainerNumber, "GENERAL", StringComparison.OrdinalIgnoreCase))
+        {
+            container = await _db.Containers.AsNoTracking()
+                .Include(c => c.ContainerSize)
+                .Include(c => c.ContainerType)
+                .Where(c => c.ContainerNumber == edo.ContainerNumber && c.ManifestId == manifest.Id)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        var token = edo.VerificationToken
+            ?? throw new InvalidOperationException("Missing verification token.");
+        var verifyUrl = $"{_appSettings.TrimmedPublicUrl}/verify/document/{token}";
+        var qrPayload = $"/verify/document/{token}";
+        var qrBytes = _qr.CreatePngBytes(verifyUrl);
+        var qrPath = _qr.CreatePngFile("edo-qr", verifyUrl);
+        var logoPath = EdoCroPdfBuilder.ResolveLogoPath(_uploads, shippingLine);
+        var pdfData = EdoCroPdfBuilder.Build(edo, manifest, shippingLine, container, preparedBy, authorizedBy, qrBytes, logoPath);
+        var pdfBytes = EdoCroPdfRenderer.Render(pdfData);
+        var pdfPath = _docs.SavePdfBytes("edo", $"CRO-{edo.EdoNumber}.pdf", pdfBytes);
+
+        edo.PdfPath = pdfPath;
+        edo.QrImagePath = qrPath;
+        edo.QrPayload = qrPayload;
+    }
+
     private static void EnsureRole(string actual, params string[] allowed)
     {
         if (!allowed.Contains(actual))
@@ -696,15 +1100,45 @@ public class EdoService : IEdoService
         }
     }
 
-    private static EdoDto Map(ElectronicDeliveryOrder x, string manifestNumber, EdoPayment? latestPayment = null) =>
-        new(x.Id, x.EdoNumber, x.ManifestId, manifestNumber, x.ShippingLineId, x.ContainerNumber, x.Status.ToString(),
+    private static EdoDto Map(
+        ElectronicDeliveryOrder x,
+        string manifestNumber,
+        EdoPayment? latestPayment = null,
+        Guid? preForecastSubmissionId = null,
+        string? renewalPayorRole = null)
+    {
+        var (isRenewed, renewedFrom) = ParseRenewedMeta(x.AdditionalNotes);
+        return new(x.Id, x.EdoNumber, x.ManifestId, manifestNumber, x.ShippingLineId, x.ContainerNumber, x.Status.ToString(),
             x.FeeAmount, x.PdfPath, x.QrImagePath, x.VerificationToken, x.GeneratedAt, x.ReleasedAt, x.ExpiresAt,
             x.CyLocation, x.RejectionReason, x.Version,
             latestPayment?.Status.ToString(),
             latestPayment?.CreatedAt,
             x.ReleasedBy?.FullName,
             latestPayment?.ValidatedAt,
-            latestPayment?.ValidatedBy?.FullName);
+            latestPayment?.ValidatedBy?.FullName,
+            isRenewed,
+            renewedFrom,
+            preForecastSubmissionId,
+            renewalPayorRole);
+    }
+
+    private static (bool IsRenewed, string? RenewedFromEdoNumber) ParseRenewedMeta(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return (false, null);
+        }
+
+        const string prefix = "Renewed from ";
+        if (!notes.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, null);
+        }
+
+        var firstLine = notes[prefix.Length..].Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+        return (true, string.IsNullOrWhiteSpace(firstLine) ? null : firstLine);
+    }
 
     private async Task<EdoPayment?> GetLatestPaymentAsync(Guid edoId, CancellationToken ct) =>
         await _db.EdoPayments.AsNoTracking()
@@ -741,24 +1175,46 @@ public class EdoPaymentService : IEdoPaymentService
     private readonly IDocumentStore _docs;
     private readonly IActivityLogService _activity;
     private readonly IPaymentFeeService _fees;
+    private readonly IEdoService _edoService;
 
-    public EdoPaymentService(OptimusDbContext db, IDocumentStore docs, IActivityLogService activity, IPaymentFeeService fees)
+    public EdoPaymentService(
+        OptimusDbContext db,
+        IDocumentStore docs,
+        IActivityLogService activity,
+        IPaymentFeeService fees,
+        IEdoService edoService)
     {
         _db = db;
         _docs = docs;
         _activity = activity;
         _fees = fees;
+        _edoService = edoService;
     }
 
     public async Task<EdoPaymentDto> SubmitAsync(Guid edoId, SubmitEdoPaymentRequest request, string? receiptPath, Guid actorId, string actorRole, CancellationToken ct = default)
     {
-        if (actorRole is not (AppRoles.Broker or AppRoles.Consignee or AppRoles.SystemAdmin))
-        {
-            throw new UnauthorizedAccessException("Only broker/consignee can submit eDO payments.");
-        }
-
         var edo = await _db.ElectronicDeliveryOrders.Include(x => x.Manifest).FirstOrDefaultAsync(x => x.Id == edoId, ct)
                   ?? throw new KeyNotFoundException("eDO/CRO not found.");
+
+        var preForecastSubmission = await _db.TruckerPreForecastSubmissions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.NewEdoId == edoId, ct);
+
+        if (actorRole == AppRoles.Trucker)
+        {
+            if (preForecastSubmission is null || preForecastSubmission.TruckerId != actorId)
+            {
+                throw new UnauthorizedAccessException("Only the trucker who submitted this pre-forecast can pay to open the renewed eDO.");
+            }
+        }
+        else if (actorRole is not (AppRoles.Broker or AppRoles.Consignee or AppRoles.SystemAdmin))
+        {
+            throw new UnauthorizedAccessException("Only broker, consignee, or the assigned trucker can submit eDO payments.");
+        }
+        else if (preForecastSubmission is not null)
+        {
+            throw new InvalidOperationException("This renewed eDO must be paid by the trucker who submitted the pre-forecast.");
+        }
 
         if (actorRole == AppRoles.Broker && edo.Manifest.BrokerId != actorId)
         {
@@ -783,8 +1239,17 @@ public class EdoPaymentService : IEdoPaymentService
             throw new InvalidOperationException("Payment has already been submitted and is awaiting validation.");
         }
 
+        if (string.IsNullOrWhiteSpace(receiptPath))
+        {
+            throw new InvalidOperationException("Payment receipt is required.");
+        }
+
         var fee = await _fees.GetActiveAsync("edo", ct);
         var amount = fee.Amount;
+        if (request.Amount > 0 && Math.Abs(request.Amount - amount) > 0.01m)
+        {
+            throw new InvalidOperationException($"Payment amount must match the active eDO fee ({amount:N2} {request.Currency ?? "PHP"}).");
+        }
         var payment = new EdoPayment
         {
             ManifestId = edo.ManifestId,
@@ -818,9 +1283,9 @@ public class EdoPaymentService : IEdoPaymentService
 
     public async Task<EdoPaymentDto> ValidateAsync(Guid paymentId, ValidateEdoPaymentRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
     {
-        if (actorRole is not AppRoles.SystemAdmin)
+        if (actorRole is not (AppRoles.SystemAdmin or AppRoles.Accounting))
         {
-            throw new UnauthorizedAccessException("Only the platform admin can validate eDO payments.");
+            throw new UnauthorizedAccessException("Accounting or platform admin required to validate eDO payments.");
         }
 
         var payment = await _db.EdoPayments
@@ -836,6 +1301,11 @@ public class EdoPaymentService : IEdoPaymentService
 
         if (request.Approve)
         {
+            if (string.IsNullOrWhiteSpace(payment.ReceiptFilePath))
+            {
+                throw new InvalidOperationException("Cannot verify payment without a receipt file.");
+            }
+
             payment.Status = PaymentStatus.Verified;
             payment.ValidatedAt = DateTime.UtcNow;
             payment.ValidatedById = actorId;
@@ -860,6 +1330,26 @@ public class EdoPaymentService : IEdoPaymentService
         }
 
         await _db.SaveChangesAsync(ct);
+        if (request.Approve && payment.EdoId.HasValue)
+        {
+            var submission = await _db.TruckerPreForecastSubmissions
+                .FirstOrDefaultAsync(
+                    x => x.NewEdoId == payment.EdoId &&
+                         x.Status == TruckerPreForecastStatus.AwaitingRenewalPayment,
+                    ct);
+            if (submission is not null)
+            {
+                submission.Status = TruckerPreForecastStatus.Completed;
+            }
+
+            await _db.SaveChangesAsync(ct);
+
+            if (payment.EdoId.HasValue)
+            {
+                await _edoService.TryAutoReleasePreForecastRenewalAsync(payment.EdoId.Value, actorId, ct);
+            }
+        }
+
         await _activity.LogAsync(actorId, request.Approve ? "edo_payment.verify" : "edo_payment.reject", nameof(EdoPayment), payment.Id, request.RejectionReason, ct);
         return MapDetailed(payment);
     }
@@ -1063,13 +1553,20 @@ public class EdoRenewalService : IEdoRenewalService
     private readonly IEdoService _edoService;
     private readonly IActivityLogService _activity;
     private readonly IDocumentStore _docs;
+    private readonly IPaymentFeeService _fees;
 
-    public EdoRenewalService(OptimusDbContext db, IEdoService edoService, IActivityLogService activity, IDocumentStore docs)
+    public EdoRenewalService(
+        OptimusDbContext db,
+        IEdoService edoService,
+        IActivityLogService activity,
+        IDocumentStore docs,
+        IPaymentFeeService fees)
     {
         _db = db;
         _edoService = edoService;
         _activity = activity;
         _docs = docs;
+        _fees = fees;
     }
 
     public async Task<RenewalDto> RequestAsync(CreateRenewalRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
@@ -1079,8 +1576,29 @@ public class EdoRenewalService : IEdoRenewalService
             throw new UnauthorizedAccessException("Broker/Consignee required.");
         }
 
-        var expired = await _db.ElectronicDeliveryOrders.FirstOrDefaultAsync(x => x.Id == request.ExpiredEdoId, ct)
+        var expired = await _db.ElectronicDeliveryOrders.Include(x => x.Manifest)
+            .FirstOrDefaultAsync(x => x.Id == request.ExpiredEdoId, ct)
                       ?? throw new KeyNotFoundException("eDO/CRO not found.");
+
+        if (actorRole == AppRoles.Broker && expired.Manifest.BrokerId != actorId)
+        {
+            throw new UnauthorizedAccessException("Broker is not assigned to this eDO/CRO.");
+        }
+
+        if (actorRole == AppRoles.Consignee && expired.Manifest.ConsigneeId != actorId)
+        {
+            throw new UnauthorizedAccessException("Consignee is not assigned to this eDO/CRO.");
+        }
+
+        var openRenewal = await _db.EdoRenewalRequests.AsNoTracking()
+            .AnyAsync(x => x.ExpiredEdoId == expired.Id &&
+                           x.Status != RenewalRequestStatus.Cancelled &&
+                           x.Status != RenewalRequestStatus.Completed, ct);
+        if (openRenewal)
+        {
+            throw new InvalidOperationException("An open renewal request already exists for this eDO/CRO.");
+        }
+
         if (expired.Status is not (EdoStatus.Expired or EdoStatus.Locked or EdoStatus.Released or EdoStatus.Active))
         {
             throw new InvalidOperationException("eDO/CRO cannot be renewed in current status.");
@@ -1088,7 +1606,9 @@ public class EdoRenewalService : IEdoRenewalService
 
         var freeDays = 7;
         var overdue = Math.Max(0, (int)Math.Ceiling((DateTime.UtcNow.Date - request.EmptyContainerReturnDate.Date).TotalDays) - freeDays);
-        var detention = overdue * 150m; // simplified detention rate
+        var detentionFee = await _fees.GetActiveAsync("detention", ct);
+        var ratePerDay = detentionFee.Amount > 0 ? detentionFee.Amount : 150m;
+        var detention = overdue * ratePerDay;
 
         var renewal = new EdoRenewalRequest
         {
@@ -1112,7 +1632,7 @@ public class EdoRenewalService : IEdoRenewalService
         _db.EdoRenewalRequests.Add(renewal);
         await _db.SaveChangesAsync(ct);
         await _activity.LogAsync(actorId, "edo.renewal_request", nameof(EdoRenewalRequest), renewal.Id, expired.EdoNumber, ct);
-        return Map(renewal, expired.EdoNumber);
+        return await MapRenewalAsync(renewal.Id, ct);
     }
 
     public async Task<RenewalDto> ReviewAsync(Guid id, ReviewRenewalRequest request, Guid actorId, string actorRole, CancellationToken ct = default)
@@ -1134,7 +1654,7 @@ public class EdoRenewalService : IEdoRenewalService
         }
 
         await _db.SaveChangesAsync(ct);
-        return Map(renewal, renewal.ExpiredEdo.EdoNumber);
+        return await MapRenewalAsync(renewal.Id, ct);
     }
 
     public async Task<RenewalDto> MarkPaymentVerifiedAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default)
@@ -1146,12 +1666,78 @@ public class EdoRenewalService : IEdoRenewalService
 
         var renewal = await _db.EdoRenewalRequests.Include(x => x.ExpiredEdo).FirstOrDefaultAsync(x => x.Id == id, ct)
                       ?? throw new KeyNotFoundException("Renewal not found.");
+        if (string.IsNullOrWhiteSpace(renewal.PaymentReceiptPath))
+        {
+            throw new InvalidOperationException("Detention payment receipt must be uploaded before verification.");
+        }
+
         renewal.PaymentVerified = true;
         renewal.PaymentVerifiedAt = DateTime.UtcNow;
         renewal.PaymentVerifiedById = actorId;
         renewal.Status = RenewalRequestStatus.ReadyForGeneration;
+
+        var submission = await _db.TruckerPreForecastSubmissions
+            .FirstOrDefaultAsync(x => x.RenewalRequestId == renewal.Id, ct);
+        if (submission is not null &&
+            submission.Status == TruckerPreForecastStatus.AwaitingDetentionPayment)
+        {
+            submission.Status = TruckerPreForecastStatus.PendingReview;
+        }
+
         await _db.SaveChangesAsync(ct);
-        return Map(renewal, renewal.ExpiredEdo.EdoNumber);
+        return await MapRenewalAsync(renewal.Id, ct);
+    }
+
+    public async Task<RenewalDto> SubmitPaymentAsync(
+        Guid id,
+        SubmitRenewalPaymentRequest request,
+        string? receiptPath,
+        Guid actorId,
+        string actorRole,
+        CancellationToken ct = default)
+    {
+        if (actorRole is not (AppRoles.Broker or AppRoles.Consignee or AppRoles.SystemAdmin))
+        {
+            throw new UnauthorizedAccessException("Broker or consignee required.");
+        }
+
+        var renewal = await _db.EdoRenewalRequests.Include(x => x.ExpiredEdo).ThenInclude(e => e.Manifest)
+            .FirstOrDefaultAsync(x => x.Id == id, ct)
+            ?? throw new KeyNotFoundException("Renewal not found.");
+        if (renewal.Status != RenewalRequestStatus.AwaitingPayment)
+        {
+            throw new InvalidOperationException("Renewal is not awaiting detention payment.");
+        }
+
+        if (actorRole == AppRoles.Broker && renewal.ExpiredEdo.Manifest?.BrokerId != actorId)
+        {
+            throw new UnauthorizedAccessException("Not authorized for this renewal.");
+        }
+
+        if (actorRole == AppRoles.Consignee && renewal.ExpiredEdo.Manifest?.ConsigneeId != actorId)
+        {
+            throw new UnauthorizedAccessException("Not authorized for this renewal.");
+        }
+
+        if (string.IsNullOrWhiteSpace(receiptPath))
+        {
+            throw new InvalidOperationException("Payment receipt is required.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(renewal.PaymentReceiptPath) && !renewal.PaymentVerified)
+        {
+            throw new InvalidOperationException("Payment receipt already submitted and awaiting accounting validation.");
+        }
+
+        renewal.PaymentReceiptPath = receiptPath;
+        renewal.PaymentReference = request.PaymentReference?.Trim();
+        renewal.AdditionalNotes = string.IsNullOrWhiteSpace(request.PaymentChannel)
+            ? renewal.AdditionalNotes
+            : $"{renewal.AdditionalNotes}\nPayment channel: {request.PaymentChannel}".Trim();
+
+        await _db.SaveChangesAsync(ct);
+        await _activity.LogAsync(actorId, "edo.renewal_payment.submit", nameof(EdoRenewalRequest), renewal.Id, $"{request.Amount}", ct);
+        return await MapRenewalAsync(renewal.Id, ct);
     }
 
     public async Task<EdoDto> GenerateRenewedAsync(Guid renewalId, Guid actorId, string actorRole, CancellationToken ct = default)
@@ -1170,29 +1756,151 @@ public class EdoRenewalService : IEdoRenewalService
         }
 
         renewal.ExpiredEdo.Status = EdoStatus.Superseded;
+        var cyLocation = renewal.ExpiredEdo.CyLocation;
+        var submission = await _db.TruckerPreForecastSubmissions
+            .Include(x => x.AssignedTerminal)
+            .FirstOrDefaultAsync(x => x.RenewalRequestId == renewal.Id, ct);
+        if (submission?.AssignedTerminal is not null)
+        {
+            cyLocation = submission.AssignedTerminal.Name;
+        }
+
         var created = await _edoService.GenerateAsync(new GenerateEdoRequest(
             renewal.ExpiredEdo.ManifestId,
             renewal.ExpiredEdo.ContainerNumber,
             DateTime.UtcNow.AddDays(14),
-            renewal.ExpiredEdo.CyLocation,
+            cyLocation,
             $"Renewed from {renewal.ExpiredEdo.EdoNumber}",
-            RequirePayment: false), actorId, actorRole, ct);
+            RequirePayment: true), actorId, actorRole, ct);
 
         renewal.NewEdoId = created.Id;
         renewal.Status = RenewalRequestStatus.Completed;
         renewal.CompletedAt = DateTime.UtcNow;
+
+        if (submission is not null)
+        {
+            submission.NewEdoId = created.Id;
+            submission.Status = TruckerPreForecastStatus.AwaitingRenewalPayment;
+        }
+
         await _db.SaveChangesAsync(ct);
         return created;
     }
 
-    public async Task<IReadOnlyList<RenewalDto>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<RenewalDto>> ListAsync(Guid actorId, string actorRole, CancellationToken ct = default)
     {
-        var items = await _db.EdoRenewalRequests.AsNoTracking()
-            .Include(x => x.ExpiredEdo)
-            .OrderByDescending(x => x.RequestedAt)
-            .ToListAsync(ct);
-        return items.Select(x => Map(x, x.ExpiredEdo.EdoNumber)).ToList();
+        var q = _db.EdoRenewalRequests.AsNoTracking()
+            .Include(x => x.ExpiredEdo).ThenInclude(e => e.Manifest)
+            .Include(x => x.NewEdo)
+            .AsQueryable();
+
+        q = FilterRenewalsForRole(q, actorId, actorRole);
+
+        if (actorRole is AppRoles.SystemAdmin or AppRoles.SlStaff or AppRoles.ShippingLinesAdmin or AppRoles.Accounting)
+        {
+            var lineId = await SoleShippingLine.ResolveForActorAsync(_db, actorId, actorRole, ct);
+            q = q.Where(x => x.ExpiredEdo.ShippingLineId == lineId);
+        }
+
+        var items = await q.OrderByDescending(x => x.RequestedAt).ToListAsync(ct);
+        if (items.Count == 0)
+        {
+            return Array.Empty<RenewalDto>();
+        }
+
+        var renewalIds = items.Select(x => x.Id).ToList();
+        var submissions = await _db.TruckerPreForecastSubmissions.AsNoTracking()
+            .Where(s => s.RenewalRequestId != null && renewalIds.Contains(s.RenewalRequestId.Value))
+            .ToDictionaryAsync(s => s.RenewalRequestId!.Value, ct);
+
+        return items.Select(x =>
+        {
+            submissions.TryGetValue(x.Id, out var submission);
+            return MapRenewalEntity(
+                x,
+                x.ExpiredEdo.EdoNumber,
+                x.NewEdo?.EdoNumber,
+                x.NewEdo?.ContainerNumber ?? x.ExpiredEdo.ContainerNumber,
+                submission is not null,
+                submission?.Id);
+        }).ToList();
     }
+
+    private IQueryable<EdoRenewalRequest> FilterRenewalsForRole(
+        IQueryable<EdoRenewalRequest> q,
+        Guid actorId,
+        string role)
+    {
+        if (role is AppRoles.SystemAdmin or AppRoles.SlStaff or AppRoles.ShippingLinesAdmin or AppRoles.Accounting)
+        {
+            return q;
+        }
+
+        if (role == AppRoles.Trucker)
+        {
+            return q.Where(x =>
+                x.RequestedById == actorId ||
+                _db.TruckerPreForecastSubmissions.Any(s => s.RenewalRequestId == x.Id && s.TruckerId == actorId));
+        }
+
+        if (role == AppRoles.Broker)
+        {
+            return q.Where(x =>
+                x.RequestedById == actorId ||
+                (x.ExpiredEdo.Manifest != null && x.ExpiredEdo.Manifest.BrokerId == actorId));
+        }
+
+        if (role == AppRoles.Consignee)
+        {
+            return q.Where(x =>
+                x.RequestedById == actorId ||
+                (x.ExpiredEdo.Manifest != null && x.ExpiredEdo.Manifest.ConsigneeId == actorId));
+        }
+
+        return q.Where(_ => false);
+    }
+
+    private async Task<RenewalDto> MapRenewalAsync(Guid renewalId, CancellationToken ct)
+    {
+        var renewal = await _db.EdoRenewalRequests.AsNoTracking()
+            .Include(x => x.ExpiredEdo)
+            .Include(x => x.NewEdo)
+            .FirstAsync(x => x.Id == renewalId, ct);
+        var submission = await _db.TruckerPreForecastSubmissions.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.RenewalRequestId == renewalId, ct);
+        return MapRenewalEntity(
+            renewal,
+            renewal.ExpiredEdo.EdoNumber,
+            renewal.NewEdo?.EdoNumber,
+            renewal.NewEdo?.ContainerNumber ?? renewal.ExpiredEdo.ContainerNumber,
+            submission is not null,
+            submission?.Id);
+    }
+
+    private static RenewalDto MapRenewalEntity(
+        EdoRenewalRequest x,
+        string expiredNumber,
+        string? newEdoNumber,
+        string? containerNumber,
+        bool isPreForecast,
+        Guid? preForecastSubmissionId) =>
+        new(
+            x.Id,
+            x.ExpiredEdoId,
+            expiredNumber,
+            x.NewEdoId,
+            newEdoNumber,
+            containerNumber,
+            isPreForecast,
+            preForecastSubmissionId,
+            x.Status.ToString(),
+            x.OverdueDays,
+            x.DetentionChargeAmount,
+            x.PaymentVerified,
+            !string.IsNullOrWhiteSpace(x.PaymentReceiptPath),
+            x.PaymentReceiptPath,
+            x.RequestedAt,
+            x.CompletedAt);
 
     private static void EnsureStaff(string role)
     {
@@ -1202,9 +1910,6 @@ public class EdoRenewalService : IEdoRenewalService
         }
     }
 
-    private static RenewalDto Map(EdoRenewalRequest x, string expiredNumber) =>
-        new(x.Id, x.ExpiredEdoId, expiredNumber, x.NewEdoId, x.Status.ToString(), x.OverdueDays,
-            x.DetentionChargeAmount, x.PaymentVerified, x.RequestedAt, x.CompletedAt);
 }
 
 public class DocumentVerificationService : IDocumentVerificationService
@@ -1215,25 +1920,49 @@ public class DocumentVerificationService : IDocumentVerificationService
 
     public async Task<DocumentVerifyDto> VerifyAsync(string token, CancellationToken ct = default)
     {
+        var normalized = token.Trim();
+        if (normalized.Length < 16 || normalized.Length > 128 ||
+            !normalized.All(static c => char.IsLetterOrDigit(c) || c is '-' or '_'))
+        {
+            return Invalid("Invalid verification token.");
+        }
+
         var row = await _db.DocumentVerifications.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.VerificationToken == token, ct);
+            .FirstOrDefaultAsync(x => x.VerificationToken == normalized, ct);
         if (row is null)
         {
-            return new DocumentVerifyDto(false, null, null, null, null, null, null, "Invalid verification token.");
+            return Invalid("Invalid verification token.");
         }
 
         var edo = await _db.ElectronicDeliveryOrders.AsNoTracking()
-            .Include(x => x.Manifest)
-            .FirstOrDefaultAsync(x => x.Id == row.SubjectId || x.VerificationToken == token, ct);
+            .FirstOrDefaultAsync(x => x.Id == row.SubjectId || x.VerificationToken == normalized, ct);
 
         if (edo is null)
         {
-            return new DocumentVerifyDto(true, row.DocumentType, row.DocumentNumber, null, null, null, null, "Document record found without live eDO.");
+            return new DocumentVerifyDto(
+                true,
+                row.DocumentType,
+                row.DocumentNumber,
+                null,
+                null,
+                null,
+                null,
+                "Document record verified.");
         }
 
-        return new DocumentVerifyDto(true, "EDO", edo.EdoNumber, edo.Status.ToString(), edo.Manifest.ManifestNumber,
-            edo.GeneratedAt, edo.ExpiresAt, "Document verified.");
+        return new DocumentVerifyDto(
+            true,
+            "EDO",
+            edo.EdoNumber,
+            edo.Status.ToString(),
+            null,
+            null,
+            edo.ExpiresAt,
+            "Document verified.");
     }
+
+    private static DocumentVerifyDto Invalid(string message) =>
+        new(false, null, null, null, null, null, null, message);
 }
 
 public class EdoExpirationHostedService : BackgroundService

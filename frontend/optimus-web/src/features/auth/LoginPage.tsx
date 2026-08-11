@@ -46,7 +46,7 @@ const REGISTRATION_ROLES = [
   {
     role: 'Trucker',
     to: '/register/trucker',
-    description: 'Submit pre-advice and yard gate requests',
+    description: 'Submit pre-forecast and yard gate requests',
     icon: LocalShippingOutlinedIcon,
     tone: 'info' as const,
   },
@@ -296,6 +296,13 @@ export function LoginPage() {
           </Box>
           <ArrowForwardOutlinedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
         </Paper>
+
+        <Typography variant="body2" color="text.secondary" textAlign="center">
+          <Link component={RouterLink} to="/versions" fontWeight={600}>
+            Release notes
+          </Link>{' '}
+          — see version history and what&apos;s new in OPTIMUS V2.
+        </Typography>
       </Stack>
     </AuthSplitLayout>
   );

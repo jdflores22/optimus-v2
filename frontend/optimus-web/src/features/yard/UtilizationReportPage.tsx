@@ -91,7 +91,7 @@ export function UtilizationReportPage({
 
   const totalAllocated = data.reduce((sum, row) => sum + row.allocatedTeu, 0);
   const totalUsed = data.reduce((sum, row) => sum + row.usedTeu, 0);
-  const totalPending = data.reduce((sum, row) => sum + row.pendingPreAdvice, 0);
+  const totalPending = data.reduce((sum, row) => sum + row.pendingPreForecast, 0);
   const overallPct = totalAllocated ? Math.round((totalUsed / totalAllocated) * 100) : 0;
 
   const handleExport = async (format: 'csv' | 'pdf') => {
@@ -164,7 +164,7 @@ export function UtilizationReportPage({
           hint: 'Overall load factor',
           tone: utilizationTone(overallPct),
         },
-        { label: 'Pending pre-advice', value: totalPending, hint: 'Upcoming intake', tone: 'warning' },
+        { label: 'Pending pre-forecast', value: totalPending, hint: 'Upcoming intake', tone: 'warning' },
       ]}
     >
       {exportMessage && (
@@ -252,7 +252,7 @@ export function UtilizationReportPage({
                     </TableCell>
                     <TableCell align="right">{r.availableForReturn}</TableCell>
                     <TableCell align="right">{r.atTerminal}</TableCell>
-                    <TableCell align="right">{r.pendingPreAdvice}</TableCell>
+                    <TableCell align="right">{r.pendingPreForecast}</TableCell>
                   </TableRow>
                 );
               })}

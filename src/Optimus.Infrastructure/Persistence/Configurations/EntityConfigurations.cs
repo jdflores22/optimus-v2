@@ -29,6 +29,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasValue<Consignee>("consignee")
             .HasValue<StaffUser>("staff")
             .HasValue<TerminalTeamUser>("terminal_team")
+            .HasValue<ContainerYardUser>("container_yard")
             .HasValue<Trucker>("trucker");
 
         builder.HasOne(x => x.ManagedShippingLine)
@@ -78,6 +79,15 @@ public class TerminalTeamUserConfiguration : IEntityTypeConfiguration<TerminalTe
     {
         builder.Property(x => x.Department).HasMaxLength(120);
         builder.Property(x => x.TerminalPermissionsJson).HasColumnType("json");
+    }
+}
+
+public class ContainerYardUserConfiguration : IEntityTypeConfiguration<ContainerYardUser>
+{
+    public void Configure(EntityTypeBuilder<ContainerYardUser> builder)
+    {
+        builder.Property(x => x.Department).HasMaxLength(120);
+        builder.Property(x => x.AssignedTerminalIdsJson).HasColumnType("json");
     }
 }
 
@@ -331,6 +341,7 @@ public static class DefaultPermissionKeys
                               || (role is AppRoles.Broker or AppRoles.Consignee && key is "data.view" or "api.access")
                               || (role == AppRoles.SlStaff && key is "data.view" or "container.manage" or "api.access")
                               || (role == AppRoles.TerminalTeam && key is "data.view" or "terminal.manage" or "api.access")
+                              || (role == AppRoles.CyStaff && key is "data.view" or "container.manage" or "api.access")
                               || (role == AppRoles.Trucker && key is "data.view" or "api.access");
                 yield return (role, key, allowed);
             }

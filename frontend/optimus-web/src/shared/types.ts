@@ -222,6 +222,10 @@ export type EdoDto = {
   releasedByName?: string | null;
   paymentValidatedAt?: string | null;
   paymentValidatedByName?: string | null;
+  isRenewed?: boolean;
+  renewedFromEdoNumber?: string | null;
+  preForecastSubmissionId?: string | null;
+  renewalPayorRole?: string | null;
 };
 
 export type GenerationSessionDto = {
@@ -392,10 +396,16 @@ export type RenewalDto = {
   expiredEdoId: string;
   expiredEdoNumber: string;
   newEdoId?: string | null;
+  newEdoNumber?: string | null;
+  containerNumber?: string | null;
+  isPreForecast: boolean;
+  preForecastSubmissionId?: string | null;
   status: string;
   overdueDays: number;
   detentionChargeAmount: number;
   paymentVerified: boolean;
+  paymentReceiptSubmitted: boolean;
+  paymentReceiptPath?: string | null;
   requestedAt: string;
   completedAt?: string | null;
 };
@@ -636,7 +646,7 @@ export type DwellConfigDto = {
   isActive: boolean;
 };
 
-export type PreAdviceDto = {
+export type PreForecastDto = {
   id: string;
   containerId: string;
   containerNumber: string;
@@ -656,6 +666,100 @@ export type PreAdviceDto = {
   createdAt: string;
 };
 
+export type TruckerPreForecastSearchResultDto = {
+  containerId: string;
+  containerNumber: string;
+  edoId?: string | null;
+  edoNumber?: string | null;
+  edoStatus?: string | null;
+  edoExpiresAt?: string | null;
+  edoExpired: boolean;
+  overdueDays: number;
+  estimatedDetention: number;
+  manifestId?: string | null;
+  brokerName?: string | null;
+  consigneeName?: string | null;
+  brokerId?: string | null;
+  consigneeId?: string | null;
+  containerSize?: string | null;
+  containerType?: string | null;
+  containerStatus?: string | null;
+  cyLocation?: string | null;
+  manifestNumber?: string | null;
+  blNumber?: string | null;
+  vesselName?: string | null;
+  voyageNumber?: string | null;
+  shippingLineName?: string | null;
+};
+
+export type TruckerPreForecastVerifyDto = {
+  valid: boolean;
+  message: string;
+  verificationToken?: string | null;
+  match?: TruckerPreForecastSearchResultDto | null;
+};
+
+export type TruckerPreForecastPhotoDto = {
+  id: string;
+  category: string;
+  label: string;
+  filePath: string;
+  originalName?: string | null;
+  comment?: string | null;
+};
+
+export type TruckerPreForecastSubmissionDto = {
+  id: string;
+  containerId: string;
+  containerNumber: string;
+  sizeCode?: string | null;
+  expiredEdoId: string;
+  expiredEdoNumber: string;
+  renewalRequestId?: string | null;
+  status: string;
+  returnDate: string;
+  detentionAmount: number;
+  overdueDays: number;
+  awaitingDetentionPayment: boolean;
+  message: string;
+  photos: TruckerPreForecastPhotoDto[];
+  preferredTerminalId?: string | null;
+  preferredTerminalName?: string | null;
+  assignedTerminalId?: string | null;
+  assignedTerminalName?: string | null;
+  assignedSlotId?: string | null;
+  assignedSlotDate?: string | null;
+  cyConfirmedReturnDate?: string | null;
+  terminalNotes?: string | null;
+  cyNotes?: string | null;
+  newEdoId?: string | null;
+  newEdoNumber?: string | null;
+  truckerName?: string | null;
+  shippingLineBrandName?: string | null;
+  edoExpired?: boolean;
+  truckerPreferredReturnDate?: string;
+  scheduleDeltaDays?: number;
+  detentionAtPreferredDate?: number;
+  extraDaysDetentionAmount?: number;
+  extraDaysWaived?: boolean;
+  manifestNumber?: string | null;
+  brokerName?: string | null;
+  consigneeName?: string | null;
+  detentionBillingPdfPath?: string | null;
+  detentionBillingBaseAmount?: number | null;
+  detentionBillingExtraAmount?: number | null;
+  freeTimeUntil?: string | null;
+  expiredEdoExpiresAt?: string | null;
+  detentionRatePerDay?: number;
+  detentionRateAtCalculation?: number;
+  overdueDaysAtPreferred?: number;
+  overdueDaysAtCyConfirmed?: number;
+  detentionPaymentReceiptSubmitted?: boolean;
+  detentionPaymentReceiptPath?: string | null;
+  renewalEdoStatus?: string | null;
+  renewalEdoPaymentStatus?: string | null;
+};
+
 export type TruckerTokenDto = {
   apiToken: string;
   expiresAt: string;
@@ -671,7 +775,7 @@ export type UtilizationReportDto = {
   utilizationPercent: number;
   availableForReturn: number;
   atTerminal: number;
-  pendingPreAdvice: number;
+  pendingPreForecast: number;
 };
 
 export type FormConfigurationDto = {

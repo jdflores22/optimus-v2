@@ -8,6 +8,7 @@ using Optimus.Application.Yard.Dtos;
 using Optimus.Application.Yard.Interfaces;
 using Optimus.Domain.Entities;
 using Optimus.Infrastructure.Persistence;
+using Optimus.Shared.Constants;
 
 namespace Optimus.Infrastructure.Platform;
 
@@ -168,7 +169,114 @@ public class EnhancedNotificationService : INotificationService
     {
         var item = await _db.InAppNotifications.AsNoTracking()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.Id == notificationId, ct);
-        return item is null ? null : MapNotification(item);
+        if (item is not null)
+        {
+            return MapNotification(item);
+        }
+
+        var peer = await _db.InAppNotifications.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == notificationId, ct);
+        if (peer is null || !await CanAccessSharedNotificationAsync(userId, peer, ct))
+        {
+            return null;
+        }
+
+        var mine = await _db.InAppNotifications.AsNoTracking()
+            .Where(x =>
+                x.UserId == userId
+                && x.SubjectType == peer.SubjectType
+                && x.SubjectId == peer.SubjectId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        return MapNotification(mine ?? peer);
+    }
+
+    private async Task<bool> CanAccessSharedNotificationAsync(
+        Guid userId,
+        InAppNotification peer,
+        CancellationToken ct)
+    {
+        if (peer.SubjectId is null || string.IsNullOrWhiteSpace(peer.SubjectType))
+        {
+            return false;
+        }
+
+        var role = await _db.Users.AsNoTracking()
+            .Where(x => x.Id == userId)
+            .Select(x => x.Role)
+            .FirstOrDefaultAsync(ct);
+        if (role is null)
+        {
+            return false;
+        }
+
+        if (role == AppRoles.SystemAdmin)
+        {
+            return true;
+        }
+
+        if (peer.SubjectType == nameof(TruckerPreForecastSubmission))
+        {
+            if (role is AppRoles.ShippingLinesAdmin or AppRoles.SlStaff or AppRoles.Accounting or AppRoles.TerminalTeam)
+            {
+                return true;
+            }
+
+            if (role == AppRoles.Trucker)
+            {
+                var truckerId = await _db.TruckerPreForecastSubmissions.AsNoTracking()
+                    .Where(x => x.Id == peer.SubjectId)
+                    .Select(x => x.TruckerId)
+                    .FirstOrDefaultAsync(ct);
+                return truckerId == userId;
+            }
+
+            return await _db.InAppNotifications.AsNoTracking()
+                .AnyAsync(x => x.UserId == userId && x.SubjectId == peer.SubjectId, ct);
+        }
+
+        if (peer.SubjectType == nameof(Manifest))
+        {
+            return role is AppRoles.ShippingLinesAdmin or AppRoles.SlStaff or AppRoles.Accounting
+                or AppRoles.Evaluator or AppRoles.TerminalTeam;
+        }
+
+        return await _db.InAppNotifications.AsNoTracking()
+            .AnyAsync(
+                x => x.UserId == userId
+                     && x.SubjectType == peer.SubjectType
+                     && x.SubjectId == peer.SubjectId,
+                ct);
+    }
+
+    private async Task MarkReadForSubjectAsync(
+        Guid userId,
+        string? subjectType,
+        Guid? subjectId,
+        CancellationToken ct)
+    {
+        if (subjectId is null || string.IsNullOrWhiteSpace(subjectType))
+        {
+            return;
+        }
+
+        var mine = await _db.InAppNotifications
+            .Where(x =>
+                x.UserId == userId
+                && !x.IsRead
+                && x.SubjectType == subjectType
+                && x.SubjectId == subjectId)
+            .ToListAsync(ct);
+        foreach (var n in mine)
+        {
+            n.IsRead = true;
+        }
+
+        if (mine.Count > 0)
+        {
+            await _db.SaveChangesAsync(ct);
+        }
     }
 
     private static NotificationDto MapNotification(InAppNotification x) =>
@@ -176,10 +284,43 @@ public class EnhancedNotificationService : INotificationService
 
     public async Task MarkReadAsync(Guid userId, Guid? notificationId, CancellationToken ct = default)
     {
+        if (notificationId.HasValue)
+        {
+            var owned = await _db.InAppNotifications
+                .Where(x => x.UserId == userId && x.Id == notificationId.Value)
+                .ToListAsync(ct);
+            if (owned.Count > 0)
+            {
+                foreach (var n in owned)
+                {
+                    n.IsRead = true;
+                }
+
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
+
+            var peer = await _db.InAppNotifications.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == notificationId.Value, ct);
+            if (peer is not null && await CanAccessSharedNotificationAsync(userId, peer, ct))
+            {
+                await MarkReadForSubjectAsync(userId, peer.SubjectType, peer.SubjectId, ct);
+                return;
+            }
+        }
+
         var q = _db.InAppNotifications.Where(x => x.UserId == userId && !x.IsRead);
-        if (notificationId.HasValue) q = q.Where(x => x.Id == notificationId);
+        if (notificationId.HasValue)
+        {
+            q = q.Where(x => x.Id == notificationId);
+        }
+
         var items = await q.ToListAsync(ct);
-        foreach (var n in items) n.IsRead = true;
+        foreach (var n in items)
+        {
+            n.IsRead = true;
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 

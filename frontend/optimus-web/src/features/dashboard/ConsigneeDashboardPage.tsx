@@ -241,7 +241,7 @@ export function ConsigneeDashboardPage() {
       label: 'Payment Required',
       value: paymentNeeded.length,
       hint: paymentNeeded.length ? 'Action needed' : 'All paid',
-      to: '/payments',
+      to: '/manifest-payments',
       color: paymentNeeded.length ? '#C62828' : '#2E7D32',
       bg: paymentNeeded.length ? 'rgba(198,40,40,0.08)' : 'rgba(46,125,50,0.08)',
       icon: CreditCardOutlinedIcon,

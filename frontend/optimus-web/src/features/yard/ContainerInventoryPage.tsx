@@ -17,8 +17,11 @@ import {
   Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../app/store';
 import {
   useGetContainerInventoryQuery,
+  useGetContainerInventoryDepotsQuery,
   useGetCyAllocationsQuery,
 } from '../../app/api';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
@@ -51,6 +54,8 @@ function sizeTone(label: string): 'info' | 'warning' | 'error' {
 }
 
 export function ContainerInventoryPage() {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isCyStaff = user?.role === 'CyStaff';
   const [tab, setTab] = useState<string>('all');
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -61,10 +66,14 @@ export function ContainerInventoryPage() {
     shippingLineId
       ? { shippingLineId, containerYardsOnly: false, activeTerminalsOnly: true }
       : undefined,
-    { skip: !shippingLineId },
+    { skip: !shippingLineId || isCyStaff },
   );
+  const { data: cyDepots = [] } = useGetContainerInventoryDepotsQuery(undefined, { skip: !isCyStaff });
 
   const depots = useMemo(() => {
+    if (isCyStaff) {
+      return [...cyDepots].sort((a, b) => a.localeCompare(b));
+    }
     const seen = new Set<string>();
     return contractAllocations
       .map((a) => a.terminalName)
@@ -74,7 +83,7 @@ export function ContainerInventoryPage() {
         return true;
       })
       .sort((a, b) => a.localeCompare(b));
-  }, [contractAllocations]);
+  }, [contractAllocations, cyDepots, isCyStaff]);
 
   const activeDepot = tab === 'all' ? undefined : tab;
 

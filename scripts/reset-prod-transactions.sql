@@ -10,7 +10,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 DELETE FROM geotag_photos;
-DELETE FROM pre_advice_requests;
+DELETE FROM pre_forecast_requests;
 DELETE FROM dwell_time_events;
 DELETE FROM container_allocation_audits;
 DELETE FROM repositioning_request_items;

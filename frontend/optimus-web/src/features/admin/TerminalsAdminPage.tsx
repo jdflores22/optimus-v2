@@ -579,7 +579,7 @@ export function TerminalsAdminPage() {
         <DialogTitle>Delete terminal?</DialogTitle>
         <DialogContent>
           <Typography color="text.secondary">
-            This cannot be undone. Terminals with pre-advice requests cannot be deleted — deactivate instead.
+            This cannot be undone. Terminals with pre-forecast requests cannot be deleted — deactivate instead.
           </Typography>
         </DialogContent>
         <DialogActions>

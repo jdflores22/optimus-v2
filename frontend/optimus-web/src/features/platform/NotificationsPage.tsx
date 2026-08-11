@@ -45,7 +45,7 @@ export function NotificationsPage() {
 
   const unread = useMemo(() => items.filter((x) => !x.isRead).length, [items]);
   const critical = useMemo(
-    () => items.filter((x) => ['appeal', 'suspension', 'pre_advice'].includes((x.category ?? '').toLowerCase())).length,
+    () => items.filter((x) => ['appeal', 'suspension', 'pre_forecast', 'pre_advice', 'trucker_pre_forecast', 'yard.pre_forecast'].includes((x.category ?? '').toLowerCase())).length,
     [items],
   );
 

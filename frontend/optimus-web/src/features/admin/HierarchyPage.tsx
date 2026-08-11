@@ -50,12 +50,13 @@ const SYSTEM_ROLES = [
   'Evaluator',
   'Accounting',
   'TerminalTeam',
+  'CyStaff',
   'Broker',
   'Consignee',
   'Trucker',
 ];
 
-const TEAM_INVITE_ROLES = ['SlStaff', 'Evaluator', 'Accounting', 'TerminalTeam'];
+const TEAM_INVITE_ROLES = ['SlStaff', 'Evaluator', 'Accounting', 'TerminalTeam', 'CyStaff'];
 
 const EMPTY_INVITE = {
   email: '',

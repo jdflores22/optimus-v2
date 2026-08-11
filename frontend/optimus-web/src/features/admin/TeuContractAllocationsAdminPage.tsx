@@ -26,11 +26,12 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { useSearchParams } from 'react-router-dom';
 import {
   useGetCyAllocationsQuery,
+  useGetHierarchyUsersQuery,
   useGetShippingLinesQuery,
   useGetTerminalsQuery,
   useUpsertCyAllocationMutation,
 } from '../../app/api';
-import { terminalTypeLabel } from '../../shared/terminalTaxonomy';
+import { isContainerYardTerminal, terminalTypeLabel } from '../../shared/terminalTaxonomy';
 import { computeContractTeu, teuFrom20FtSlots, teuFrom40FtSlots } from '../../shared/teuUtils';
 import { AdminFilterBar, AdminSearchField, AdminSelectField } from '../shared/AdminFilterBar';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
@@ -42,6 +43,7 @@ type FormState = {
   terminalId: string;
   capacity20Ft: number;
   capacity40Ft: number;
+  staffUserId: string;
 };
 
 function emptyForm(): FormState {
@@ -50,6 +52,7 @@ function emptyForm(): FormState {
     terminalId: '',
     capacity20Ft: 25,
     capacity40Ft: 12,
+    staffUserId: '',
   };
 }
 
@@ -69,6 +72,7 @@ export function TeuContractAllocationsAdminPage() {
   });
   const { data: shippingLines = [] } = useGetShippingLinesQuery();
   const { data: terminals = [] } = useGetTerminalsQuery({ activeOnly: false });
+  const { data: hierarchyUsers = [] } = useGetHierarchyUsersQuery();
   const [upsertAllocation] = useUpsertCyAllocationMutation();
 
   const [search, setSearch] = useState('');
@@ -87,10 +91,57 @@ export function TeuContractAllocationsAdminPage() {
     }
   }, [initialTerminalId]);
 
+  const cyStaffById = useMemo(
+    () => new Map(hierarchyUsers.filter((u) => u.role === 'CyStaff').map((u) => [u.id, u])),
+    [hierarchyUsers],
+  );
+
+  const cyStaffOptions = useMemo(
+    () => hierarchyUsers.filter((u) => u.role === 'CyStaff' && u.status === 'Approved'),
+    [hierarchyUsers],
+  );
+
   const terminalById = useMemo(
     () => new Map(terminals.map((t) => [t.id, t])),
     [terminals],
   );
+
+  const cyStaffAssignedElsewhere = useMemo(() => {
+    const map = new Map<string, { terminalId: string; terminalName: string }>();
+    for (const a of allocations) {
+      if (!a.staffUserId) continue;
+      const terminal = terminalById.get(a.terminalId);
+      if (!terminal || !isContainerYardTerminal(terminal.identity)) continue;
+      if (editingId === a.id) continue;
+      if (!map.has(a.staffUserId)) {
+        map.set(a.staffUserId, { terminalId: a.terminalId, terminalName: a.terminalName });
+      }
+    }
+    return map;
+  }, [allocations, terminalById, editingId]);
+
+  const duplicateCyStaffIds = useMemo(() => {
+    const byUser = new Map<string, Set<string>>();
+    for (const a of allocations) {
+      if (!a.staffUserId) continue;
+      const terminal = terminalById.get(a.terminalId);
+      if (!terminal || !isContainerYardTerminal(terminal.identity)) continue;
+      const terminals = byUser.get(a.staffUserId) ?? new Set<string>();
+      terminals.add(a.terminalId);
+      byUser.set(a.staffUserId, terminals);
+    }
+    return new Set([...byUser.entries()].filter(([, terminals]) => terminals.size > 1).map(([userId]) => userId));
+  }, [allocations, terminalById]);
+
+  const formTerminal = terminalById.get(form.terminalId);
+  const formIsCy = formTerminal ? isContainerYardTerminal(formTerminal.identity) : false;
+
+  const selectableCyStaff = useMemo(() => {
+    return cyStaffOptions.filter((u) => {
+      const assigned = cyStaffAssignedElsewhere.get(u.id);
+      return !assigned || assigned.terminalId === form.terminalId;
+    });
+  }, [cyStaffOptions, cyStaffAssignedElsewhere, form.terminalId]);
 
   const stats = useMemo(() => {
     const totalContractTeu = allocations.reduce((sum, a) => sum + a.allocatedCapacityTeu, 0);
@@ -144,6 +195,7 @@ export function TeuContractAllocationsAdminPage() {
       terminalId: row.terminalId,
       capacity20Ft: row.capacity20Ft,
       capacity40Ft: row.capacity40Ft,
+      staffUserId: row.staffUserId ?? '',
     });
     setError(null);
     setDialogOpen(true);
@@ -161,6 +213,14 @@ export function TeuContractAllocationsAdminPage() {
       return;
     }
 
+    if (form.staffUserId && formIsCy) {
+      const assigned = cyStaffAssignedElsewhere.get(form.staffUserId);
+      if (assigned && assigned.terminalId !== form.terminalId) {
+        setError(`${cyStaffById.get(form.staffUserId)?.fullName ?? 'This CY staff member'} is already assigned to ${assigned.terminalName}.`);
+        return;
+      }
+    }
+
     try {
       await upsertAllocation({
         id: editingId ?? undefined,
@@ -169,6 +229,7 @@ export function TeuContractAllocationsAdminPage() {
         allocatedCapacityTeu,
         capacity20Ft: form.capacity20Ft,
         capacity40Ft: form.capacity40Ft,
+        staffUserId: form.staffUserId || null,
       }).unwrap();
       setDialogOpen(false);
       setMessage(editingId ? 'Contract allocation updated.' : 'Contract allocation created.');
@@ -262,6 +323,7 @@ export function TeuContractAllocationsAdminPage() {
                 <TableRow>
                   <TableCell>Shipping line</TableCell>
                   <TableCell>Terminal / CY</TableCell>
+                  <TableCell>CY contact</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell align="right">Contract TEU</TableCell>
                   <TableCell align="right">Used TEU</TableCell>
@@ -292,6 +354,20 @@ export function TeuContractAllocationsAdminPage() {
                           <Typography variant="caption" color="text.secondary">
                             {terminal.code}
                           </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {a.staffUserId ? (
+                          <Stack spacing={0.25}>
+                            <Typography variant="body2">
+                              {cyStaffById.get(a.staffUserId)?.fullName ?? 'Assigned CY staff'}
+                            </Typography>
+                            {duplicateCyStaffIds.has(a.staffUserId) && (
+                              <Chip size="small" label="Duplicate CY contact" color="error" variant="outlined" />
+                            )}
+                          </Stack>
+                        ) : (
+                          <Chip size="small" label="No CY contact" color="warning" variant="outlined" />
                         )}
                       </TableCell>
                       <TableCell>
@@ -373,7 +449,16 @@ export function TeuContractAllocationsAdminPage() {
               required
               disabled={!!editingId}
               value={form.terminalId}
-              onChange={(e) => setForm({ ...form, terminalId: e.target.value })}
+              onChange={(e) => {
+                const nextTerminalId = e.target.value;
+                const nextTerminal = terminalById.get(nextTerminalId);
+                const nextIsCy = nextTerminal ? isContainerYardTerminal(nextTerminal.identity) : false;
+                setForm({
+                  ...form,
+                  terminalId: nextTerminalId,
+                  staffUserId: nextIsCy ? form.staffUserId : '',
+                });
+              }}
               helperText={
                 editingId
                   ? 'Location cannot be changed on an existing contract.'
@@ -387,6 +472,27 @@ export function TeuContractAllocationsAdminPage() {
                 </MenuItem>
               ))}
             </TextField>
+            {formIsCy && (
+              <TextField
+                select
+                label="CY staff contact"
+                value={form.staffUserId}
+                onChange={(e) => setForm({ ...form, staffUserId: e.target.value })}
+                helperText="One depot staff account per container yard — receives pre-forecast alerts for this CY only."
+              >
+                <MenuItem value="">No CY contact assigned</MenuItem>
+                {selectableCyStaff.map((u) => (
+                  <MenuItem key={u.id} value={u.id}>
+                    {u.fullName} ({u.email})
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+            {!formIsCy && form.terminalId && (
+              <Alert severity="info" variant="outlined">
+                CY staff contacts apply to container yards only. Port terminal contracts do not use depot staff assignment.
+              </Alert>
+            )}
             <Stack direction="row" spacing={2}>
               <TextField
                 type="number"

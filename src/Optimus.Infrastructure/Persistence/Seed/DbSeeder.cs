@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -128,9 +129,24 @@ public static class DbSeeder
             logger.LogInformation("Seeded eDO payment fee configuration.");
         }
 
+        if (!await db.PaymentFeeConfigurations.AnyAsync(x => x.FeeType == "detention" && x.IsActive))
+        {
+            var admin = await db.Users.FirstAsync(x => x.Email == "admin@optimus.local");
+            db.PaymentFeeConfigurations.Add(new PaymentFeeConfiguration
+            {
+                FeeType = "detention",
+                Amount = 150m,
+                ConfiguredById = admin.Id,
+                IsActive = true
+            });
+            await db.SaveChangesAsync();
+            logger.LogInformation("Seeded detention rate configuration.");
+        }
+
         await EnsureYardSeedAsync(db, logger);
         await EnsureOpsSeedAsync(db, logger);
         await EnsurePlatformSeedAsync(db, logger);
+        await RepairDuplicateCyStaffContactsAsync(db, logger);
     }
 
     private static async Task EnsurePlatformSeedAsync(OptimusDbContext db, ILogger logger)
@@ -158,7 +174,7 @@ public static class DbSeeder
             "<p>{{name}},</p><p>{{message}}</p>");
         await EnsureTemplate("notify.payment", "email", "Payment notification", "{{title}}",
             "<p>{{name}},</p><p>{{message}}</p>");
-        await EnsureTemplate("notify.preadvice", "sms", "Pre-advice SMS", null, "OPTIMUS: {{title}} — {{message}}");
+        await EnsureTemplate("notify.preforecast", "sms", "Pre-forecast SMS", null, "OPTIMUS: {{title}} — {{message}}");
 
         if (!await db.SystemSettings.AnyAsync())
         {
@@ -183,10 +199,38 @@ public static class DbSeeder
             {
                 Name = "Auth endpoints",
                 PathPrefix = "/api/auth",
-                PermitLimit = 30,
+                PermitLimit = 60,
                 WindowSeconds = 60,
                 IsActive = true
             });
+            db.RateLimitRules.Add(new RateLimitRule
+            {
+                Name = "Public document verify",
+                PathPrefix = "/api/verify",
+                PermitLimit = 20,
+                WindowSeconds = 60,
+                IsActive = true
+            });
+        }
+
+        if (!await db.RateLimitRules.AnyAsync(x => x.PathPrefix == "/api/verify"))
+        {
+            db.RateLimitRules.Add(new RateLimitRule
+            {
+                Name = "Public document verify",
+                PathPrefix = "/api/verify",
+                PermitLimit = 20,
+                WindowSeconds = 60,
+                IsActive = true
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var authRule = await db.RateLimitRules.FirstOrDefaultAsync(x => x.PathPrefix == "/api/auth");
+        if (authRule is not null && authRule.PermitLimit < 60)
+        {
+            authRule.PermitLimit = 60;
+            await db.SaveChangesAsync();
         }
 
         if (!await db.DocumentTemplates.AnyAsync())
@@ -362,7 +406,6 @@ public static class DbSeeder
         }
 
         var line = await db.ShippingLines.FirstOrDefaultAsync();
-        var staff = await db.Users.FirstOrDefaultAsync(x => x.Email == "slstaff@optimus.local");
         if (line is not null &&
             !await db.ShippingLineTerminalAllocations.AnyAsync(x => x.ShippingLineId == line.Id && x.TerminalId == terminal.Id))
         {
@@ -370,7 +413,6 @@ public static class DbSeeder
             {
                 ShippingLineId = line.Id,
                 TerminalId = terminal.Id,
-                StaffUserId = staff?.Id,
                 AllocatedCapacityTeu = 100,
                 Capacity20Ft = 60,
                 Capacity40Ft = 20
@@ -407,7 +449,6 @@ public static class DbSeeder
             {
                 ShippingLineId = line.Id,
                 TerminalId = seaTerminal.Id,
-                StaffUserId = staff?.Id,
                 AllocatedCapacityTeu = 80,
                 Capacity20Ft = 40,
                 Capacity40Ft = 20
@@ -546,6 +587,48 @@ public static class DbSeeder
         logger.LogInformation("Ensured Phase 4 yard seed data.");
     }
 
+    /// <summary>
+    /// Clears CY contacts when the same CyStaff user is linked to more than one container yard.
+    /// </summary>
+    private static async Task RepairDuplicateCyStaffContactsAsync(OptimusDbContext db, ILogger logger)
+    {
+        var cyAllocations = await db.ShippingLineTerminalAllocations
+            .Include(x => x.Terminal)
+            .Where(x => x.StaffUserId != null && x.Terminal.Identity == TerminalIdentity.ContainerYard)
+            .ToListAsync();
+
+        var duplicateGroups = cyAllocations
+            .GroupBy(x => x.StaffUserId!.Value)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        if (duplicateGroups.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var group in duplicateGroups)
+        {
+            foreach (var allocation in group)
+            {
+                allocation.StaffUserId = null;
+            }
+
+            var cyUser = await db.ContainerYardUsers.FirstOrDefaultAsync(x => x.Id == group.Key);
+            if (cyUser is not null)
+            {
+                cyUser.AssignedTerminalIdsJson = "[]";
+            }
+
+            logger.LogWarning(
+                "Cleared duplicate CY contact from {Count} container yard contracts (user {UserId}). Reassign one depot per CyStaff account.",
+                group.Count(),
+                group.Key);
+        }
+
+        await db.SaveChangesAsync();
+    }
+
     private static async Task EnsureRoleUsersAsync(
         OptimusDbContext db,
         ShippingLine demoLine,
@@ -635,6 +718,17 @@ public static class DbSeeder
             ShippingLineAdminId = slAdmin.Id
         });
 
+        var cyStaff = await EnsureUser("cy@optimus.local", () => new ContainerYardUser
+        {
+            FirstName = "Carla",
+            LastName = "Yard",
+            Role = AppRoles.CyStaff,
+            UserType = UserType.ContainerYard,
+            Department = "Container Yard",
+            ShippingLineAdminId = slAdmin.Id
+        });
+        cyStaff.AssignedTerminalIdsJson = "[]";
+
         var broker = await EnsureUser("broker@optimus.local", () => new Broker
         {
             FirstName = "Bobby",
@@ -695,7 +789,7 @@ public static class DbSeeder
             brokerEntity.ActiveWorkspaceConsigneeId ??= consignee.Id;
         }
 
-        foreach (var user in new User[] { admin, slAdmin, slStaff, evaluator, accounting, terminal, broker, consignee, trucker })
+        foreach (var user in new User[] { admin, slAdmin, slStaff, evaluator, accounting, terminal, cyStaff, broker, consignee, trucker })
         {
             if (!await db.UserShippingLinePreferences.AnyAsync(x => x.UserId == user.Id))
             {

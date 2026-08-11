@@ -17,7 +17,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { RootState } from '../../app/store';
 import { RouteAccessGuard } from '../auth/RouteAccessGuard';
 import { formatRoleLabel } from '../../shared/roleLabels';
-import { DRAWER_WIDTH, getBottomNavItems } from './navConfig';
+import { DRAWER_WIDTH, findActiveNavIndex, getBottomNavItems } from './navConfig';
 import { SideNav } from './SideNav';
 import { SidebarBrandHeader } from './SidebarBrandHeader';
 import { TopBar } from './TopBar';
@@ -44,12 +44,7 @@ export function AppShell() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const bottomValue =
-    bottomItems.findIndex(
-      (item) =>
-        item.path === location.pathname ||
-        (item.path !== '/' && location.pathname.startsWith(item.path)),
-    ) ?? -1;
+  const bottomValue = findActiveNavIndex(location.pathname, bottomItems);
 
   const drawerContent = (
     <Box

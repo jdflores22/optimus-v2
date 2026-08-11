@@ -16,6 +16,7 @@ export function isBrokerAccredited(
 
 const BROKER_ACCREDITATION_PATHS = [
   /^\/manifests(\/|$)/,
+  /^\/manifest-payments$/,
   /^\/edo(\/|$)/,
   /^\/payments(\/|$)/,
   /^\/transfers$/,

@@ -11,7 +11,7 @@
 | manifests / NOA / billing | `manifests`, `noas`, `billings` | WorkflowState enum strings |
 | payments | `payments`, `edo_payments` | Status enum |
 | eDO | `electronic_delivery_orders`, `edo_versions`, … | Single eDO/CRO module |
-| terminals / containers | `terminals`, `containers`, `pre_advice_requests` | |
+| terminals / containers | `terminals`, `containers`, `pre_forecast_requests` | |
 | SAS / transfers / appeals | `form_configurations`, `accreditation_submissions`, … | |
 | notifications | `in_app_notifications`, prefs, deliveries | Optional historical |
 

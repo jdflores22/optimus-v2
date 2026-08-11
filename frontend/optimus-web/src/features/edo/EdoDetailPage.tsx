@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -10,15 +10,17 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
+import AutorenewOutlinedIcon from '@mui/icons-material/AutorenewOutlined';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined';
-import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../app/store';
-import { useGetEdoAuditQuery, useGetEdoQuery, useGetActivePaymentFeeQuery } from '../../app/api';
+import { useGetEdoAuditQuery, useGetEdoQuery, useGetActivePaymentFeeQuery, useRegenerateEdoPdfMutation } from '../../app/api';
 import { openEdoFile } from '../../shared/edoDownload';
+import { edoPayToOpenNotice, shouldShowEdoPayToOpenNotice, canSubmitEdoPayToOpen, isPreForecastRenewalEdo } from '../../shared/edoPayToOpen';
 import { resolveEdoFeeAmount } from '../../shared/paymentFees';
 import {
   edoCanDownload,
@@ -31,6 +33,8 @@ import {
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
 import { DetailRow } from '../shared/DetailRow';
 import { EdoActivityTimeline } from './EdoActivityTimeline';
+import { edoPayToOpenPath } from './edoPayToOpenPaths';
+import { RenewedEdoBadge } from './RenewedEdoBadge';
 
 type TabKey = 'overview' | 'payment' | 'files' | 'activity';
 
@@ -69,20 +73,35 @@ export function EdoDetailPage() {
   const tab = parseTab(searchParams.get('tab'));
   const { user, accessToken } = useSelector((state: RootState) => state.auth);
 
-  const { data: edo, isLoading, error } = useGetEdoQuery(id, { skip: !id });
+  const { data: edo, isLoading, error } = useGetEdoQuery(id, {
+    skip: !id,
+    refetchOnMountOrArgChange: true,
+  });
   const { data: audit = [], isLoading: auditLoading } = useGetEdoAuditQuery(id, { skip: !id });
   const { data: edoFee } = useGetActivePaymentFeeQuery('edo');
+  const [regeneratePdf, { isLoading: regenerating }] = useRegenerateEdoPdfMutation();
+  const [regenerateMessage, setRegenerateMessage] = useState<string | null>(null);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
 
   const backPath =
     from === 'release'
       ? '/edo/release'
       : from === 'validation'
         ? '/edo/payment-validation'
-        : '/edo';
+        : from === 'pre-forecast'
+          ? edo?.preForecastSubmissionId
+            ? `/pre-forecast/${edo.preForecastSubmissionId}`
+            : '/pre-forecast?tab=submissions'
+          : user?.role === 'Trucker'
+            ? '/pre-forecast?tab=submissions'
+            : '/edo';
 
-  const canPay = ['Broker', 'Consignee'].includes(user?.role ?? '');
-  const canDownload = edo ? edoCanDownload(edo.status, user?.role) : false;
+  const role = user?.role ?? '';
+  const canRegeneratePdf = ['SlStaff', 'ShippingLinesAdmin', 'SystemAdmin'].includes(role);
+  const canDownload = edo ? edoCanDownload(edo.status, role) : false;
   const needsPayment = edo ? edoNeedsPayment(edo.status, edo.currentPaymentStatus) : false;
+  const showPayNotice = shouldShowEdoPayToOpenNotice(role);
+  const canSubmitPayment = edo ? canSubmitEdoPayToOpen(role, edo) : false;
 
   const setTab = (next: TabKey) => {
     const params = new URLSearchParams(searchParams);
@@ -90,17 +109,24 @@ export function EdoDetailPage() {
     setSearchParams(params, { replace: true });
   };
 
-  useEffect(() => {
-    if (!searchParams.get('tab')) {
-      const params = new URLSearchParams(searchParams);
-      params.set('tab', 'overview');
-      setSearchParams(params, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
-
   const openDocument = async (kind: 'download' | 'qr') => {
     if (!accessToken || !edo) return;
     await openEdoFile(edo.id, kind, accessToken);
+  };
+
+  const handleRegeneratePdf = async (openAfter = false) => {
+    if (!edo || !accessToken) return;
+    setRegenerateMessage(null);
+    setRegenerateError(null);
+    try {
+      const updated = await regeneratePdf(edo.id).unwrap();
+      setRegenerateMessage('PDF regenerated with the ICS CRO/eDO template.');
+      if (openAfter) {
+        await openEdoFile(edo.id, 'download', accessToken, updated.pdfPath);
+      }
+    } catch (e: unknown) {
+      setRegenerateError(e instanceof Error ? e.message : 'Could not regenerate PDF.');
+    }
   };
 
   const statusLabel = useMemo(
@@ -124,6 +150,17 @@ export function EdoDetailPage() {
     lockSnapshot:
       edoPaymentSubmitted(edo.currentPaymentStatus) && !edoPaymentRejected(edo.currentPaymentStatus),
   });
+  const payNotice = edoPayToOpenNotice(role, edo, money(feeAmount));
+  const isRenewedPreForecast = isPreForecastRenewalEdo(edo);
+  const paymentPageFrom = from === 'pre-forecast' ? 'pre-forecast' : undefined;
+
+  if (
+    isRenewedPreForecast &&
+    canSubmitPayment &&
+    (needsPayment || tab === 'payment')
+  ) {
+    return <Navigate to={edoPayToOpenPath(edo.id, paymentPageFrom)} replace />;
+  }
 
   return (
     <WorkflowPage
@@ -133,6 +170,7 @@ export function EdoDetailPage() {
       chips={
         <>
           <Chip size="small" label={statusLabel} color={statusTone(edo.status)} />
+          {edo.isRenewed && <RenewedEdoBadge variant="outlined" />}
           <Chip size="small" label={edo.manifestNumber} variant="outlined" sx={{ fontFamily: 'monospace' }} />
         </>
       }
@@ -162,6 +200,32 @@ export function EdoDetailPage() {
         },
       ]}
     >
+      {payNotice && (
+        <Alert severity={payNotice.severity} sx={{ mb: 2 }}>
+          <Typography fontWeight={800} gutterBottom>
+            {payNotice.title}
+          </Typography>
+          <Typography variant="body2">{payNotice.body}</Typography>
+          {canSubmitPayment && isRenewedPreForecast && (
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              component={RouterLink}
+              to={edoPayToOpenPath(edo.id, paymentPageFrom)}
+              sx={{ mt: 1.5 }}
+            >
+              Go to payment page
+            </Button>
+          )}
+          {canSubmitPayment && !isRenewedPreForecast && tab !== 'payment' && (
+            <Button size="small" variant="outlined" color="warning" sx={{ mt: 1.5 }} onClick={() => setTab('payment')}>
+              Go to payment
+            </Button>
+          )}
+        </Alert>
+      )}
+
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
         <Tabs
           value={tab}
@@ -240,7 +304,14 @@ export function EdoDetailPage() {
           )}
 
           {tab === 'payment' && (
-            <WorkflowSection title="Payment" subtitle="Broker eDO access fee and provider validation.">
+            <WorkflowSection
+              title="Payment"
+              subtitle={
+                edo.isRenewed
+                  ? 'Pre-forecast renewed CRO/eDO — trucker pays the access fee to open the document.'
+                  : 'Broker eDO access fee and provider validation.'
+              }
+            >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                 <DetailRow
                   label="Fee amount"
@@ -250,8 +321,31 @@ export function EdoDetailPage() {
                 <DetailRow label="Submitted" value={formatWhen(edo.paymentSubmittedAt)} />
                 <DetailRow label="Validated" value={formatWhen(edo.paymentValidatedAt)} />
                 <DetailRow label="Validated by" value={edo.paymentValidatedByName ?? '—'} />
+                {edo.isRenewed && edo.renewedFromEdoNumber && (
+                  <DetailRow label="Replaces expired" value={edo.renewedFromEdoNumber} />
+                )}
               </Paper>
-              {canPay && needsPayment && (
+              {needsPayment && showPayNotice && isRenewedPreForecast && canSubmitPayment && (
+                <Box mt={2}>
+                  <Button
+                    component={RouterLink}
+                    to={edoPayToOpenPath(edo.id, paymentPageFrom)}
+                    variant="contained"
+                    color="warning"
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Open payment page
+                  </Button>
+                </Box>
+              )}
+              {needsPayment && showPayNotice && !canSubmitPayment && (
+                <Alert severity="warning" variant="outlined" sx={{ mt: 2 }}>
+                  {edo.renewalPayorRole === 'Trucker' || edo.isRenewed
+                    ? 'Only the trucker who submitted the pre-forecast can upload payment for this renewed document.'
+                    : 'Only the manifest broker or consignee can submit payment for this document.'}
+                </Alert>
+              )}
+              {needsPayment && canSubmitPayment && role !== 'Trucker' && !edo.isRenewed && (
                 <Box mt={2}>
                   <Button
                     component={RouterLink}
@@ -260,7 +354,7 @@ export function EdoDetailPage() {
                     color="warning"
                     sx={{ textTransform: 'none' }}
                   >
-                    Pay eDO fee
+                    Open full payment form
                   </Button>
                 </Box>
               )}
@@ -269,12 +363,52 @@ export function EdoDetailPage() {
 
           {tab === 'files' && (
             <WorkflowSection title="Files" subtitle="PDF and QR are available after release (or for platform admin).">
+              {canRegeneratePdf && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Use <strong>Regenerate PDF</strong> to rebuild this document with the ICS CRO/eDO layout (navy
+                  header, container table, embedded verification QR).
+                </Alert>
+              )}
+              {regenerateMessage && (
+                <Alert severity="success" sx={{ mb: 2 }} onClose={() => setRegenerateMessage(null)}>
+                  {regenerateMessage}
+                </Alert>
+              )}
+              {regenerateError && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setRegenerateError(null)}>
+                  {regenerateError}
+                </Alert>
+              )}
               {edoDownloadBlockedMessage(edo.status, user?.role, edo.currentPaymentStatus) && (
                 <Alert severity="info" sx={{ mb: 2 }}>
                   {edoDownloadBlockedMessage(edo.status, user?.role, edo.currentPaymentStatus)}
                 </Alert>
               )}
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {canRegeneratePdf && (
+                  <>
+                    <Button
+                      variant="outlined"
+                      color="secondary"
+                      startIcon={<AutorenewOutlinedIcon />}
+                      disabled={regenerating}
+                      onClick={() => void handleRegeneratePdf(false)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      {regenerating ? 'Regenerating…' : 'Regenerate PDF'}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      startIcon={<PictureAsPdfOutlinedIcon />}
+                      disabled={regenerating}
+                      onClick={() => void handleRegeneratePdf(true)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Regenerate &amp; open
+                    </Button>
+                  </>
+                )}
                 {canDownload && (
                   <>
                     <Button

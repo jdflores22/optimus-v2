@@ -1,6 +1,7 @@
 import { API_BASE_URL } from './types';
 
 const DEFAULT_EDO_FEE = 750;
+export const DEFAULT_DETENTION_RATE = 150;
 
 export function formatPhp(amount: number): string {
   return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

@@ -61,6 +61,13 @@ public class TerminalTeamUser : User
     public string? TerminalPermissionsJson { get; set; }
 }
 
+public class ContainerYardUser : User
+{
+    public string? Department { get; set; }
+    /// <summary>JSON array of terminal GUIDs this CY account can access.</summary>
+    public string? AssignedTerminalIdsJson { get; set; }
+}
+
 public class Trucker : User
 {
     public string? PhoneNumber { get; set; }

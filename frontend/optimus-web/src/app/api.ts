@@ -30,7 +30,10 @@ import type {
   PaymentDto,
   PaymentFeeDto,
   PendingUserDto,
-  PreAdviceDto,
+  PreForecastDto,
+  TruckerPreForecastSearchResultDto,
+  TruckerPreForecastVerifyDto,
+  TruckerPreForecastSubmissionDto,
   ReferralCodeDto,
   RelationshipDto,
   RenewalDto,
@@ -135,7 +138,8 @@ export const api = createApi({
     'ContainerCatalog',
     'CyAllocations',
     'Dwell',
-    'PreAdvice',
+    'PreForecast',
+    'TruckerIntake',
     'Forms',
     'Accreditation',
     'Transfers',
@@ -585,6 +589,14 @@ export const api = createApi({
       query: ({ id, ...body }) => ({ url: `/api/edo/${id}/release`, method: 'POST', body }),
       invalidatesTags: ['Edos', 'Manifests'],
     }),
+    regenerateEdoPdf: builder.mutation<EdoDto, string>({
+      query: (id) => ({ url: `/api/edo/${id}/regenerate-pdf`, method: 'POST' }),
+      invalidatesTags: ['Edos'],
+    }),
+    regenerateEdoPdfByContainers: builder.mutation<EdoDto[], { containerNumbers: string[] }>({
+      query: (body) => ({ url: '/api/edo/regenerate-pdf', method: 'POST', body }),
+      invalidatesTags: ['Edos'],
+    }),
     unlockEdo: builder.mutation<EdoDto, { id: string; newExpiresAt?: string; notes?: string }>({
       query: ({ id, ...body }) => ({ url: `/api/edo/${id}/unlock`, method: 'POST', body }),
       invalidatesTags: ['Edos'],
@@ -600,7 +612,7 @@ export const api = createApi({
         if (receipt) form.append('receipt', receipt);
         return { url: `/api/edo/${edoId}/payments`, method: 'POST', body: form };
       },
-      invalidatesTags: ['Edos', 'EdoPayments'],
+      invalidatesTags: ['Edos', 'EdoPayments', 'TruckerIntake', 'EdoRenewals'],
     }),
     getPendingEdoPayments: builder.query<EdoPaymentDto[], void>({
       query: () => '/api/edo-payments/pending',
@@ -636,7 +648,7 @@ export const api = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['EdoPayments', 'Edos'],
+      invalidatesTags: ['EdoPayments', 'Edos', 'TruckerIntake', 'EdoRenewals'],
     }),
     saveEdoPaymentReceiptInsights: builder.mutation<
       EdoPaymentDto,
@@ -672,15 +684,29 @@ export const api = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['EdoRenewals'],
+      invalidatesTags: ['EdoRenewals', 'TruckerIntake'],
     }),
     verifyEdoRenewalPayment: builder.mutation<RenewalDto, string>({
       query: (id) => ({ url: `/api/edo-renewals/${id}/verify-payment`, method: 'POST' }),
-      invalidatesTags: ['EdoRenewals'],
+      invalidatesTags: ['EdoRenewals', 'TruckerIntake'],
+    }),
+    submitEdoRenewalPayment: builder.mutation<
+      RenewalDto,
+      { id: string; amount: number; receipt: File; paymentReference?: string; paymentChannel?: string }
+    >({
+      query: ({ id, receipt, amount, paymentReference, paymentChannel }) => {
+        const form = new FormData();
+        form.append('amount', String(amount));
+        form.append('receipt', receipt);
+        if (paymentReference) form.append('paymentReference', paymentReference);
+        if (paymentChannel) form.append('paymentChannel', paymentChannel);
+        return { url: `/api/edo-renewals/${id}/payments`, method: 'POST', body: form };
+      },
+      invalidatesTags: ['EdoRenewals', 'TruckerIntake'],
     }),
     generateRenewedEdo: builder.mutation<EdoDto, string>({
       query: (id) => ({ url: `/api/edo-renewals/${id}/generate`, method: 'POST' }),
-      invalidatesTags: ['EdoRenewals', 'Edos', 'Manifests'],
+      invalidatesTags: ['EdoRenewals', 'Edos', 'Manifests', 'TruckerIntake'],
     }),
     verifyDocument: builder.query<DocumentVerifyDto, string>({
       query: (token) => `/api/verify/document/${token}`,
@@ -898,6 +924,26 @@ export const api = createApi({
       }),
       invalidatesTags: ['Containers', 'CyAllocations'],
     }),
+    lockContainerAllocation: builder.mutation<ContainerDto, string>({
+      query: (id) => ({
+        url: `/api/containers/${id}/lock-allocation`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Containers', 'CyAllocations'],
+    }),
+    getPreForecast: builder.query<
+      ContainerInventoryPageDto,
+      { search?: string; page?: number; pageSize?: number }
+    >({
+      query: ({ search, page = 1, pageSize = 50 }) => {
+        const params = new URLSearchParams();
+        params.set('page', String(page));
+        params.set('pageSize', String(pageSize));
+        if (search) params.set('search', search);
+        return `/api/containers/pre-forecast?${params.toString()}`;
+      },
+      providesTags: ['Containers'],
+    }),
     markAvailableForReturn: builder.mutation<ContainerDto, string>({
       query: (id) => ({ url: `/api/containers/${id}/available-for-return`, method: 'POST' }),
       invalidatesTags: ['Containers'],
@@ -969,15 +1015,15 @@ export const api = createApi({
       query: () => ({ url: '/api/dwell/process', method: 'POST' }),
       invalidatesTags: ['Dwell', 'Containers'],
     }),
-    getPreAdvices: builder.query<PreAdviceDto[], { status?: string } | void>({
+    getPreForecasts: builder.query<PreForecastDto[], { status?: string } | void>({
       query: (params) => {
         const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : '';
-        return `/api/v1/pre-advice${qs}`;
+        return `/api/v1/pre-forecast${qs}`;
       },
-      providesTags: ['PreAdvice'],
+      providesTags: ['PreForecast'],
     }),
-    submitPreAdvice: builder.mutation<
-      PreAdviceDto,
+    submitPreForecast: builder.mutation<
+      PreForecastDto,
       {
         containerId: string;
         terminalId: string;
@@ -997,32 +1043,111 @@ export const api = createApi({
         form.append('latitude', String(fields.latitude));
         form.append('longitude', String(fields.longitude));
         form.append('photo', photo);
-        return { url: '/api/v1/pre-advice', method: 'POST', body: form };
+        return { url: '/api/v1/pre-forecast', method: 'POST', body: form };
       },
-      invalidatesTags: ['PreAdvice', 'Containers'],
+      invalidatesTags: ['PreForecast', 'Containers'],
     }),
-    verifyPreAdvice: builder.mutation<
-      PreAdviceDto,
+    getTruckerIntakeSubmissions: builder.query<TruckerPreForecastSubmissionDto[], string | void>({
+      query: (status) =>
+        status
+          ? `/api/v1/pre-forecast/intake?status=${encodeURIComponent(status)}`
+          : '/api/v1/pre-forecast/intake',
+      providesTags: ['TruckerIntake'],
+    }),
+    getTruckerIntakeSubmission: builder.query<TruckerPreForecastSubmissionDto, string>({
+      query: (id) => `/api/v1/pre-forecast/intake/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'TruckerIntake', id }],
+    }),
+    searchTruckerPreForecast: builder.query<TruckerPreForecastSearchResultDto[], string>({
+      query: (q) => `/api/v1/pre-forecast/intake/search?q=${encodeURIComponent(q)}`,
+    }),
+    verifyTruckerPreForecastEdo: builder.query<TruckerPreForecastVerifyDto, string>({
+      query: (token) => `/api/v1/pre-forecast/intake/verify/${encodeURIComponent(token)}`,
+    }),
+    submitTruckerPreForecast: builder.mutation<
+      TruckerPreForecastSubmissionDto,
+      {
+        verificationToken: string;
+        returnDate: string;
+        preferredTerminalId?: string;
+        releaseDocument: File;
+        containerPhotos: Record<string, File | undefined>;
+      }
+    >({
+      query: ({ releaseDocument, containerPhotos, preferredTerminalId, ...fields }) => {
+        const form = new FormData();
+        form.append('verificationToken', fields.verificationToken);
+        form.append('returnDate', fields.returnDate);
+        if (preferredTerminalId) form.append('preferredTerminalId', preferredTerminalId);
+        form.append('releaseDocument', releaseDocument);
+        Object.entries(containerPhotos).forEach(([field, file]) => {
+          if (file) form.append(field, file);
+        });
+        return { url: '/api/v1/pre-forecast/intake', method: 'POST', body: form };
+      },
+      invalidatesTags: ['Containers', 'Edos', 'TruckerIntake'],
+    }),
+    assignTruckerIntakeTerminal: builder.mutation<
+      TruckerPreForecastSubmissionDto,
+      { id: string; terminalId: string; slotId?: string; notes?: string }
+    >({
+      query: ({ id, terminalId, slotId, notes }) => ({
+        url: `/api/v1/pre-forecast/intake/${id}/assign-terminal`,
+        method: 'POST',
+        body: { terminalId, slotId: slotId ?? null, notes: notes ?? null },
+      }),
+      invalidatesTags: ['TruckerIntake'],
+    }),
+    confirmTruckerIntakeCySchedule: builder.mutation<
+      TruckerPreForecastSubmissionDto,
+      { id: string; confirmedReturnDate: string; approve: boolean; notes?: string }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/v1/pre-forecast/intake/${id}/confirm-cy-schedule`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['TruckerIntake'],
+    }),
+    finalizeTruckerIntakeAccounting: builder.mutation<
+      TruckerPreForecastSubmissionDto,
+      {
+        id: string;
+        adjustedDetentionAmount?: number;
+        waiveExtraDays?: boolean;
+        notes?: string;
+        chargeLines?: { description: string; amount: number }[];
+      }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/api/v1/pre-forecast/intake/${id}/finalize-accounting`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['TruckerIntake', 'EdoRenewals'],
+    }),
+    verifyPreForecast: builder.mutation<
+      PreForecastDto,
       { id: string; approve: boolean; rejectionReason?: string; slotId?: string; notes?: string }
     >({
       query: ({ id, ...body }) => ({
-        url: `/api/v1/pre-advice/${id}/verify`,
+        url: `/api/v1/pre-forecast/${id}/verify`,
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['PreAdvice', 'Containers'],
+      invalidatesTags: ['PreForecast', 'Containers'],
     }),
-    completePreAdvice: builder.mutation<PreAdviceDto, { id: string; edoNumber?: string }>({
+    completePreForecast: builder.mutation<PreForecastDto, { id: string; edoNumber?: string }>({
       query: ({ id, ...body }) => ({
-        url: `/api/v1/pre-advice/${id}/complete`,
+        url: `/api/v1/pre-forecast/${id}/complete`,
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['PreAdvice', 'Containers'],
+      invalidatesTags: ['PreForecast', 'Containers'],
     }),
-    cancelPreAdvice: builder.mutation<PreAdviceDto, string>({
-      query: (id) => ({ url: `/api/v1/pre-advice/${id}/cancel`, method: 'POST' }),
-      invalidatesTags: ['PreAdvice', 'Containers'],
+    cancelPreForecast: builder.mutation<PreForecastDto, string>({
+      query: (id) => ({ url: `/api/v1/pre-forecast/${id}/cancel`, method: 'POST' }),
+      invalidatesTags: ['PreForecast', 'Containers'],
     }),
     generateTruckerToken: builder.mutation<TruckerTokenDto, void>({
       query: () => ({ url: '/api/v1/token/generate', method: 'POST' }),
@@ -1525,6 +1650,8 @@ export const {
   useGenerateEdoMutation,
   useBatchGenerateEdoMutation,
   useReleaseEdoMutation,
+  useRegenerateEdoPdfMutation,
+  useRegenerateEdoPdfByContainersMutation,
   useUnlockEdoMutation,
   useSubmitEdoPaymentMutation,
   useGetPendingEdoPaymentsQuery,
@@ -1537,6 +1664,7 @@ export const {
   useCreateEdoRenewalMutation,
   useReviewEdoRenewalMutation,
   useVerifyEdoRenewalPaymentMutation,
+  useSubmitEdoRenewalPaymentMutation,
   useGenerateRenewedEdoMutation,
   useVerifyDocumentQuery,
   useGetTerminalsQuery,
@@ -1554,12 +1682,14 @@ export const {
   useUpsertCyAllocationMutation,
   useGetContainersQuery,
   useGetContainerInventoryQuery,
+  useGetPreForecastQuery,
   useGetContainerInventoryDepotsQuery,
   useGetContainerInventoryItemQuery,
   useGetContainerDetailsByNumberQuery,
   useSearchReturnContainersQuery,
   useCreateContainerMutation,
   useAllocateContainerMutation,
+  useLockContainerAllocationMutation,
   useMarkAvailableForReturnMutation,
   useGetUtilizationQuery,
   useExportUtilizationMutation,
@@ -1570,11 +1700,20 @@ export const {
   usePauseDwellMutation,
   useResumeDwellMutation,
   useProcessDwellMutation,
-  useGetPreAdvicesQuery,
-  useSubmitPreAdviceMutation,
-  useVerifyPreAdviceMutation,
-  useCompletePreAdviceMutation,
-  useCancelPreAdviceMutation,
+  useGetPreForecastsQuery,
+  useSubmitPreForecastMutation,
+  useSearchTruckerPreForecastQuery,
+  useVerifyTruckerPreForecastEdoQuery,
+  useLazyVerifyTruckerPreForecastEdoQuery,
+  useSubmitTruckerPreForecastMutation,
+  useGetTruckerIntakeSubmissionsQuery,
+  useGetTruckerIntakeSubmissionQuery,
+  useAssignTruckerIntakeTerminalMutation,
+  useConfirmTruckerIntakeCyScheduleMutation,
+  useFinalizeTruckerIntakeAccountingMutation,
+  useVerifyPreForecastMutation,
+  useCompletePreForecastMutation,
+  useCancelPreForecastMutation,
   useGenerateTruckerTokenMutation,
   useRevokeTruckerTokenMutation,
   useGetFormsQuery,

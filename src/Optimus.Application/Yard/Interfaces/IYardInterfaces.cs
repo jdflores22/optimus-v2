@@ -37,6 +37,7 @@ public interface IContainerInventoryService
 {
     Task<ContainerDto> CreateAsync(CreateContainerRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<ContainerDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task EnsureAccessAsync(Guid containerId, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<ContainerInventoryItemDto> GetInventoryItemAsync(Guid id, CancellationToken ct = default);
     Task<ContainerDetailDto> GetDetailByNumberAsync(string containerNumber, Guid? shippingLineId, CancellationToken ct = default);
     Task<IReadOnlyList<ContainerDto>> ListAsync(Guid? shippingLineId, string? status, string? search, CancellationToken ct = default);
@@ -47,15 +48,17 @@ public interface IContainerInventoryService
         int page,
         int pageSize,
         string? terminalIdentity = null,
+        IReadOnlyList<Guid>? terminalIds = null,
         CancellationToken ct = default);
     Task<IReadOnlyList<string>> ListInventoryDepotsAsync(
         Guid? shippingLineId,
         string? terminalIdentity = null,
+        IReadOnlyList<Guid>? terminalIds = null,
         CancellationToken ct = default);
     Task<IReadOnlyList<ContainerDto>> SearchForReturnAsync(string query, CancellationToken ct = default);
     Task<ContainerDto> AllocateAsync(Guid id, AllocateContainerRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<ContainerDto> ReallocateAsync(Guid id, ReallocateContainerRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
-    Task<ContainerDto> LockAllocationAsync(Guid id, Guid actorId, CancellationToken ct = default);
+    Task<ContainerDto> LockAllocationAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default);
     Task<ContainerDto> UpdateStackAsync(Guid id, UpdateStackRequest request, Guid actorId, CancellationToken ct = default);
     Task<ContainerDto> MarkAvailableForReturnAsync(Guid id, Guid actorId, CancellationToken ct = default);
     Task<(string Csv, string PdfPath)> ExportUtilizationAsync(
@@ -65,6 +68,12 @@ public interface IContainerInventoryService
     Task<IReadOnlyList<UtilizationReportDto>> UtilizationReportAsync(
         string? terminalIdentity = null,
         Guid? shippingLineId = null,
+        CancellationToken ct = default);
+    Task<ContainerInventoryPageDto> PreForecastPageAsync(
+        string? search,
+        int page,
+        int pageSize,
+        IReadOnlyList<Guid> terminalIds,
         CancellationToken ct = default);
 }
 
@@ -80,14 +89,14 @@ public interface IDwellService
     Task<int> ProcessMonitoringAsync(CancellationToken ct = default);
 }
 
-public interface IPreAdviceService
+public interface IPreForecastService
 {
-    Task<PreAdviceDto> SubmitAsync(SubmitPreAdviceRequest request, string? photoPath, Guid truckerId, CancellationToken ct = default);
-    Task<PreAdviceDto> VerifyAsync(Guid id, VerifyPreAdviceRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
-    Task<PreAdviceDto> CompleteAsync(Guid id, CompletePreAdviceRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
-    Task<PreAdviceDto> CancelAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default);
-    Task<PreAdviceDto> GetAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<PreAdviceDto>> ListAsync(string? status, Guid? truckerId, CancellationToken ct = default);
+    Task<PreForecastDto> SubmitAsync(SubmitPreForecastRequest request, string? photoPath, Guid truckerId, CancellationToken ct = default);
+    Task<PreForecastDto> VerifyAsync(Guid id, VerifyPreForecastRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
+    Task<PreForecastDto> CompleteAsync(Guid id, CompletePreForecastRequest request, Guid actorId, string actorRole, CancellationToken ct = default);
+    Task<PreForecastDto> CancelAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default);
+    Task<PreForecastDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<PreForecastDto>> ListAsync(string? status, Guid? truckerId, CancellationToken ct = default);
 }
 
 public interface ITruckerTokenService
@@ -96,6 +105,49 @@ public interface ITruckerTokenService
     Task<TruckerTokenDto> RefreshAsync(Guid truckerId, CancellationToken ct = default);
     Task RevokeAsync(Guid truckerId, CancellationToken ct = default);
     Task<bool> ValidateAsync(Guid truckerId, string rawToken, CancellationToken ct = default);
+}
+
+public interface ITruckerPreForecastService
+{
+    Task<IReadOnlyList<TruckerPreForecastSearchResultDto>> SearchAsync(string query, CancellationToken ct = default);
+
+    Task<TruckerPreForecastVerifyDto> VerifyByTokenAsync(string token, CancellationToken ct = default);
+
+    Task<TruckerPreForecastSubmissionDto> SubmitAsync(
+        string verificationToken,
+        DateTime returnDate,
+        string releaseDocumentPath,
+        IReadOnlyList<TruckerPreForecastPhotoInput> photos,
+        Guid truckerId,
+        Guid? preferredTerminalId = null,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<TruckerPreForecastSubmissionDto>> ListAsync(string? status, Guid actorId, string actorRole, CancellationToken ct = default);
+
+    Task<TruckerPreForecastSubmissionDto> GetAsync(Guid id, Guid actorId, string actorRole, CancellationToken ct = default);
+
+    Task<TruckerPreForecastSubmissionDto> AssignTerminalAsync(
+        Guid id,
+        AssignTruckerPreForecastTerminalRequest request,
+        Guid actorId,
+        string actorRole,
+        CancellationToken ct = default);
+
+    Task<TruckerPreForecastSubmissionDto> ConfirmCyScheduleAsync(
+        Guid id,
+        ConfirmCyPreForecastScheduleRequest request,
+        Guid actorId,
+        string actorRole,
+        CancellationToken ct = default);
+
+    Task<TruckerPreForecastSubmissionDto> FinalizeAccountingAsync(
+        Guid id,
+        FinalizePreForecastAccountingRequest request,
+        Guid actorId,
+        string actorRole,
+        CancellationToken ct = default);
+
+    Task MarkCompletedWhenEdoPaidAsync(Guid edoId, CancellationToken ct = default);
 }
 
 public interface INotificationService

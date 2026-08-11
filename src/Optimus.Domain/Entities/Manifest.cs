@@ -47,8 +47,9 @@ public class Noa : BaseEntity
 
 public class Billing : BaseEntity
 {
-    public Guid ManifestId { get; set; }
-    public Manifest Manifest { get; set; } = null!;
+    /// <summary>Set for cargo manifest billing; null for standalone detention invoices.</summary>
+    public Guid? ManifestId { get; set; }
+    public Manifest? Manifest { get; set; }
     public string BillingType { get; set; } = "manifest";
     public decimal FreightCharges { get; set; }
     public decimal ThcCharges { get; set; }

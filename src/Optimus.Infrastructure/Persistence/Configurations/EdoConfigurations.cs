@@ -83,6 +83,8 @@ public class EdoRenewalRequestConfiguration : IEntityTypeConfiguration<EdoRenewa
         builder.Property(x => x.DetentionChargeAmount).HasPrecision(18, 2);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
         builder.Property(x => x.AdditionalNotes).HasMaxLength(2000);
+        builder.Property(x => x.PaymentReceiptPath).HasMaxLength(500);
+        builder.Property(x => x.PaymentReference).HasMaxLength(120);
         builder.HasOne(x => x.ExpiredEdo).WithMany().HasForeignKey(x => x.ExpiredEdoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(x => x.NewEdo).WithMany().HasForeignKey(x => x.NewEdoId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.RequestedBy).WithMany().HasForeignKey(x => x.RequestedById).OnDelete(DeleteBehavior.Restrict);

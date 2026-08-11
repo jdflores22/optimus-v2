@@ -6,6 +6,7 @@ using Optimus.Application.Cargo.Dtos;
 using Optimus.Application.Cargo.Interfaces;
 using Optimus.Application.Security;
 using Optimus.Domain.Enums;
+using Optimus.Shared.Constants;
 
 namespace Optimus.Api.Controllers;
 
@@ -35,8 +36,22 @@ public class ManifestsController : ControllerBase
         [FromQuery] Guid? consigneeId,
         CancellationToken ct)
     {
-        if (Role == "Broker") brokerId ??= UserId;
-        if (Role == "Consignee") consigneeId ??= UserId;
+        if (Role == AppRoles.Broker) brokerId ??= UserId;
+        else if (Role == AppRoles.Consignee) consigneeId ??= UserId;
+        else if (Role is AppRoles.SlStaff or AppRoles.ShippingLinesAdmin or AppRoles.TerminalTeam
+                     or AppRoles.Accounting or AppRoles.Evaluator or AppRoles.SystemAdmin)
+        {
+            if (Role != AppRoles.SystemAdmin &&
+                Guid.TryParse(User.FindFirstValue("shipping_line_id"), out var claimLineId))
+            {
+                shippingLineId ??= claimLineId;
+            }
+        }
+        else
+        {
+            return Ok(Array.Empty<ManifestDto>());
+        }
+
         return Ok(await _manifests.ListAsync(shippingLineId, brokerId, consigneeId, ct));
     }
 
@@ -216,6 +231,7 @@ public class PaymentFeesController : ControllerBase
     }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private string Role => User.FindFirstValue(ClaimTypes.Role)!;
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<PaymentFeeDto>>> List(CancellationToken ct)
@@ -226,9 +242,33 @@ public class PaymentFeesController : ControllerBase
         => Ok(await _fees.GetActiveAsync(feeType, ct));
 
     [HttpPost]
-    [Authorize(Policy = "SystemAdmin")]
     public async Task<ActionResult<PaymentFeeDto>> Upsert([FromForm] string feeType, [FromForm] decimal amount, IFormFile? qrCode, CancellationToken ct)
     {
+        var normalized = feeType.Trim().ToLowerInvariant();
+        if (normalized is "edo")
+        {
+            if (Role != AppRoles.SystemAdmin)
+            {
+                return Forbid();
+            }
+        }
+        else if (normalized is "detention")
+        {
+            if (Role is not (AppRoles.SystemAdmin or AppRoles.ShippingLinesAdmin or AppRoles.Accounting))
+            {
+                return Forbid();
+            }
+
+            if (qrCode is not null)
+            {
+                return BadRequest("QR code upload is not supported for detention rate.");
+            }
+        }
+        else
+        {
+            return BadRequest("Unsupported fee type.");
+        }
+
         string? qrPath = null;
         if (qrCode is not null)
         {
@@ -237,7 +277,7 @@ public class PaymentFeesController : ControllerBase
             qrPath = await _docs.SaveAsync("fee-qr", qrCode.FileName, stream, ct);
         }
 
-        return Ok(await _fees.UpsertAsync(new UpsertPaymentFeeRequest(feeType, amount), qrPath, UserId, ct));
+        return Ok(await _fees.UpsertAsync(new UpsertPaymentFeeRequest(normalized, amount), qrPath, UserId, ct));
     }
 }
 

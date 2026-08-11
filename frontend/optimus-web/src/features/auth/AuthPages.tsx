@@ -579,7 +579,7 @@ export function RegisterTruckerPage() {
       maxWidth={440}
       subtitle={
         <>
-          Register as a trucker for pre-advice and yard submissions.{' '}
+          Register as a trucker for pre-forecast and yard submissions.{' '}
           <Link component={RouterLink} to="/login" fontWeight={600}>
             Sign in
           </Link>{' '}

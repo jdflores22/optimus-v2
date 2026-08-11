@@ -19,6 +19,7 @@ Phase 1 (Identity, Roles, Hierarchy, Shipping Lines) is complete.
 - broker@optimus.local — Broker
 - consignee@optimus.local — Consignee
 - trucker@optimus.local — Trucker
+- cy@optimus.local — CyStaff (Container Yard, assigned to CY-MNL)
 
 ## Referral code
 - `DEMOREF01` (for broker registration linkage)

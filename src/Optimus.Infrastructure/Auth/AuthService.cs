@@ -331,6 +331,8 @@ public class AuthService : IAuthService
 
         user.EmailVerified = true;
         user.EmailVerifiedAt = DateTime.UtcNow;
+        user.EmailVerificationToken = null;
+        user.EmailVerificationExpiresAt = null;
         user.Status = AccountStatus.Approved;
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -411,6 +413,9 @@ public class AuthService : IAuthService
                 break;
             case TerminalTeamUser terminal:
                 department = terminal.Department;
+                break;
+            case ContainerYardUser cy:
+                department = cy.Department;
                 break;
             case Trucker trucker:
                 phoneNumber = trucker.PhoneNumber;

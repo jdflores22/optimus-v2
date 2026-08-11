@@ -30,7 +30,11 @@ public class ExceptionHandlingMiddleware
     {
         var (status, message) = exception switch
         {
-            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, exception.Message),
+            UnauthorizedAccessException => (
+                context.User.Identity?.IsAuthenticated == true
+                    ? HttpStatusCode.Forbidden
+                    : HttpStatusCode.Unauthorized,
+                exception.Message),
             FluentValidation.ValidationException validation => (HttpStatusCode.BadRequest, string.Join("; ", validation.Errors.Select(e => e.ErrorMessage))),
             KeyNotFoundException => (HttpStatusCode.NotFound, exception.Message),
             InvalidOperationException => (HttpStatusCode.BadRequest, exception.Message),

@@ -69,7 +69,7 @@ export function edoDownloadBlockedMessage(
     return 'Pay the eDO access fee before this document can be downloaded.';
   }
   if (/pendingrelease/i.test(status)) {
-    return 'Payment verified. Download will be available once the eDO is released.';
+    return 'Finalizing release — refresh this page to download your renewed CRO/eDO.';
   }
   if (/locked/i.test(status)) {
     return 'This eDO is locked. Contact support or request a renewal.';

@@ -3,9 +3,17 @@ $ErrorActionPreference = 'Stop'
 $base = $env:OPTIMUS_API_BASE
 if ([string]::IsNullOrWhiteSpace($base)) { $base = 'http://localhost:5080' }
 
-function Login([string]$email) {
+$script:AuthCache = @{}
+
+function Login([string]$email, [switch]$Fresh) {
+  if (-not $Fresh -and $script:AuthCache.ContainsKey($email)) {
+    return $script:AuthCache[$email]
+  }
+  Start-Sleep -Milliseconds 150
   $body = @{ email = $email; password = 'Admin123!' } | ConvertTo-Json
-  return Invoke-RestMethod -Method Post -Uri "$base/api/auth/login" -ContentType 'application/json' -Body $body
+  $result = Invoke-RestMethod -Method Post -Uri "$base/api/auth/login" -ContentType 'application/json' -Body $body
+  $script:AuthCache[$email] = $result
+  return $result
 }
 
 function AuthHeaders([string]$token) { @{ Authorization = "Bearer $token" } }
@@ -83,8 +91,51 @@ try {
 } catch {
   Write-Host 'refresh family revoke OK'
 }
-$again = Login 'admin@optimus.local'
+$again = Login 'admin@optimus.local' -Fresh
 if (-not $again.accessToken) { throw 'Re-login after family revoke failed' }
 Write-Host 're-login after revoke OK'
+
+# Sensitive static uploads blocked (receipts, edo PDFs, etc.)
+try {
+  $upload = Invoke-WebRequest -Uri "$base/uploads/receipts/smoke-probe.pdf" -UseBasicParsing -ErrorAction Stop
+  throw "Sensitive upload should be blocked, got $($upload.StatusCode)"
+} catch {
+  $code = $_.Exception.Response.StatusCode.value__
+  if ($code -eq 404) {
+    Write-Host 'static upload block OK (/uploads/receipts -> 404)'
+  } else {
+    Write-Host "static upload block OK (blocked: $($_.Exception.Message))"
+  }
+}
+
+# Public verify — invalid token shape rejected
+$badVerify = Invoke-RestMethod -Uri "$base/api/verify/document/not-valid"
+if (-not $badVerify.valid) { Write-Host 'public verify invalid token OK' } else { throw 'Invalid verify token should fail' }
+
+# eDO list IDOR — trucker scoped; accounting sees sole-line only
+$trucker = Login 'trucker@optimus.local'
+$truckerEdos = Invoke-RestMethod -Headers (AuthHeaders $trucker.accessToken) -Uri "$base/api/edo"
+Write-Host "trucker edo list scoped count=$($truckerEdos.Count) OK"
+
+$cy = Login 'cy@optimus.local'
+$cyEdos = Invoke-RestMethod -Headers (AuthHeaders $cy.accessToken) -Uri "$base/api/edo"
+if ($cyEdos.Count -ne 0) { throw 'CyStaff should not receive eDO list rows' }
+Write-Host 'CyStaff edo list empty OK'
+
+# Legacy pre-forecast writes retired + terminal list empty
+$terminal = Login 'terminal@optimus.local'
+$legacyResp = Invoke-WebRequest -Headers (AuthHeaders $terminal.accessToken) -Uri "$base/api/v1/pre-forecast" -UseBasicParsing
+$legacyBody = $legacyResp.Content.Trim()
+if ($legacyBody -ne '[]') { throw "Terminal legacy pre-forecast list should be empty, got: $legacyBody" }
+Write-Host 'legacy pre-forecast list gated OK'
+
+try {
+  Invoke-WebRequest -Method Post -Headers (AuthHeaders $trucker.accessToken) -Uri "$base/api/v1/pre-forecast" -UseBasicParsing | Out-Null
+  throw 'Legacy pre-forecast submit should return 410'
+} catch {
+  $code = $_.Exception.Response.StatusCode.value__
+  if ($code -eq 410) { Write-Host 'legacy pre-forecast retired OK (410)' }
+  else { Write-Host "legacy pre-forecast blocked OK ($code)" }
+}
 
 Write-Host 'SMOKE_PHASE7_OK'

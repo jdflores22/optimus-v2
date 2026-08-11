@@ -26,7 +26,7 @@ public class ManifestConfiguration : IEntityTypeConfiguration<Manifest>
         builder.HasOne(x => x.Broker).WithMany().HasForeignKey(x => x.BrokerId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedById).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Noa).WithOne(x => x.Manifest).HasForeignKey<Noa>(x => x.ManifestId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne(x => x.Billing).WithOne(x => x.Manifest).HasForeignKey<Billing>(x => x.ManifestId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.Billing).WithOne(x => x.Manifest).HasForeignKey<Billing>(x => x.ManifestId).IsRequired(false).OnDelete(DeleteBehavior.Cascade);
     }
 }
 
@@ -63,6 +63,8 @@ public class BillingConfiguration : IEntityTypeConfiguration<Billing>
         builder.Property(x => x.Currency).HasMaxLength(10);
         builder.Property(x => x.PdfPath).HasMaxLength(500);
         builder.HasOne(x => x.GeneratedBy).WithMany().HasForeignKey(x => x.GeneratedById).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Manifest).WithOne(x => x.Billing).HasForeignKey<Billing>(x => x.ManifestId).IsRequired(false).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(x => x.ManifestId);
     }
 }
 

@@ -140,11 +140,11 @@ public class DwellTimeEventConfiguration : IEntityTypeConfiguration<DwellTimeEve
     }
 }
 
-public class PreAdviceRequestConfiguration : IEntityTypeConfiguration<PreAdviceRequest>
+public class PreForecastRequestConfiguration : IEntityTypeConfiguration<PreForecastRequest>
 {
-    public void Configure(EntityTypeBuilder<PreAdviceRequest> builder)
+    public void Configure(EntityTypeBuilder<PreForecastRequest> builder)
     {
-        builder.ToTable("pre_advice_requests");
+        builder.ToTable("pre_forecast_requests");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
         builder.HasIndex(x => x.Status);
@@ -155,7 +155,7 @@ public class PreAdviceRequestConfiguration : IEntityTypeConfiguration<PreAdviceR
         builder.Property(x => x.EdoNumber).HasMaxLength(100);
         builder.Property(x => x.VerificationToken).HasMaxLength(64);
         builder.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne(x => x.Container).WithMany(x => x.PreAdviceRequests).HasForeignKey(x => x.ContainerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Container).WithMany(x => x.PreForecastRequests).HasForeignKey(x => x.ContainerId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Terminal).WithMany().HasForeignKey(x => x.TerminalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.AssignedSlot).WithMany().HasForeignKey(x => x.AssignedSlotId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.ShippingLine).WithMany().HasForeignKey(x => x.ShippingLineId).OnDelete(DeleteBehavior.SetNull);
@@ -172,7 +172,51 @@ public class GeotagPhotoConfiguration : IEntityTypeConfiguration<GeotagPhoto>
         builder.Property(x => x.FilePath).HasMaxLength(500).IsRequired();
         builder.Property(x => x.OriginalName).HasMaxLength(255);
         builder.Property(x => x.VerificationNotes).HasMaxLength(500);
-        builder.HasOne(x => x.PreAdviceRequest).WithMany(x => x.GeotagPhotos).HasForeignKey(x => x.PreAdviceRequestId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.PreForecastRequest).WithMany(x => x.GeotagPhotos).HasForeignKey(x => x.PreForecastRequestId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class TruckerPreForecastSubmissionConfiguration : IEntityTypeConfiguration<TruckerPreForecastSubmission>
+{
+    public void Configure(EntityTypeBuilder<TruckerPreForecastSubmission> builder)
+    {
+        builder.ToTable("trucker_pre_forecast_submissions");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.ReleaseDocumentPath).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.EdoVerificationToken).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
+        builder.Property(x => x.DetentionAmount).HasPrecision(18, 2);
+        builder.Property(x => x.DetentionAtPreferredDate).HasPrecision(18, 2);
+        builder.Property(x => x.ExtraDaysDetentionAmount).HasPrecision(18, 2);
+        builder.Property(x => x.DetentionRateAtCalculation).HasPrecision(18, 2);
+        builder.HasOne(x => x.Trucker).WithMany().HasForeignKey(x => x.TruckerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Container).WithMany().HasForeignKey(x => x.ContainerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ExpiredEdo).WithMany().HasForeignKey(x => x.ExpiredEdoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.RenewalRequest).WithMany().HasForeignKey(x => x.RenewalRequestId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.PreferredTerminal).WithMany().HasForeignKey(x => x.PreferredTerminalId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.AssignedTerminal).WithMany().HasForeignKey(x => x.AssignedTerminalId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.AssignedSlot).WithMany().HasForeignKey(x => x.AssignedSlotId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.CyConfirmedBy).WithMany().HasForeignKey(x => x.CyConfirmedById).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.NewEdo).WithMany().HasForeignKey(x => x.NewEdoId).OnDelete(DeleteBehavior.SetNull);
+        builder.Property(x => x.TerminalNotes).HasMaxLength(2000);
+        builder.Property(x => x.CyNotes).HasMaxLength(2000);
+        builder.HasIndex(x => new { x.ContainerId, x.CreatedAt });
+        builder.HasIndex(x => x.Status);
+    }
+}
+
+public class TruckerPreForecastPhotoConfiguration : IEntityTypeConfiguration<TruckerPreForecastPhoto>
+{
+    public void Configure(EntityTypeBuilder<TruckerPreForecastPhoto> builder)
+    {
+        builder.ToTable("trucker_pre_forecast_photos");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Category).HasConversion<string>().HasMaxLength(40);
+        builder.Property(x => x.FilePath).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.OriginalName).HasMaxLength(255);
+        builder.Property(x => x.Comment).HasMaxLength(1000);
+        builder.HasOne(x => x.Submission).WithMany(x => x.Photos).HasForeignKey(x => x.SubmissionId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(x => new { x.SubmissionId, x.Category });
     }
 }
 

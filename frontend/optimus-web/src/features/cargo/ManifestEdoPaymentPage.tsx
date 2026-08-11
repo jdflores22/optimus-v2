@@ -87,6 +87,9 @@ export function ManifestEdoPaymentPage() {
   const canSubmitPayment = edoNeedsPayment(edo.status, edo.currentPaymentStatus);
 
   if (!canSubmitPayment && !paymentSubmitted) {
+    if (edo.isRenewed || edo.preForecastSubmissionId) {
+      return <Navigate to={`/edo/${edo.id}/payment`} replace />;
+    }
     return <Navigate to={`/manifests/${id}?tab=documents`} replace />;
   }
 

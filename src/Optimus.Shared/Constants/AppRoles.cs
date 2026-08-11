@@ -8,6 +8,7 @@ public static class AppRoles
     public const string Evaluator = "Evaluator";
     public const string Accounting = "Accounting";
     public const string TerminalTeam = "TerminalTeam";
+    public const string CyStaff = "CyStaff";
     public const string Broker = "Broker";
     public const string Consignee = "Consignee";
     public const string Trucker = "Trucker";
@@ -20,6 +21,7 @@ public static class AppRoles
         Evaluator,
         Accounting,
         TerminalTeam,
+        CyStaff,
         Broker,
         Consignee,
         Trucker
