@@ -908,11 +908,17 @@ export function VerifyEmailPage() {
 export function RoleAcceptancePage() {
   const { token = '' } = useParams();
   const { data, error: loadError } = useGetInvitationQuery(token, { skip: !token });
-  const [acceptInvitation] = useAcceptInvitationMutation();
-  const [password, setPassword] = useState('');
+  const [acceptInvitation, { isLoading }] = useAcceptInvitationMutation();
+  const passwordFields = useRegistrationPassword();
   const [error, setError] = useState<string | null>(null);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  const canAccept =
+    !!data &&
+    passwordFields.passwordStrong &&
+    passwordFields.passwordsAreMatching &&
+    !isLoading;
 
   return (
     <AuthSplitLayout
@@ -927,23 +933,41 @@ export function RoleAcceptancePage() {
           </Alert>
         )}
         {error && <Alert severity="error">{error}</Alert>}
-        <TextField
-          label="Set password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          fullWidth
+        <RegistrationPasswordFields
+          password={passwordFields.password}
+          confirmPassword={passwordFields.confirmPassword}
+          touched={passwordFields.touched}
+          passwordRules={passwordFields.passwordRules}
+          passwordStrong={passwordFields.passwordStrong}
+          passwordsAreMatching={passwordFields.passwordsAreMatching}
+          onPasswordChange={passwordFields.setPassword}
+          onConfirmPasswordChange={passwordFields.setConfirmPassword}
+          onPasswordBlur={() =>
+            passwordFields.setTouched((prev) => ({ ...prev, password: true }))
+          }
+          onConfirmPasswordBlur={() =>
+            passwordFields.setTouched((prev) => ({ ...prev, confirmPassword: true }))
+          }
         />
         <Button
           variant="contained"
           size="large"
           fullWidth
-          disabled={!data}
+          disabled={!canAccept}
           sx={{ py: 1.35, fontWeight: 600, textTransform: 'none', fontSize: '1rem' }}
           onClick={async () => {
             setError(null);
+            const validationError = passwordFields.validate();
+            if (validationError) {
+              setError(validationError);
+              return;
+            }
+
             try {
-              const result = await acceptInvitation({ token, password }).unwrap();
+              const result = await acceptInvitation({
+                token,
+                password: passwordFields.password,
+              }).unwrap();
               dispatch(
                 setCredentials({
                   accessToken: result.accessToken,
@@ -952,12 +976,12 @@ export function RoleAcceptancePage() {
                 }),
               );
               navigate(postAuthHomePath(result.user.role));
-            } catch {
-              setError('Accept failed.');
+            } catch (err) {
+              setError(getApiErrorMessage(err, 'Accept failed.'));
             }
           }}
         >
-          Accept invitation
+          {isLoading ? <CircularProgress size={22} color="inherit" /> : 'Accept invitation'}
         </Button>
       </Stack>
     </AuthSplitLayout>

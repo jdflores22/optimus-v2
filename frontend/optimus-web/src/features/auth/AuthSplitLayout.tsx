@@ -6,7 +6,7 @@ import { ColorModeToggle } from '../../shared/ColorModeToggle';
 import { authPanelGradient } from '../../shared/theme';
 import { AuthPhilippinesMatrixCanvas } from './AuthPhilippinesMatrixCanvas';
 
-const HIGHLIGHTS = ['Brokers', 'Consignees', 'Truckers', 'Shipping lines', 'Manifests'] as const;
+const HIGHLIGHTS = ['Brokers', 'Consignees', 'Truckers', 'Shipping lines'] as const;
 
 type AuthSplitLayoutProps = {
   title: string;

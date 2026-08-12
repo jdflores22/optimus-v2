@@ -12,6 +12,7 @@ using Optimus.Infrastructure.Email;
 using Optimus.Infrastructure.Persistence;
 using Optimus.Infrastructure.Persistence.Configurations;
 using Optimus.Shared.Constants;
+using Optimus.Shared.Security;
 
 namespace Optimus.Infrastructure.Identity;
 
@@ -106,6 +107,11 @@ public class RoleAcceptanceService : IRoleAcceptanceService
             pending.Status = PendingUserStatus.Expired;
             await _db.SaveChangesAsync(cancellationToken);
             throw new InvalidOperationException("Invitation expired.");
+        }
+
+        if (!PasswordPolicy.IsStrong(request.Password))
+        {
+            throw new InvalidOperationException(PasswordPolicy.RequirementMessage);
         }
 
         User user = pending.Role switch
