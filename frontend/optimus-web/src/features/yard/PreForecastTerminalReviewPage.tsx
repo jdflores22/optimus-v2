@@ -33,17 +33,13 @@ import {
 } from '../../app/api';
 import type { RootState } from '../../app/store';
 import { WorkflowPage, WorkflowSection } from '../shared/WorkflowPage';
-import { API_BASE_URL } from '../../shared/types';
 import { useDefaultShippingLine } from '../../shared/useDefaultShippingLine';
 import { AllocationReviewGrid } from './AllocationReviewCard';
 import { buildContractAvailabilityCards, slotSummaryForDate } from './contractAvailabilityCards';
 import { preForecastDetailPath } from './preForecastPaths';
 import { preForecastStatusColor, preForecastStatusLabel } from './preForecastStatus';
 import { PreForecastWorkflowTimeline } from './PreForecastWorkflowTimeline';
-
-function assetUrl(path: string) {
-  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
-}
+import { PreForecastPhotoCard } from './PreForecastPhotoCard';
 
 export function PreForecastTerminalReviewPage() {
   const { id = '' } = useParams();
@@ -278,31 +274,7 @@ export function PreForecastTerminalReviewPage() {
               </Typography>
               <Box display="grid" gridTemplateColumns={{ xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }} gap={1.25}>
                 {submission.photos.map((photo) => (
-                  <Box
-                    key={photo.id}
-                    component="a"
-                    href={assetUrl(photo.filePath)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      border: 1,
-                      borderColor: 'divider',
-                      borderRadius: 1.5,
-                      overflow: 'hidden',
-                      textDecoration: 'none',
-                      color: 'inherit',
-                    }}
-                  >
-                    <Box
-                      component="img"
-                      src={assetUrl(photo.filePath)}
-                      alt={photo.label}
-                      sx={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }}
-                    />
-                    <Typography variant="caption" fontWeight={700} px={1} py={0.75} display="block">
-                      {photo.label}
-                    </Typography>
-                  </Box>
+                  <PreForecastPhotoCard key={photo.id} submissionId={submission.id} photo={photo} />
                 ))}
               </Box>
             </Box>

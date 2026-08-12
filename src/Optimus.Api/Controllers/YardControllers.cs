@@ -476,11 +476,16 @@ public class TruckerPreForecastController : ControllerBase
 {
     private readonly ITruckerPreForecastService _preforecast;
     private readonly IDocumentStore _docs;
+    private readonly IUploadRootProvider _uploads;
 
-    public TruckerPreForecastController(ITruckerPreForecastService preforecast, IDocumentStore docs)
+    public TruckerPreForecastController(
+        ITruckerPreForecastService preforecast,
+        IDocumentStore docs,
+        IUploadRootProvider uploads)
     {
         _preforecast = preforecast;
         _docs = docs;
+        _uploads = uploads;
     }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -507,6 +512,19 @@ public class TruckerPreForecastController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<TruckerPreForecastSubmissionDto>> Get(Guid id, CancellationToken ct)
         => Ok(await _preforecast.GetAsync(id, UserId, Role, ct));
+
+    [HttpGet("{submissionId:guid}/photos/{photoId:guid}")]
+    public async Task<IActionResult> DownloadPhoto(Guid submissionId, Guid photoId, CancellationToken ct)
+    {
+        var submission = await _preforecast.GetAsync(submissionId, UserId, Role, ct);
+        var photo = submission.Photos.FirstOrDefault(p => p.Id == photoId);
+        if (photo is null)
+        {
+            return NotFound(new { message = "Photo not found." });
+        }
+
+        return ServeProtectedUpload(photo.FilePath, photo.OriginalName ?? $"{photo.Label}.jpg");
+    }
 
     [HttpPost]
     [Authorize(Policy = "Trucker")]
@@ -588,6 +606,30 @@ public class TruckerPreForecastController : ControllerBase
         var path = await _docs.SaveAsync("pre-forecast-photos", file.FileName, stream, ct);
         list.Add(new TruckerPreForecastPhotoInput(category, path, file.FileName, null));
     }
+
+    private IActionResult ServeProtectedUpload(string? webPath, string downloadName)
+    {
+        var fullPath = _uploads.ResolveExistingFile(webPath);
+        if (fullPath is null || !System.IO.File.Exists(fullPath))
+        {
+            return NotFound(new { message = "File not found." });
+        }
+
+        Response.Headers.CacheControl = "private, no-store, no-cache, must-revalidate";
+        Response.Headers.Pragma = "no-cache";
+        return PhysicalFile(fullPath, ContentTypeForPath(fullPath), downloadName);
+    }
+
+    private static string ContentTypeForPath(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".pdf" => "application/pdf",
+            _ => "application/octet-stream",
+        };
 }
 
 [ApiController]

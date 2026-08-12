@@ -19,11 +19,9 @@ import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
 import { useSelector } from 'react-redux';
-import {
-  useGetTruckerIntakeSubmissionQuery,
-} from '../../app/api';
+import { useGetTruckerIntakeSubmissionQuery } from '../../app/api';
 import type { RootState } from '../../app/store';
-import { API_BASE_URL } from '../../shared/types';
+import { PreForecastPhotoCard } from './PreForecastPhotoCard';
 import { WorkflowPage, WorkflowSection, type WorkflowStat } from '../shared/WorkflowPage';
 import { PreForecastWorkflowTimeline } from './PreForecastWorkflowTimeline';
 import { CyScheduleConfirmPanel } from './CyScheduleConfirmPanel';
@@ -43,10 +41,6 @@ import {
 } from './truckerEdoPayments';
 import { canViewPreForecastDetention, canViewPreForecastTruckerWorkflow, cyDepotStatusHint, cyDepotStatusLabel } from './preForecastRoleAccess';
 import { RenewedEdoBadge } from '../edo/RenewedEdoBadge';
-
-function assetUrl(path: string) {
-  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
-}
 
 function SidebarRow({ label, value }: { label: string; value: string }) {
   return (
@@ -364,40 +358,7 @@ export function PreForecastSubmissionDetailPage() {
                 gap={1.5}
               >
                 {submission.photos.map((photo) => (
-                  <Box
-                    key={photo.id}
-                    component="a"
-                    href={assetUrl(photo.filePath)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      border: 1,
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                      overflow: 'hidden',
-                      textDecoration: 'none',
-                      color: 'inherit',
-                      transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease',
-                      '&:hover': {
-                        borderColor: 'primary.main',
-                        transform: 'translateY(-2px)',
-                        boxShadow: 2,
-                      },
-                    }}
-                  >
-                    <Box
-                      component="img"
-                      src={assetUrl(photo.filePath)}
-                      alt={photo.label}
-                      sx={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', bgcolor: '#0a1628' }}
-                    />
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" px={1.25} py={1}>
-                      <Typography variant="caption" fontWeight={700}>
-                        {photo.label}
-                      </Typography>
-                      <OpenInNewOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                    </Stack>
-                  </Box>
+                  <PreForecastPhotoCard key={photo.id} submissionId={submission.id} photo={photo} />
                 ))}
               </Box>
             </WorkflowSection>

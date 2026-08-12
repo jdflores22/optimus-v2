@@ -24,12 +24,13 @@ import { WorkflowSection } from '../shared/WorkflowPage';
 import {
   CONTAINER_SIZE_COLUMNS,
   buildDailyConfirmedSummary,
-  buildUpcomingDayTotals,
   columnGrandTotals,
   containerSizeColumnLabel,
   formatScheduleDateLabel,
+  parseDateKey,
   todayDateKey,
 } from '../yard/cyIntakeSchedule';
+import { calendarMonthFromDateKey, CyMonthScheduleCalendar } from './CyMonthScheduleCalendar';
 
 type Props = {
   intake: TruckerPreForecastSubmissionDto[];
@@ -71,6 +72,9 @@ function CountBadge({ value }: { value: number }) {
 export function CyDailyBookingSummary({ intake, shippingLines, containers }: Props) {
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
   const [tab, setTab] = useState<'overview' | 'upcoming'>('overview');
+  const initialMonth = calendarMonthFromDateKey(todayDateKey());
+  const [calendarYear, setCalendarYear] = useState(initialMonth.year);
+  const [calendarMonth, setCalendarMonth] = useState(initialMonth.month);
 
   const containerById = useMemo(
     () => new Map(containers.map((container) => [container.id, container])),
@@ -83,11 +87,6 @@ export function CyDailyBookingSummary({ intake, shippingLines, containers }: Pro
   );
 
   const grandTotals = useMemo(() => columnGrandTotals(dailyRows), [dailyRows]);
-
-  const upcomingDays = useMemo(
-    () => buildUpcomingDayTotals(intake, todayDateKey(), 14),
-    [intake],
-  );
 
   const isToday = selectedDate === todayDateKey();
   const hasConfirmedOnDay = dailyRows.length > 0;
@@ -102,14 +101,26 @@ export function CyDailyBookingSummary({ intake, shippingLines, containers }: Pro
             type="date"
             size="small"
             value={selectedDate}
-            onChange={(event) => setSelectedDate(event.target.value)}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setSelectedDate(nextDate);
+              const { year, month } = parseDateKey(nextDate);
+              setCalendarYear(year);
+              setCalendarMonth(month);
+            }}
             InputLabelProps={{ shrink: true }}
             sx={{ width: 160 }}
           />
           <Button
             size="small"
             variant={isToday ? 'contained' : 'outlined'}
-            onClick={() => setSelectedDate(todayDateKey())}
+            onClick={() => {
+              const today = todayDateKey();
+              setSelectedDate(today);
+              const { year, month } = parseDateKey(today);
+              setCalendarYear(year);
+              setCalendarMonth(month);
+            }}
           >
             Today
           </Button>
@@ -127,7 +138,7 @@ export function CyDailyBookingSummary({ intake, shippingLines, containers }: Pro
         }}
       >
         <Tab label="Overview" value="overview" />
-        <Tab label="Upcoming schedule" value="upcoming" />
+        <Tab label="Calendar" value="upcoming" />
       </Tabs>
 
       {tab === 'overview' ? (
@@ -237,94 +248,42 @@ export function CyDailyBookingSummary({ intake, shippingLines, containers }: Pro
       ) : (
         <>
           <Alert severity="info" variant="outlined" sx={{ mb: 2, bgcolor: 'success.50', borderColor: 'success.light' }}>
-            Next 14 days — confirmed empty returns (green) and terminal-assigned requests still awaiting your date
-            confirmation (amber).
+            Month view — green dots are confirmed empty returns; amber dots are still awaiting your CY date
+            confirmation. Click a day to open its overview.
           </Alert>
 
-          <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>
-                      Confirmed
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>
-                      Awaiting CY confirm
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>
-                      Action
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {upcomingDays.map((day) => {
-                    const hasActivity = day.confirmed > 0 || day.pending > 0;
-                    const isSelected = day.dateKey === selectedDate;
-                    return (
-                      <TableRow
-                        key={day.dateKey}
-                        hover={hasActivity}
-                        sx={isSelected ? { bgcolor: 'action.selected' } : undefined}
-                      >
-                        <TableCell>
-                          <Typography fontWeight={isSelected ? 800 : 600}>
-                            {formatScheduleDateLabel(day.dateKey)}
-                            {day.dateKey === todayDateKey() ? (
-                              <Typography component="span" variant="caption" color="primary.main" sx={{ ml: 1 }}>
-                                Today
-                              </Typography>
-                            ) : null}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <CountBadge value={day.confirmed} />
-                        </TableCell>
-                        <TableCell align="center">
-                          {day.pending > 0 ? (
-                            <Box
-                              component="span"
-                              sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                minWidth: 28,
-                                height: 28,
-                                px: 0.75,
-                                borderRadius: '50%',
-                                bgcolor: 'warning.light',
-                                color: 'warning.dark',
-                                fontWeight: 800,
-                                fontSize: '0.8rem',
-                              }}
-                            >
-                              {day.pending}
-                            </Box>
-                          ) : (
-                            <CountBadge value={0} />
-                          )}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button
-                            size="small"
-                            variant={isSelected ? 'contained' : 'text'}
-                            onClick={() => {
-                              setSelectedDate(day.dateKey);
-                              setTab('overview');
-                            }}
-                            disabled={!hasActivity && day.dateKey !== todayDateKey()}
-                          >
-                            {isSelected ? 'Viewing' : 'View day'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
+          <CyMonthScheduleCalendar
+            intake={intake}
+            year={calendarYear}
+            month={calendarMonth}
+            selectedDate={selectedDate}
+            onMonthChange={(year, month) => {
+              setCalendarYear(year);
+              setCalendarMonth(month);
+            }}
+            onSelectDate={(dateKey) => {
+              setSelectedDate(dateKey);
+              const { year, month } = parseDateKey(dateKey);
+              setCalendarYear(year);
+              setCalendarMonth(month);
+              setTab('overview');
+            }}
+          />
+
+          <Stack direction="row" spacing={2} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.light' }} />
+              <Typography variant="caption" color="text.secondary">
+                Confirmed return
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'warning.light' }} />
+              <Typography variant="caption" color="text.secondary">
+                Awaiting CY confirm
+              </Typography>
+            </Stack>
+          </Stack>
 
           {intake.some((s) => s.status === 'PendingCySchedule') && (
             <Box sx={{ mt: 1.5, textAlign: 'right' }}>
