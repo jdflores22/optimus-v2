@@ -6,11 +6,13 @@ import { Link as RouterLink } from 'react-router-dom';
 import {
   useGetContainersQuery,
   useGetCyAllocationsQuery,
+  useGetShippingLinesQuery,
   useGetTerminalsQuery,
   useGetTruckerIntakeSubmissionsQuery,
   useGetUtilizationQuery,
 } from '../../app/api';
 import { ContractTeuLocationCard } from './ContractTeuLocationCard';
+import { CyDailyBookingSummary } from './CyDailyBookingSummary';
 import { buildContractAvailabilityCards } from '../yard/contractAvailabilityCards';
 import { cyIntakeCountsByTerminal } from '../yard/cyIntakeCounts';
 import { preForecastDetailPath } from '../yard/preForecastPaths';
@@ -27,6 +29,7 @@ export function CyStaffDashboardSection({ userId }: Props) {
     containerYardsOnly: true,
     activeTerminalsOnly: true,
   });
+  const { data: shippingLines = [] } = useGetShippingLinesQuery();
   const { data: terminals = [] } = useGetTerminalsQuery({ activeOnly: true });
   const { data: containers = [] } = useGetContainersQuery(undefined);
   const { data: utilization = [] } = useGetUtilizationQuery({ terminalIdentity: 'ContainerYard' });
@@ -50,8 +53,12 @@ export function CyStaffDashboardSection({ userId }: Props) {
   );
 
   const allocationCards = useMemo(
-    () => buildContractAvailabilityCards(myAllocations, terminals, containers, utilization, 'cy'),
-    [myAllocations, terminals, containers, utilization],
+    () =>
+      buildContractAvailabilityCards(myAllocations, terminals, containers, utilization, 'cy', {
+        focus: 'shippingLine',
+        shippingLines,
+      }),
+    [myAllocations, terminals, containers, utilization, shippingLines],
   );
 
   const intakeByTerminal = useMemo(() => cyIntakeCountsByTerminal(scopedIntake), [scopedIntake]);
@@ -146,10 +153,16 @@ export function CyStaffDashboardSection({ userId }: Props) {
         )}
       </WorkflowSection>
 
+      <CyDailyBookingSummary
+        intake={scopedIntake}
+        shippingLines={shippingLines}
+        containers={containers}
+      />
+
       {allocationCards.length > 0 && (
         <WorkflowSection
-          title="Depot allocation"
-          subtitle="Contract TEU capacity at yards linked to your account and current intake pressure."
+          title="Shipping line allocation"
+          subtitle="Contract TEU the shipping line has allocated to your depot and current intake pressure."
         >
           <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
             {allocationCards.map((card) => {

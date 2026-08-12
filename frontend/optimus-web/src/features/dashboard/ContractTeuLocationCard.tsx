@@ -1,12 +1,16 @@
 import { Box, Button, Chip, Divider, Paper, Stack, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { TerminalLogoAvatar } from '../../shared/TerminalLogoAvatar';
+import { ShippingLineLogoAvatar } from '../../shared/ShippingLineLogoAvatar';
 
 export type ContractTeuLocationCardProps = {
   name: string;
   subtitle?: string;
   code: string;
   logoPath?: string | null;
+  logoSubject?: 'terminal' | 'shippingLine';
+  brandName?: string;
+  brandColor?: string | null;
   kind: 'port' | 'cy';
   usedTeu: number;
   capacityTeu: number;
@@ -113,6 +117,9 @@ export function ContractTeuLocationCard({
   subtitle,
   code,
   logoPath,
+  logoSubject = 'terminal',
+  brandName,
+  brandColor,
   kind,
   usedTeu,
   capacityTeu,
@@ -150,8 +157,14 @@ export function ContractTeuLocationCard({
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5} mb={2}>
         <Box minWidth={0} flex={1}>
-          <Typography fontWeight={800} fontSize="1.2rem" lineHeight={1.2} noWrap title={code || name}>
-            {code || name}
+          <Typography
+            fontWeight={800}
+            fontSize={logoSubject === 'shippingLine' ? '1.35rem' : '1.2rem'}
+            lineHeight={1.2}
+            noWrap
+            title={logoSubject === 'shippingLine' ? code : code || name}
+          >
+            {logoSubject === 'shippingLine' ? code : code || name}
           </Typography>
           <Typography
             variant="body2"
@@ -159,14 +172,14 @@ export function ContractTeuLocationCard({
             sx={{
               mt: 0.35,
               display: '-webkit-box',
-              WebkitLineClamp: 2,
+              WebkitLineClamp: logoSubject === 'shippingLine' ? 3 : 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
               wordBreak: 'break-word',
             }}
-            title={subtitle ?? name}
+            title={logoSubject === 'shippingLine' ? brandName ?? subtitle ?? name : subtitle ?? name}
           >
-            {subtitle ?? name}
+            {logoSubject === 'shippingLine' ? brandName ?? subtitle ?? name : subtitle ?? name}
           </Typography>
           {typeLabel && (
             <Chip
@@ -183,7 +196,17 @@ export function ContractTeuLocationCard({
             />
           )}
         </Box>
-        <TerminalLogoAvatar logoPath={logoPath} code={code} kind={kind} size={52} />
+        {logoSubject === 'shippingLine' ? (
+          <ShippingLineLogoAvatar
+            logoPath={logoPath}
+            brandName={brandName ?? name}
+            brandColor={brandColor}
+            size={52}
+            variant="rounded"
+          />
+        ) : (
+          <TerminalLogoAvatar logoPath={logoPath} code={code} kind={kind} size={52} />
+        )}
       </Stack>
 
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.75}>

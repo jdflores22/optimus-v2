@@ -1,5 +1,6 @@
-import type { ContainerDto, CyAllocationDto, TerminalDto, UtilizationReportDto } from '../../shared/types';
+import type { ContainerDto, CyAllocationDto, ShippingLineDto, TerminalDto, UtilizationReportDto } from '../../shared/types';
 import { isContainerYardTerminal, isPortTerminal } from '../../shared/terminalTaxonomy';
+import { shippingLineShortCode } from '../../shared/shippingLineDisplay';
 import type { ContractTeuLocationCardProps } from '../dashboard/ContractTeuLocationCard';
 
 export type ContractAvailabilityCard = ContractTeuLocationCardProps & {
@@ -10,13 +11,21 @@ export type ContractAvailabilityCard = ContractTeuLocationCardProps & {
   preForecast: number;
 };
 
+export type ContractAvailabilityOptions = {
+  /** CY staff: counterparty is the shipping line. SL/terminal: counterparty is the depot/port. */
+  focus?: 'location' | 'shippingLine';
+  shippingLines?: ShippingLineDto[];
+};
+
 export function buildContractAvailabilityCards(
   allocations: CyAllocationDto[],
   terminals: TerminalDto[],
   containers: ContainerDto[],
   utilization: UtilizationReportDto[],
   kind: 'cy' | 'port',
+  options: ContractAvailabilityOptions = {},
 ): ContractAvailabilityCard[] {
+  const focus = options.focus ?? 'location';
   const activeTerminals = terminals.filter((terminal) => terminal.isActive);
   const terminalIds = new Set(
     activeTerminals
@@ -41,13 +50,23 @@ export function buildContractAvailabilityCards(
       const allocated40 = localContainers.filter((container) => container.sizeCode?.includes('40')).length;
       const preForecast = utilizationRow?.pendingPreForecast ?? 0;
 
+      const locationSubtitle = [terminalMeta?.city, terminalMeta?.region].filter(Boolean).join(', ') || terminalMeta?.location || allocation.terminalName;
+      const showShippingLine = focus === 'shippingLine' && kind === 'cy';
+      const shippingLine = showShippingLine
+        ? options.shippingLines?.find((line) => line.id === allocation.shippingLineId)
+        : undefined;
+      const brandName = shippingLine?.brandName ?? allocation.shippingLineName;
+
       return {
         terminalId: allocation.terminalId,
         allocationId: allocation.id,
-        name: allocation.terminalName,
-        subtitle: [terminalMeta?.city, terminalMeta?.region].filter(Boolean).join(', ') || terminalMeta?.location || allocation.terminalName,
-        code: terminalMeta?.code ?? allocation.terminalName,
-        logoPath: terminalMeta?.logoPath,
+        name: showShippingLine ? brandName : allocation.terminalName,
+        subtitle: showShippingLine ? brandName : locationSubtitle,
+        code: showShippingLine ? shippingLineShortCode(brandName) : (terminalMeta?.code ?? allocation.terminalName),
+        logoPath: showShippingLine ? shippingLine?.logoPath : terminalMeta?.logoPath,
+        logoSubject: showShippingLine ? ('shippingLine' as const) : ('terminal' as const),
+        brandName: showShippingLine ? brandName : undefined,
+        brandColor: showShippingLine ? shippingLine?.brandColor : undefined,
         kind,
         usedTeu: allocation.usedTeu,
         capacityTeu: allocation.allocatedCapacityTeu,
@@ -60,7 +79,7 @@ export function buildContractAvailabilityCards(
         available20: Math.max(allocation.capacity20Ft - allocated20, 0),
         available40: Math.max(allocation.capacity40Ft - allocated40, 0),
         preForecast,
-        typeLabel: kind === 'cy' ? 'Container Yard' : 'Port Terminal',
+        typeLabel: showShippingLine ? undefined : kind === 'cy' ? 'Container Yard' : 'Port Terminal',
         unitLimit20Label: '20ft capacity',
         unitLimit40Label: '40ft capacity',
       };

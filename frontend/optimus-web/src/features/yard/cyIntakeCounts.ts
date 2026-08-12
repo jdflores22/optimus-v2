@@ -36,6 +36,8 @@ function isCyConfirmed(s: TruckerPreForecastSubmissionDto): boolean {
   return Boolean(s.cyConfirmedReturnDate) || CY_CONFIRMED_STATUSES.has(s.status);
 }
 
+export { isCyConfirmed };
+
 function emptySizeCounts(): CyIntakeSizeCounts {
   return { preForecast20: 0, preForecast40: 0, confirmed20: 0, confirmed40: 0 };
 }

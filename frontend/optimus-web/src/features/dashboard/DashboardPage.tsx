@@ -710,8 +710,8 @@ export function DashboardPage() {
         </WorkflowSection>
 
         <WorkflowSection
-          title="Container yards"
-          subtitle="Contract TEU per CY — empty return capacity and unit limits."
+          title="Depot allocation"
+          subtitle="Contract TEU allocated to each depot — empty return capacity and unit limits."
           actions={
             <Chip size="small" label={`${slStaffDashboard.contractCyCards.length} CY`} color="primary" />
           }
