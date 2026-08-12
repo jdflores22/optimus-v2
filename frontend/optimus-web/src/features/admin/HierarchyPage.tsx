@@ -184,7 +184,7 @@ export function HierarchyPage({ variant = 'hierarchy' }: HierarchyPageProps) {
     setMessage(null);
     try {
       const pending = await inviteUser(form).unwrap();
-      setMessage(`Invited ${pending.email}. Acceptance token issued.`);
+      setMessage(`Invitation sent to ${pending.email}. They will receive an email with an accept link.`);
       setForm({ ...EMPTY_INVITE, role: isShippingAdmin ? 'SlStaff' : form.role });
       setInviteOpen(false);
       refetch();

@@ -38,6 +38,39 @@ public static class TransactionalEmailTemplate
         return (text, html);
     }
 
+    public static (string Text, string Html) BuildInvitationEmail(
+        string firstName,
+        string role,
+        string token,
+        string? publicUrl)
+    {
+        var displayName = string.IsNullOrWhiteSpace(firstName) ? "there" : firstName.Trim();
+        var roleLabel = FormatInvitationRoleLabel(role);
+        var hasLink = !string.IsNullOrWhiteSpace(publicUrl);
+        var acceptUrl = hasLink ? $"{publicUrl!.TrimEnd('/')}/role-acceptance/{token}" : null;
+        var logoUrl = hasLink ? $"{publicUrl!.TrimEnd('/')}/optimus-logo.png" : null;
+
+        var text = BuildInvitationPlainText(displayName, roleLabel, token, acceptUrl);
+        var html = BuildInvitationHtml(displayName, roleLabel, token, acceptUrl, logoUrl);
+        return (text, html);
+    }
+
+    private static string FormatInvitationRoleLabel(string role) =>
+        role switch
+        {
+            AppRoles.SystemAdmin => "System Administrator",
+            AppRoles.ShippingLinesAdmin => "Shipping Lines Administrator",
+            AppRoles.SlStaff => "Shipping Line Staff",
+            AppRoles.Evaluator => "Evaluator",
+            AppRoles.Accounting => "Accounting",
+            AppRoles.TerminalTeam => "Terminal Team",
+            AppRoles.CyStaff => "Container Yard",
+            AppRoles.Broker => "Broker",
+            AppRoles.Consignee => "Consignee",
+            AppRoles.Trucker => "Trucker",
+            _ => FormatRoleLabel(role),
+        };
+
     private sealed record RoleWelcomeContent(string Label, string Intro, IReadOnlyList<string> Highlights);
 
     private static RoleWelcomeContent ResolveRoleWelcomeContent(string role) =>
@@ -186,6 +219,154 @@ public static class TransactionalEmailTemplate
                         <td style="padding: 0 32px 32px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted};">
                           Your email is verified and your account is ready to use.
                           If you did not create this account, please contact support immediately.
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 20px 32px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; line-height: 1.6; color: {TextMuted}; text-align: center;">
+                          &copy; {DateTime.UtcNow.Year} OPTIMUS Shipping System<br />
+                          Operational platform for consignees, brokers, truckers, and shipping lines.
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string BuildInvitationPlainText(string firstName, string roleLabel, string token, string? acceptUrl)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Hello {firstName},");
+        sb.AppendLine();
+        sb.AppendLine($"You have been invited to join OPTIMUS as {roleLabel}.");
+        sb.AppendLine("Accept the invitation and set your password to activate your account.");
+        sb.AppendLine();
+
+        if (!string.IsNullOrWhiteSpace(acceptUrl))
+        {
+            sb.AppendLine("Accept invitation:");
+            sb.AppendLine(acceptUrl);
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("Or paste this invitation code on the Accept Invitation page:");
+        sb.AppendLine(token);
+        sb.AppendLine();
+        sb.AppendLine("This invitation expires in 7 days.");
+        sb.AppendLine();
+        sb.AppendLine("If you were not expecting this invitation, you can safely ignore this email.");
+        sb.AppendLine();
+        sb.AppendLine("— OPTIMUS Shipping System");
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string BuildInvitationHtml(
+        string firstName,
+        string roleLabel,
+        string token,
+        string? acceptUrl,
+        string? logoUrl)
+    {
+        var encodedName = WebUtility.HtmlEncode(firstName);
+        var encodedRole = WebUtility.HtmlEncode(roleLabel);
+        var encodedToken = WebUtility.HtmlEncode(token);
+        var encodedAcceptUrl = acceptUrl is not null ? WebUtility.HtmlEncode(acceptUrl) : null;
+
+        var ctaBlock = encodedAcceptUrl is not null
+            ? $"""
+               <tr>
+                 <td align="center" style="padding: 12px 32px 8px;">
+                   <a href="{encodedAcceptUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: {BrandPrimary}; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; font-weight: 600; line-height: 1; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+                     Accept invitation
+                   </a>
+                 </td>
+               </tr>
+               <tr>
+                 <td align="center" style="padding: 0 32px 32px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted};">
+                   Button not working?
+                   <a href="{encodedAcceptUrl}" target="_blank" rel="noopener noreferrer" style="color: {BrandPrimaryLight}; font-weight: 600; text-decoration: none;">Open invitation page</a>
+                 </td>
+               </tr>
+               <tr>
+                 <td style="padding: 0 32px 8px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: {TextMuted};">
+                   Or use this code
+                 </td>
+               </tr>
+               """
+            : """
+               <tr>
+                 <td style="padding: 0 32px 8px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280;">
+                   Invitation code
+                 </td>
+               </tr>
+               """;
+
+        var logoBlock = logoUrl is not null
+            ? $"""<img src="{WebUtility.HtmlEncode(logoUrl)}" alt="OPTIMUS" width="72" height="72" style="display: block; margin: 0 auto 12px; border: 0;" />"""
+            : $"""<div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; font-weight: 700; letter-spacing: 0.04em; color: {BrandPrimary}; margin-bottom: 4px;">OPTIMUS</div>""";
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta name="color-scheme" content="light" />
+              <meta name="supported-color-schemes" content="light" />
+              <title>You're invited to OPTIMUS</title>
+            </head>
+            <body style="margin: 0; padding: 0; background-color: {PageBackground};">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: {PageBackground}; padding: 32px 16px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 560px; background-color: {Surface}; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(11, 61, 92, 0.08);">
+                      <tr>
+                        <td style="background: linear-gradient(135deg, {BrandPrimary} 0%, {BrandPrimaryLight} 100%); padding: 28px 32px; text-align: center;">
+                          {logoBlock}
+                          <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.92);">
+                            Shipping System
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 36px 32px 8px; font-family: 'Segoe UI', Arial, sans-serif;">
+                          <h1 style="margin: 0 0 12px; font-size: 24px; line-height: 1.3; font-weight: 700; color: {TextPrimary};">
+                            You're invited, {encodedName}!
+                          </h1>
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 18px;">
+                            <tr>
+                              <td style="background-color: rgba(11, 61, 92, 0.08); border: 1px solid rgba(11, 61, 92, 0.14); border-radius: 999px; padding: 8px 14px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: {BrandPrimary};">
+                                {encodedRole}
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin: 0 0 8px; font-size: 15px; line-height: 1.7; color: {TextMuted};">
+                            An administrator invited you to OPTIMUS. Accept the invitation and set your password to activate your account.
+                          </p>
+                        </td>
+                      </tr>
+                      {ctaBlock}
+                      <tr>
+                        <td style="padding: 0 32px 24px;">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;">
+                            <tr>
+                              <td style="padding: 14px 16px; font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; line-height: 1.5; color: {TextPrimary}; word-break: break-all; text-align: center;">
+                                {encodedToken}
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin: 12px 0 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted};">
+                            Paste this code on the Accept Invitation page if needed.
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 0 32px 32px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: {TextMuted};">
+                          This invitation expires in <strong style="color: {TextPrimary};">7 days</strong>.
+                          If you were not expecting this invitation, you can safely ignore this email.
                         </td>
                       </tr>
                       <tr>

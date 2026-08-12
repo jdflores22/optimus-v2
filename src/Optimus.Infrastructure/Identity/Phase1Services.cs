@@ -1,11 +1,14 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Optimus.Application.Auth.Dtos;
 using Optimus.Application.Auth.Interfaces;
 using Optimus.Domain.Entities;
 using Optimus.Domain.Enums;
 using Optimus.Infrastructure.Auth;
+using Optimus.Infrastructure.Email;
 using Optimus.Infrastructure.Persistence;
 using Optimus.Infrastructure.Persistence.Configurations;
 using Optimus.Shared.Constants;
@@ -18,17 +21,23 @@ public class RoleAcceptanceService : IRoleAcceptanceService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuthService _authService;
     private readonly IEmailSender _emailSender;
+    private readonly AppSettings _appSettings;
+    private readonly ILogger<RoleAcceptanceService> _logger;
 
     public RoleAcceptanceService(
         OptimusDbContext db,
         IPasswordHasher passwordHasher,
         IAuthService authService,
-        IEmailSender emailSender)
+        IEmailSender emailSender,
+        IOptions<AppSettings> appSettings,
+        ILogger<RoleAcceptanceService> logger)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _authService = authService;
         _emailSender = emailSender;
+        _appSettings = appSettings.Value;
+        _logger = logger;
     }
 
     public async Task<PendingUserDto> InviteAsync(InviteUserRequest request, Guid createdByAdminId, CancellationToken cancellationToken = default)
@@ -62,8 +71,14 @@ public class RoleAcceptanceService : IRoleAcceptanceService
         _db.PendingUsers.Add(pending);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _emailSender.SendAsync(email, "Optimus V2 role invitation",
-            $"You were invited as {request.Role}. Acceptance token: {token}", cancellationToken: cancellationToken);
+        var (textBody, htmlBody) = TransactionalEmailTemplate.BuildInvitationEmail(
+            pending.FirstName,
+            pending.Role,
+            token,
+            _appSettings.TrimmedPublicUrl);
+        const string subject = "You're invited to OPTIMUS";
+        await _emailSender.SendAsync(email, subject, textBody, htmlBody, cancellationToken);
+        _logger.LogInformation("Sent invitation email to {Email} role={Role}", email, pending.Role);
 
         return Map(pending);
     }
