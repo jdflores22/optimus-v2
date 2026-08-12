@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Optimus.Application.Yard.Dtos;
 using Optimus.Application.Yard.Interfaces;
 using Optimus.Infrastructure.Persistence;
 
@@ -38,6 +39,23 @@ public class CyScopeService : ICyScopeService
         }
 
         return ids.ToList();
+    }
+
+    public async Task<CyStaffScopeDto> GetCyStaffScopeAsync(Guid userId, CancellationToken ct = default)
+    {
+        var terminalIds = await GetAssignedTerminalIdsAsync(userId, ct);
+        if (terminalIds.Count == 0)
+        {
+            return new CyStaffScopeDto(false, Array.Empty<CyStaffScopeTerminalDto>());
+        }
+
+        var terminals = await _db.Terminals.AsNoTracking()
+            .Where(x => terminalIds.Contains(x.Id))
+            .OrderBy(x => x.Name)
+            .Select(x => new CyStaffScopeTerminalDto(x.Id, x.Name, x.Code))
+            .ToListAsync(ct);
+
+        return new CyStaffScopeDto(terminals.Count > 0, terminals);
     }
 
     public async Task<IReadOnlyList<Guid>> GetCyUserIdsForTerminalAsync(Guid terminalId, CancellationToken ct = default)

@@ -494,6 +494,17 @@ export type CyAllocationDto = {
   usedTeu: number;
 };
 
+export type CyStaffScopeTerminalDto = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type CyStaffScopeDto = {
+  hasAssignment: boolean;
+  terminals: CyStaffScopeTerminalDto[];
+};
+
 export type ContainerDto = {
   id: string;
   containerNumber: string;

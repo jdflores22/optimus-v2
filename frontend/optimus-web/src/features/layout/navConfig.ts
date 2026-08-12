@@ -1094,6 +1094,24 @@ export function getNavGroups(role: string | undefined | null, options?: NavAcces
   }
 
   if (r === 'CyStaff') {
+    if (options?.cyAssigned === false) {
+      return [
+        {
+          id: 'account',
+          label: 'Account',
+          items: [
+            {
+              id: 'profile',
+              label: 'Profile',
+              path: '/profile',
+              roles: ['CyStaff'],
+              icon: AssignmentOutlinedIcon,
+            },
+          ],
+        },
+      ];
+    }
+
     return [
       {
         id: 'home',
@@ -1198,7 +1216,7 @@ export function getQuickActions(role: string | undefined | null, options?: NavAc
     Evaluator: ['dashboard', 'sas', 'audit-reports', 'hierarchy'],
     Accounting: ['dashboard', 'payments', 'edo-payment-validation', 'pre-forecast'],
     TerminalTeam: ['dashboard', 'pre-forecast', 'edo-release', 'dwell'],
-    CyStaff: ['dashboard', 'pre-forecast', 'container-inventory'],
+    CyStaff: options?.cyAssigned === false ? ['profile'] : ['dashboard', 'pre-forecast', 'container-inventory'],
     Broker: options?.brokerAccredited === false
       ? ['dashboard', 'sas']
       : ['dashboard', 'manifests', 'manifest-payments', 'payments'],

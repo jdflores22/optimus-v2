@@ -20,6 +20,7 @@ import {
 } from '../../app/api';
 import { getNavGroups, navLinkEnd } from './navConfig';
 import { useBrokerAccreditation } from '../../shared/useBrokerAccreditation';
+import { useCyStaffAssignment } from '../../shared/useCyStaffAssignment';
 import { preForecastActionQueueCount } from '../yard/preForecastIntakeFilters';
 import { countTruckerPendingEdoPayments } from '../yard/truckerEdoPayments';
 
@@ -31,7 +32,9 @@ type SideNavProps = {
 
 export function SideNav({ role, onNavigate, dense }: SideNavProps) {
   const { isBroker, brokerAccredited } = useBrokerAccreditation();
-  const navOptions = isBroker ? { brokerAccredited } : undefined;
+  const { isCyStaff, cyAssigned } = useCyStaffAssignment();
+  const navOptions =
+    isBroker ? { brokerAccredited } : isCyStaff ? { cyAssigned } : undefined;
   const groups = getNavGroups(role, navOptions);
   const allNavItems = useMemo(() => groups.flatMap((group) => group.items), [groups]);
   const needsApprovalBadge = role === 'ShippingLinesAdmin';

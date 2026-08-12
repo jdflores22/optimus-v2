@@ -633,6 +633,22 @@ public class TruckerPreForecastController : ControllerBase
 }
 
 [ApiController]
+[Route("api/cy-scope")]
+[Authorize(Policy = "CyStaff")]
+public class CyScopeController : ControllerBase
+{
+    private readonly ICyScopeService _cyScope;
+
+    public CyScopeController(ICyScopeService cyScope) => _cyScope = cyScope;
+
+    private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    [HttpGet("me")]
+    public async Task<ActionResult<CyStaffScopeDto>> Me(CancellationToken ct)
+        => Ok(await _cyScope.GetCyStaffScopeAsync(UserId, ct));
+}
+
+[ApiController]
 [Route("api/v1/token")]
 [Authorize(Policy = "Trucker")]
 public class TruckerTokenController : ControllerBase

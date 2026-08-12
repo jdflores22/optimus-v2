@@ -89,6 +89,7 @@ import { WorkspaceSelectorPage } from './features/workspace/WorkspaceSelectorPag
 import { ApplyReferralPage } from './features/workspace/ApplyReferralPage';
 import { WorkspaceGateLayout } from './features/workspace/WorkspaceGateLayout';
 import { BrokerWorkspaceGate } from './features/workspace/BrokerWorkspaceGate';
+import { CyStaffAssignmentGate } from './features/workspace/CyStaffAssignmentGate';
 import { ReportsAuditPage } from './features/platform/ReportsAuditPage';
 import { AdminPlatformPage } from './features/platform/AdminPlatformPage';
 import { VersionsPage } from './features/platform/VersionsPage';
@@ -173,6 +174,7 @@ export default function App() {
         }
       >
         <Route element={<BrokerWorkspaceGate />}>
+          <Route element={<CyStaffAssignmentGate />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/manifests" element={<ManifestsPage />} />
@@ -601,6 +603,7 @@ export default function App() {
               </Protected>
             }
           />
+        </Route>
         </Route>
       </Route>
 

@@ -22,6 +22,8 @@ import { SideNav } from './SideNav';
 import { SidebarBrandHeader } from './SidebarBrandHeader';
 import { TopBar } from './TopBar';
 import { useBrokerAccreditation } from '../../shared/useBrokerAccreditation';
+import { useCyStaffAssignment } from '../../shared/useCyStaffAssignment';
+import { CyStaffWaitingBanner } from '../workspace/CyStaffWaitingBanner';
 
 function initials(name?: string | null): string {
   if (!name) return '?';
@@ -37,7 +39,9 @@ export function AppShell() {
   const location = useLocation();
   const { user } = useSelector((state: RootState) => state.auth);
   const { isBroker, brokerAccredited } = useBrokerAccreditation();
-  const navOptions = isBroker ? { brokerAccredited } : undefined;
+  const { isCyStaff, cyAssigned } = useCyStaffAssignment();
+  const navOptions =
+    isBroker ? { brokerAccredited } : isCyStaff ? { cyAssigned } : undefined;
   const bottomItems = getBottomNavItems(user?.role, navOptions);
 
   useEffect(() => {
@@ -154,6 +158,7 @@ export function AppShell() {
         <Toolbar />
         <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3 }, pb: { xs: 10, md: 3 }, px: { xs: 2, sm: 3 } }}>
           <RouteAccessGuard>
+            <CyStaffWaitingBanner />
             <Outlet />
           </RouteAccessGuard>
         </Container>

@@ -2,6 +2,7 @@ import type { AccreditationDto } from './types';
 
 export type NavAccessOptions = {
   brokerAccredited?: boolean;
+  cyAssigned?: boolean;
 };
 
 export function isBrokerAccredited(

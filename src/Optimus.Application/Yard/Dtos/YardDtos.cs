@@ -81,6 +81,10 @@ public record UpsertCyAllocationRequest(
     int Capacity20Ft,
     int Capacity40Ft);
 
+public record CyStaffScopeTerminalDto(Guid Id, string Name, string Code);
+
+public record CyStaffScopeDto(bool HasAssignment, IReadOnlyList<CyStaffScopeTerminalDto> Terminals);
+
 public record ContainerDto(
     Guid Id,
     string ContainerNumber,

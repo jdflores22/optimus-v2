@@ -4,6 +4,7 @@
  */
 
 import { brokerRouteRequiresAccreditation, type NavAccessOptions } from './brokerAccreditation';
+import { cyStaffRouteRequiresAssignment } from './cyStaffAssignment';
 
 export const APP_ROLES = [
   'SystemAdmin',
@@ -166,6 +167,10 @@ export function canAccessRoute(
     return false;
   }
 
+  if (r === 'CyStaff' && options?.cyAssigned === false && cyStaffRouteRequiresAssignment(path)) {
+    return false;
+  }
+
   for (const rule of ROUTE_RULES) {
     if (rule.pattern.test(path)) {
       return rule.roles.includes(r);
@@ -188,6 +193,10 @@ export function getAccessDeniedRedirect(role: string | undefined | null, pathnam
   if (role === 'Broker') {
     if (pathname && brokerRouteRequiresAccreditation(pathname)) return '/sas';
     return '/workspace';
+  }
+  if (role === 'CyStaff') {
+    if (pathname && cyStaffRouteRequiresAssignment(pathname)) return '/profile';
+    return '/profile';
   }
   return '/';
 }

@@ -14,6 +14,7 @@ import type {
   ContainerSizeDto,
   ContainerTypeDto,
   CyAllocationDto,
+  CyStaffScopeDto,
   DocumentVerifyDto,
   DwellConfigDto,
   EdoDto,
@@ -137,6 +138,7 @@ export const api = createApi({
     'Containers',
     'ContainerCatalog',
     'CyAllocations',
+    'CyStaffScope',
     'Dwell',
     'PreForecast',
     'TruckerIntake',
@@ -839,6 +841,10 @@ export const api = createApi({
       },
       providesTags: ['CyAllocations'],
     }),
+    getCyStaffScope: builder.query<CyStaffScopeDto, void>({
+      query: () => '/api/cy-scope/me',
+      providesTags: ['CyStaffScope'],
+    }),
     upsertCyAllocation: builder.mutation<
       CyAllocationDto,
       {
@@ -856,7 +862,7 @@ export const api = createApi({
         method: id ? 'PUT' : 'POST',
         body,
       }),
-      invalidatesTags: ['CyAllocations', 'Terminals'],
+      invalidatesTags: ['CyAllocations', 'CyStaffScope', 'Terminals'],
     }),
     getContainers: builder.query<ContainerDto[], void>({
       query: () => '/api/containers',
@@ -1679,6 +1685,7 @@ export const {
   useUpsertContainerTypeMutation,
   useUpsertContainerSizeMutation,
   useGetCyAllocationsQuery,
+  useGetCyStaffScopeQuery,
   useUpsertCyAllocationMutation,
   useGetContainersQuery,
   useGetContainerInventoryQuery,
