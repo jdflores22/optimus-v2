@@ -4,23 +4,15 @@ import {
   Box,
   Button,
   CircularProgress,
-  Divider,
   IconButton,
   InputAdornment,
   Link,
-  Paper,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
-import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
-import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
-import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
-import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useLoginMutation } from '../../app/api';
@@ -28,99 +20,40 @@ import { setCredentials } from '../../app/authSlice';
 import { AuthSplitLayout } from './AuthSplitLayout';
 import { resolvePostLoginPath } from '../../shared/authReturnPath';
 
-const REGISTRATION_ROLES = [
-  {
-    role: 'Broker',
-    to: '/register/broker',
-    description: 'Manage manifests and consignee workspaces',
-    icon: HandshakeOutlinedIcon,
-    tone: 'primary' as const,
-  },
-  {
-    role: 'Consignee',
-    to: '/register/consignee',
-    description: 'Import cargo and invite broker partners',
-    icon: StorefrontOutlinedIcon,
-    tone: 'secondary' as const,
-  },
-  {
-    role: 'Trucker',
-    to: '/register/trucker',
-    description: 'Submit pre-forecast and yard gate requests',
-    icon: LocalShippingOutlinedIcon,
-    tone: 'info' as const,
-  },
-];
+const authPrimaryButtonSx = {
+  py: 1.35,
+  fontWeight: 600,
+  textTransform: 'none',
+  fontSize: '1rem',
+} as const;
 
-function RegistrationRoleCard({
-  role,
-  to,
-  description,
-  icon: Icon,
-  tone,
-}: (typeof REGISTRATION_ROLES)[number]) {
-  const theme = useTheme();
-  const accent =
-    tone === 'primary'
-      ? theme.palette.primary.main
-      : tone === 'secondary'
-        ? theme.palette.secondary.main
-        : theme.palette.info.main;
+function LoginRegisterLinks() {
+  const links = [
+    { label: 'Broker', to: '/register/broker' },
+    { label: 'Consignee', to: '/register/consignee' },
+    { label: 'Trucker', to: '/register/trucker' },
+  ];
 
   return (
-    <Paper
-      component={RouterLink}
-      to={to}
-      elevation={0}
-      sx={{
-        p: 2,
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 1.5,
-        textDecoration: 'none',
-        color: 'inherit',
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 2,
-        transition: 'border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease',
-        '&:hover': {
-          borderColor: alpha(accent, 0.45),
-          boxShadow: `0 8px 24px ${alpha(accent, 0.12)}`,
-          transform: 'translateY(-1px)',
-        },
-      }}
-    >
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1.5,
-          display: 'grid',
-          placeItems: 'center',
-          flexShrink: 0,
-          bgcolor: alpha(accent, theme.palette.mode === 'dark' ? 0.18 : 0.1),
-          color: accent,
-        }}
-      >
-        <Icon sx={{ fontSize: 22 }} />
-      </Box>
-      <Box minWidth={0} flex={1}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-          <Typography variant="subtitle2" fontWeight={700}>
-            {role}
-          </Typography>
-          <ArrowForwardOutlinedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-        </Stack>
-        <Typography variant="caption" color="text.secondary" lineHeight={1.45} display="block" mt={0.35}>
-          {description}
-        </Typography>
-      </Box>
-    </Paper>
+    <Stack spacing={0.75} alignItems="center">
+      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+        Register as
+      </Typography>
+      <Stack direction="row" spacing={2}>
+        {links.map((link) => (
+          <Link key={link.to} component={RouterLink} to={link.to} variant="body2">
+            {link.label}
+          </Link>
+        ))}
+      </Stack>
+      <Link component={RouterLink} to="/verify-email" variant="caption" color="text.secondary">
+        Verify your email
+      </Link>
+    </Stack>
   );
 }
 
 export function LoginPage() {
-  const theme = useTheme();
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -155,39 +88,36 @@ export function LoginPage() {
 
   return (
     <AuthSplitLayout
-      title="Sign in to OPTIMUS"
-      maxWidth={460}
-      subtitle="Enter your credentials to access manifests, eDO workflows, and operational tools."
+      title="Sign in"
+      maxWidth={440}
+      subtitle={
+        <>
+          Sign in to OPTIMUS.{' '}
+          <Link component={RouterLink} to="/register/broker" fontWeight={600}>
+            Register
+          </Link>{' '}
+          if you need an account.
+        </>
+      }
     >
-      <Paper
-        component="form"
-        elevation={0}
-        onSubmit={onSubmit}
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          border: 1,
-          borderColor: 'divider',
-          borderRadius: 2.5,
-          bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.6 : 1),
-        }}
-      >
-        <Stack spacing={2.25}>
-          {sessionTimeout && (
-            <Alert severity="warning">
-              Your session expired due to inactivity. Sign in again to continue where you left off.
-            </Alert>
-          )}
+      <Stack spacing={2} component="form" onSubmit={onSubmit}>
+        {sessionTimeout && (
+          <Alert severity="warning">
+            Your session expired due to inactivity. Sign in again to continue where you left off.
+          </Alert>
+        )}
 
-          {error && <Alert severity="error">{error}</Alert>}
+        {error && <Alert severity="error">{error}</Alert>}
 
-          {import.meta.env.DEV && (
-            <Alert severity="info" sx={{ py: 0.75 }}>
-              <Typography variant="caption" component="div">
-                <strong>Dev demo:</strong> admin@optimus.local / Admin123!
-              </Typography>
-            </Alert>
-          )}
+        {import.meta.env.DEV && (
+          <Alert severity="info" sx={{ py: 0.75 }}>
+            <Typography variant="caption" component="div">
+              <strong>Dev demo:</strong> admin@optimus.local / Admin123!
+            </Typography>
+          </Alert>
+        )}
 
+        <Stack spacing={2} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
           <TextField
             label="Email address"
             type="email"
@@ -196,7 +126,6 @@ export function LoginPage() {
             required
             fullWidth
             autoComplete="email"
-            placeholder="you@company.com"
           />
 
           <TextField
@@ -207,7 +136,6 @@ export function LoginPage() {
             required
             fullWidth
             autoComplete="current-password"
-            placeholder="Enter your password"
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -228,7 +156,7 @@ export function LoginPage() {
             }}
           />
 
-          <Box textAlign="right" mt={-1.25}>
+          <Box textAlign="right">
             <Link
               component={RouterLink}
               to="/forgot-password"
@@ -239,70 +167,20 @@ export function LoginPage() {
               Forgot password?
             </Link>
           </Box>
-
-          <Button
-            type="submit"
-            variant="contained"
-            size="large"
-            fullWidth
-            disabled={isLoading}
-            sx={{ py: 1.35, fontWeight: 700, textTransform: 'none', fontSize: '1rem', mt: 0.5 }}
-          >
-            {isLoading ? <CircularProgress size={22} color="inherit" /> : 'Sign in'}
-          </Button>
-        </Stack>
-      </Paper>
-
-      <Stack spacing={2}>
-        <Divider>
-          <Typography variant="caption" color="text.secondary" fontWeight={600} px={1}>
-            Create an account
-          </Typography>
-        </Divider>
-
-        <Stack spacing={1.25}>
-          {REGISTRATION_ROLES.map((item) => (
-            <RegistrationRoleCard key={item.role} {...item} />
-          ))}
         </Stack>
 
-        <Paper
-          component={RouterLink}
-          to="/verify-email"
-          elevation={0}
-          sx={{
-            p: 1.75,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.25,
-            textDecoration: 'none',
-            color: 'inherit',
-            border: 1,
-            borderColor: 'divider',
-            borderRadius: 2,
-            borderStyle: 'dashed',
-            transition: 'background-color 0.2s ease',
-            '&:hover': { bgcolor: 'action.hover' },
-          }}
+        <Button
+          type="submit"
+          variant="contained"
+          size="large"
+          fullWidth
+          disabled={isLoading}
+          sx={authPrimaryButtonSx}
         >
-          <MarkEmailReadOutlinedIcon sx={{ color: 'text.secondary', fontSize: 22 }} />
-          <Box flex={1}>
-            <Typography variant="body2" fontWeight={600}>
-              Verify your email
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Already registered? Confirm your account to sign in.
-            </Typography>
-          </Box>
-          <ArrowForwardOutlinedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
-        </Paper>
+          {isLoading ? <CircularProgress size={22} color="inherit" /> : 'Sign in'}
+        </Button>
 
-        <Typography variant="body2" color="text.secondary" textAlign="center">
-          <Link component={RouterLink} to="/versions" fontWeight={600}>
-            Release notes
-          </Link>{' '}
-          — see version history and what&apos;s new in OPTIMUS V2.
-        </Typography>
+        <LoginRegisterLinks />
       </Stack>
     </AuthSplitLayout>
   );
