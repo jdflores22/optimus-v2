@@ -30,6 +30,9 @@ public static class MigrationHistoryBaseline
         ("20260808220000_AccreditationCertificate", db => ColumnExistsAsync(db, "accreditation_submissions", "CertificatePdfPath")),
         ("20260808230000_EdoPaymentReceiptReferences", db => ColumnExistsAsync(db, "edo_payments", "PaymentChannel")),
         ("20260808240000_EdoPaymentTransactionAt", db => ColumnExistsAsync(db, "edo_payments", "TransactionAt")),
+        ("20260811062732_TruckerPreForecastSubmission", db => TableExistsAsync(db, "trucker_pre_forecast_submissions")),
+        ("20260811121533_PreForecastScheduleDelta", db => ColumnExistsAsync(db, "trucker_pre_forecast_submissions", "TruckerPreferredReturnDate")),
+        ("20260811213000_PreForecastDetentionRateAtCalculation", db => ColumnExistsAsync(db, "trucker_pre_forecast_submissions", "DetentionRateAtCalculation")),
     };
 
     public static async Task EnsureAsync(OptimusDbContext db, ILogger logger, CancellationToken cancellationToken = default)
@@ -112,7 +115,7 @@ public static class MigrationHistoryBaseline
         return await ColumnMaxLengthAsync(db, "terminals", "Location") >= 2000;
     }
 
-    private static async Task<bool> TableExistsAsync(OptimusDbContext db, string tableName, CancellationToken cancellationToken = default)
+    internal static async Task<bool> TableExistsAsync(OptimusDbContext db, string tableName, CancellationToken cancellationToken = default)
     {
         var count = await ScalarIntAsync(
             db,
@@ -157,7 +160,7 @@ public static class MigrationHistoryBaseline
         }
     }
 
-    private static async Task<bool> ColumnExistsAsync(
+    internal static async Task<bool> ColumnExistsAsync(
         OptimusDbContext db,
         string tableName,
         string columnName,

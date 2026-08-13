@@ -827,7 +827,7 @@ public class TruckerPreForecastService : ITruckerPreForecastService
         string actorRole,
         CancellationToken ct = default)
     {
-        var query = SubmissionQuery();
+        var query = SubmissionReadQuery();
 
         if (actorRole == AppRoles.Trucker)
         {
@@ -880,6 +880,11 @@ public class TruckerPreForecastService : ITruckerPreForecastService
         var results = new List<TruckerPreForecastSubmissionDto>();
         foreach (var item in items)
         {
+            if (item.Container is null || item.ExpiredEdo is null || item.Trucker is null)
+            {
+                continue;
+            }
+
             results.Add(await MapSubmissionEntityAsync(item, StatusMessage(item), ct));
         }
 
@@ -892,7 +897,7 @@ public class TruckerPreForecastService : ITruckerPreForecastService
         string actorRole,
         CancellationToken ct = default)
     {
-        var entity = await SubmissionQuery().FirstOrDefaultAsync(x => x.Id == id, ct)
+        var entity = await SubmissionReadQuery().FirstOrDefaultAsync(x => x.Id == id, ct)
                      ?? throw new KeyNotFoundException("Pre-forecast submission not found.");
         await EnsureSubmissionAccessAsync(entity, actorId, actorRole, ct);
         return await MapSubmissionEntityAsync(entity, StatusMessage(entity), ct);
@@ -1301,7 +1306,14 @@ public class TruckerPreForecastService : ITruckerPreForecastService
     }
 
     private IQueryable<TruckerPreForecastSubmission> SubmissionQuery() =>
-        _db.TruckerPreForecastSubmissions
+        SubmissionGraph(_db.TruckerPreForecastSubmissions);
+
+    private IQueryable<TruckerPreForecastSubmission> SubmissionReadQuery() =>
+        SubmissionGraph(_db.TruckerPreForecastSubmissions.AsNoTracking().AsSplitQuery());
+
+    private static IQueryable<TruckerPreForecastSubmission> SubmissionGraph(
+        IQueryable<TruckerPreForecastSubmission> query) =>
+        query
             .Include(x => x.Container).ThenInclude(c => c.ContainerSize)
             .Include(x => x.Trucker)
             .Include(x => x.ExpiredEdo).ThenInclude(e => e.Manifest).ThenInclude(m => m!.Broker)
@@ -1457,7 +1469,7 @@ public class TruckerPreForecastService : ITruckerPreForecastService
 
     private async Task<TruckerPreForecastSubmissionDto> MapSubmissionAsync(Guid id, string message, CancellationToken ct)
     {
-        var entity = await SubmissionQuery().FirstAsync(x => x.Id == id, ct);
+        var entity = await SubmissionReadQuery().FirstAsync(x => x.Id == id, ct);
         return await MapSubmissionEntityAsync(entity, message, ct);
     }
 
@@ -1483,13 +1495,23 @@ public class TruckerPreForecastService : ITruckerPreForecastService
         var (overdueCy, _) = CalculateDetention(x.ExpiredEdo, cyReturn, detentionRatePerDay);
         var freeUntil = GetFreeTimeUntil(x.ExpiredEdo);
         var edoExpiresAt = x.ExpiredEdo.ExpiresAt;
+        var photos = (x.Photos ?? Array.Empty<TruckerPreForecastPhoto>())
+            .OrderBy(p => Array.IndexOf(ContainerPhotoCatalog.RequiredViews, p.Category))
+            .Select(p => new TruckerPreForecastPhotoDto(
+                p.Id,
+                p.Category.ToString(),
+                ContainerPhotoCatalog.GetLabel(p.Category),
+                p.FilePath,
+                p.OriginalName,
+                p.Comment))
+            .ToList();
         return new TruckerPreForecastSubmissionDto(
             x.Id,
             x.ContainerId,
-            x.Container.ContainerNumber,
+            x.Container!.ContainerNumber,
             x.Container.ContainerSize?.Code,
             x.ExpiredEdoId,
-            x.ExpiredEdo.EdoNumber,
+            x.ExpiredEdo!.EdoNumber,
             x.RenewalRequestId,
             x.Status.ToString(),
             x.ReturnDate,
@@ -1497,16 +1519,7 @@ public class TruckerPreForecastService : ITruckerPreForecastService
             x.OverdueDays,
             x.Status == TruckerPreForecastStatus.AwaitingDetentionPayment,
             message,
-            x.Photos
-                .OrderBy(p => Array.IndexOf(ContainerPhotoCatalog.RequiredViews, p.Category))
-                .Select(p => new TruckerPreForecastPhotoDto(
-                    p.Id,
-                    p.Category.ToString(),
-                    ContainerPhotoCatalog.GetLabel(p.Category),
-                    p.FilePath,
-                    p.OriginalName,
-                    p.Comment))
-                .ToList(),
+            photos,
             x.TruckerPreferredReturnDate == default ? x.ReturnDate : x.TruckerPreferredReturnDate,
             x.ScheduleDeltaDays,
             x.DetentionAtPreferredDate,
@@ -1523,7 +1536,7 @@ public class TruckerPreForecastService : ITruckerPreForecastService
             x.CyNotes,
             x.NewEdoId,
             x.NewEdo?.EdoNumber,
-            x.Trucker.FullName,
+            x.Trucker!.FullName,
             x.ExpiredEdo.ShippingLine?.BrandName,
             edoExpired,
             x.ExpiredEdo.Manifest?.ManifestNumber,

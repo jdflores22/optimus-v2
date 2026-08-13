@@ -1,5 +1,7 @@
+using System.Data.Common;
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 
 namespace Optimus.Api.Middleware;
 
@@ -38,6 +40,9 @@ public class ExceptionHandlingMiddleware
             FluentValidation.ValidationException validation => (HttpStatusCode.BadRequest, string.Join("; ", validation.Errors.Select(e => e.ErrorMessage))),
             KeyNotFoundException => (HttpStatusCode.NotFound, exception.Message),
             InvalidOperationException => (HttpStatusCode.BadRequest, exception.Message),
+            DbException db when IsSchemaDrift(db) => (
+                HttpStatusCode.ServiceUnavailable,
+                "Database schema is out of date for pre-forecast intake. Please retry after the platform migration completes."),
             _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.")
         };
 
@@ -61,5 +66,13 @@ public class ExceptionHandlingMiddleware
         });
 
         await context.Response.WriteAsync(payload);
+    }
+
+    private static bool IsSchemaDrift(DbException exception)
+    {
+        var message = exception.Message;
+        return message.Contains("Unknown column", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("doesn't exist", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("does not exist", StringComparison.OrdinalIgnoreCase);
     }
 }

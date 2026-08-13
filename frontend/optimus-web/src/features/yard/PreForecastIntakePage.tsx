@@ -123,8 +123,9 @@ export function PreForecastIntakePage() {
       {isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Could not load your pre-forecast submissions.
-          {(error as { data?: { message?: string } })?.data?.message
-            ? ` ${(error as { data?: { message?: string } }).data?.message}`
+          {(error as { data?: { error?: string; message?: string } })?.data?.error ||
+            (error as { data?: { message?: string } })?.data?.message
+            ? ` ${(error as { data?: { error?: string; message?: string } }).data?.error ?? (error as { data?: { message?: string } }).data?.message}`
             : ' Refresh the page or sign in again as the trucker who submitted the intake.'}
         </Alert>
       )}

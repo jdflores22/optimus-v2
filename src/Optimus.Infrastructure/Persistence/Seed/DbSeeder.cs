@@ -21,6 +21,7 @@ public static class DbSeeder
 
         await MigrationHistoryBaseline.EnsureAsync(db, logger);
         await db.Database.MigrateAsync();
+        await PreForecastSchemaRepair.EnsureAsync(db, logger);
 
         ShippingLine? demoLine = null;
         if (!await db.ShippingLines.AnyAsync())
