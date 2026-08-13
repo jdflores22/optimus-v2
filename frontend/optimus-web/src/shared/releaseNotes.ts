@@ -39,13 +39,13 @@ export const ROADMAP_ITEMS: RoadmapItem[] = [
   {
     id: 'ics-consignee-broker',
     product: 'ICS',
-    status: 'in_progress',
+    status: 'done',
     scope: 'Consignee link to broker — same relationship and approval flow as Optimus workflow.',
   },
   {
     id: 'ics-cro-edo-broker-notify',
     product: 'ICS',
-    status: 'in_progress',
+    status: 'done',
     route: '/evaluations/cro-edo/new',
     scope: 'CRO/eDO evaluation — add broker link on notifications so brokers are included in alerts.',
   },
