@@ -92,17 +92,22 @@ export function AuthSplitLayout({
 
   return (
     <Box
-      minHeight="100vh"
       display="grid"
       gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }}
-      sx={{ bgcolor: 'background.paper' }}
+      sx={{
+        bgcolor: 'background.paper',
+        minHeight: '100vh',
+        height: { md: '100vh' },
+        overflow: { md: 'hidden' },
+      }}
     >
       <Box
         sx={{
           display: { xs: 'none', md: 'flex' },
           alignItems: 'center',
           justifyContent: 'center',
-          minHeight: { md: '100vh' },
+          height: { md: '100vh' },
+          flexShrink: 0,
           px: { md: 6, lg: 10 },
           py: 6,
           bgcolor: mode === 'dark' ? 'background.default' : 'grey.100',
@@ -117,39 +122,60 @@ export function AuthSplitLayout({
 
       <Box
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          px: { xs: 2.5, sm: 4 },
-          py: { xs: 4, md: 6 },
-          bgcolor: 'background.paper',
           position: 'relative',
           order: { xs: 1, md: 1 },
-          minHeight: { md: '100vh' },
+          height: { md: '100vh' },
+          overflowY: { md: 'auto' },
+          overflowX: 'hidden',
+          bgcolor: 'background.paper',
         }}
       >
-        <Box sx={{ position: 'absolute', top: 16, right: 16 }}>
-          <ColorModeToggle size="small" />
+        <Box
+          sx={{
+            position: 'sticky',
+            top: 16,
+            zIndex: 1,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            px: { xs: 2.5, sm: 4 },
+            pointerEvents: 'none',
+            mb: -5,
+          }}
+        >
+          <Box sx={{ pointerEvents: 'auto' }}>
+            <ColorModeToggle size="small" />
+          </Box>
         </Box>
 
-        <Stack spacing={3} width="100%" maxWidth={maxWidth}>
-          <Box>
-            <Box mb={2.5}>
-              <OptimusLogo size="sm" />
+        <Box
+          sx={{
+            minHeight: { md: '100%' },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            px: { xs: 2.5, sm: 4 },
+            py: { xs: 4, md: 6 },
+          }}
+        >
+          <Stack spacing={3} width="100%" maxWidth={maxWidth}>
+            <Box>
+              <Box mb={2.5}>
+                <OptimusLogo size="sm" />
+              </Box>
+
+              <Typography variant="h4" fontWeight={700}>
+                {title}
+              </Typography>
+              {subtitle && (
+                <Typography variant="body2" color="text.secondary" mt={1} component="div">
+                  {subtitle}
+                </Typography>
+              )}
             </Box>
 
-            <Typography variant="h4" fontWeight={700}>
-              {title}
-            </Typography>
-            {subtitle && (
-              <Typography variant="body2" color="text.secondary" mt={1} component="div">
-                {subtitle}
-              </Typography>
-            )}
-          </Box>
-
-          {children}
-        </Stack>
+            {children}
+          </Stack>
+        </Box>
       </Box>
     </Box>
   );
