@@ -3,8 +3,8 @@ import { Box, Button, Stack, Typography } from '@mui/material';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import { Link as RouterLink, Outlet, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../../app/authSlice';
-import type { RootState } from '../../app/store';
+import type { AppDispatch, RootState } from '../../app/store';
+import { signOut } from '../../app/authSession';
 import { RouteAccessGuard } from '../auth/RouteAccessGuard';
 import { OptimusLogo } from '../../shared/OptimusLogo';
 import { ColorModeToggle } from '../../shared/ColorModeToggle';
@@ -22,14 +22,13 @@ type WorkspaceGateLayoutProps = {
  */
 export function WorkspaceGateLayout({ children }: WorkspaceGateLayoutProps) {
   const theme = useTheme();
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const mode = theme.palette.mode;
 
   const onSignOut = () => {
-    dispatch(logout());
-    navigate('/login');
+    void dispatch(signOut()).then(() => navigate('/login'));
   };
 
   return (

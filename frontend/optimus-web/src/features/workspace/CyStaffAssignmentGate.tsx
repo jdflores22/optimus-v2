@@ -12,7 +12,8 @@ import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { logout } from '../../app/authSlice';
+import type { AppDispatch } from '../../app/store';
+import { signOut } from '../../app/authSession';
 import { isCyStaffOpenWithoutAssignment } from '../../shared/cyStaffAssignment';
 import { useCyStaffAssignment } from '../../shared/useCyStaffAssignment';
 
@@ -22,12 +23,11 @@ type CyStaffUnassignedModalProps = {
 };
 
 export function CyStaffUnassignedModal({ open, isRefreshing }: CyStaffUnassignedModalProps) {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
   const onSignOut = () => {
-    dispatch(logout());
-    navigate('/login');
+    void dispatch(signOut()).then(() => navigate('/login'));
   };
 
   return (

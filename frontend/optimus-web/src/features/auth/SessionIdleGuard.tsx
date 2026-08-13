@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import type { RootState } from '../../app/store';
-import { logout } from '../../app/authSlice';
+import type { AppDispatch, RootState } from '../../app/store';
+import { signOut } from '../../app/authSession';
 import { getSessionIdleMinutes, saveLastActivityPath } from '../../shared/authReturnPath';
 
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
@@ -16,15 +16,16 @@ const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
 
 /** Logs out after inactivity; last page is preserved for re-login redirect. */
 export function SessionIdleGuard() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const timerRef = useRef<number | null>(null);
 
   const onIdle = useCallback(() => {
     saveLastActivityPath(window.location.pathname, window.location.search);
-    dispatch(logout({ clearReturnPath: false }));
-    navigate('/login?reason=timeout', { replace: true });
+    void dispatch(signOut({ clearReturnPath: false })).then(() =>
+      navigate('/login?reason=timeout', { replace: true }),
+    );
   }, [dispatch, navigate]);
 
   const resetTimer = useCallback(() => {

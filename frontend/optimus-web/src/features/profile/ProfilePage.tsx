@@ -20,7 +20,7 @@ import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useDispatch, useSelector } from 'react-redux';
-import type { RootState } from '../../app/store';
+import type { AppDispatch, RootState } from '../../app/store';
 import {
   useGetMeQuery,
   useRemoveProfilePhotoMutation,
@@ -41,14 +41,14 @@ type ProfileTab = 'profile' | 'security' | 'account';
 
 export function ProfilePage() {
   const theme = useTheme();
-  const dispatch = useDispatch();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch<AppDispatch>();
+  const { user, accessToken } = useSelector((state: RootState) => state.auth);
   const { shippingLine } = useDefaultShippingLine();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState<ProfileTab>('profile');
 
-  const { data: me } = useGetMeQuery(undefined, { skip: !user });
+  const { data: me } = useGetMeQuery(accessToken ?? '', { skip: !accessToken });
   const [uploadProfilePhoto, { isLoading: uploadingPhoto }] = useUploadProfilePhotoMutation();
   const [removeProfilePhoto, { isLoading: removingPhoto }] = useRemoveProfilePhotoMutation();
   const [updateProfile, { isLoading: savingProfile }] = useUpdateProfileMutation();
@@ -70,11 +70,11 @@ export function ProfilePage() {
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (me) {
+    if (me && user && me.id === user.id) {
       dispatch(setUser(me));
       setProfileForm(buildProfileForm(me));
     }
-  }, [me, dispatch]);
+  }, [me, dispatch, user]);
 
   useEffect(() => {
     if (!selectedPhoto) {

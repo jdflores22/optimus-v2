@@ -21,8 +21,8 @@ import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNone
 import MenuIcon from '@mui/icons-material/Menu';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../../app/authSlice';
-import type { RootState } from '../../app/store';
+import { signOut } from '../../app/authSession';
+import type { AppDispatch, RootState } from '../../app/store';
 import {
   useGetNotificationsQuery,
   useMarkNotificationsReadMutation,
@@ -49,7 +49,7 @@ function initials(name?: string | null): string {
 }
 
 export function TopBar({ isDesktop, onOpenNav }: TopBarProps) {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { user, accessToken } = useSelector((state: RootState) => state.auth);
   const { shippingLine } = useDefaultShippingLine();
@@ -79,8 +79,7 @@ export function TopBar({ isDesktop, onOpenNav }: TopBarProps) {
 
   const onLogout = () => {
     setAccountEl(null);
-    dispatch(logout());
-    navigate('/login');
+    void dispatch(signOut()).then(() => navigate('/login'));
   };
 
   const onMarkOne = async (id: string) => {

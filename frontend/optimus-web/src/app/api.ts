@@ -165,6 +165,9 @@ export const api = createApi({
     refreshAuth: builder.mutation<AuthResponse, { refreshToken: string }>({
       query: (body) => ({ url: '/api/auth/refresh', method: 'POST', body }),
     }),
+    logout: builder.mutation<void, { refreshToken: string }>({
+      query: (body) => ({ url: '/api/auth/logout', method: 'POST', body }),
+    }),
     registerBroker: builder.mutation<
       { message: string },
       {
@@ -226,7 +229,7 @@ export const api = createApi({
     hello: builder.query<HelloResponse, void>({
       query: () => '/api/hello',
     }),
-    getMe: builder.query<UserDto, void>({
+    getMe: builder.query<UserDto, string>({
       query: () => '/api/me',
     }),
     uploadProfilePhoto: builder.mutation<UserDto, File>({
@@ -1596,6 +1599,8 @@ export const api = createApi({
 
 export const {
   useLoginMutation,
+  useLogoutMutation,
+  useRefreshAuthMutation,
   useRegisterBrokerMutation,
   useRegisterConsigneeMutation,
   useRegisterTruckerMutation,
