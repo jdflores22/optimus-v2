@@ -72,9 +72,11 @@ export function VersionsPage() {
 
   const shippedChangeCount = RELEASE_NOTES.reduce((sum, release) => sum + release.changes.length, 0);
   const inProgressCount = countRoadmapItems('in_progress');
+  const doneCount = countRoadmapItems('done');
   const queuedCount = countRoadmapItems('queued');
   const totalRoadmapHours = sumRoadmapHours();
   const inProgressHours = sumRoadmapHours('in_progress');
+  const doneHours = sumRoadmapHours('done');
   const queuedHours = sumRoadmapHours('queued');
   const releasedCount = RELEASE_NOTES.length;
   const latestLiveVersion = RELEASE_NOTES[0]?.version;
@@ -143,6 +145,7 @@ export function VersionsPage() {
                 </Typography>
               </Stack>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={`${doneCount} done`} size="small" color="success" variant="outlined" />
                 <Chip label={`${inProgressCount} in progress`} size="small" color="warning" variant="outlined" />
                 <Chip label={`${queuedCount} queued`} size="small" variant="outlined" />
                 <Chip
@@ -163,11 +166,13 @@ export function VersionsPage() {
                 }}
               >
                 <ToggleButton value={ROADMAP_FILTER_ALL}>All</ToggleButton>
+                <ToggleButton value="done">Done</ToggleButton>
                 <ToggleButton value="in_progress">In progress</ToggleButton>
                 <ToggleButton value="queued">Queued</ToggleButton>
               </ToggleButtonGroup>
               <Typography variant="caption" color="text.secondary" alignSelf="center">
-                In progress: {formatRoadmapHours(inProgressHours)} · Queued: {formatRoadmapHours(queuedHours)}
+                Done: {formatRoadmapHours(doneHours)} · In progress: {formatRoadmapHours(inProgressHours)} · Queued:{' '}
+                {formatRoadmapHours(queuedHours)}
               </Typography>
             </Stack>
 

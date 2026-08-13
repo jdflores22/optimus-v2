@@ -14,16 +14,16 @@ export type ReleaseNote = {
 };
 
 /** Shipped frontend/API version. */
-export const CURRENT_APP_VERSION = '0.7.0';
+export const CURRENT_APP_VERSION = '0.8.0';
 
 /** Next milestone on the progress report (not shipped). */
-export const UPCOMING_APP_VERSION = '0.8.0';
+export const UPCOMING_APP_VERSION = '0.9.0';
 
 export type RoadmapProduct = 'ICS' | 'OPTIMUS' | 'ICS + OPTIMUS';
 
-export type RoadmapItemStatus = 'in_progress' | 'queued';
+export type RoadmapItemStatus = 'done' | 'in_progress' | 'queued';
 
-/** Manual v0.8.0 progress report — edit here; estimates are filled by the team, not auto-generated. */
+/** Manual v0.9.0 progress report — edit here; estimates are filled by the team, not auto-generated. */
 export type RoadmapItem = {
   id: string;
   product: RoadmapProduct;
@@ -86,12 +86,32 @@ export const ROADMAP_ITEMS: RoadmapItem[] = [
   {
     id: 'optimus-cy-account',
     product: 'OPTIMUS',
-    status: 'in_progress',
-    scope: 'CY account module — container yard login, pre-forecast queue, and yard-scoped inventory.',
+    status: 'done',
+    scope: 'CY account module — container yard login, pre-forecast queue, yard-scoped inventory, and assignment gate until admin links TEU contract.',
   },
 ];
 
 export const RELEASE_NOTES: ReleaseNote[] = [
+  {
+    version: '0.8.0',
+    date: '2026-08-13',
+    title: 'CY staff gate, auth polish & invite onboarding',
+    summary:
+      'CyStaff portal access control, Philippines-themed login hero, branded invite emails, and stronger role-acceptance passwords.',
+    changes: [
+      {
+        type: 'added',
+        text: 'CyStaff assignment gate — blocking modal and nav lock until System Admin assigns CY contact on TEU contract.',
+      },
+      { type: 'added', text: 'GET /api/cy-scope/me for CyStaff terminal assignment scope with auto-poll unlock.' },
+      { type: 'added', text: 'Philippines matrix map hero on auth pages with theme-aware dot animation.' },
+      { type: 'added', text: 'Branded HTML invitation email for admin user invites with accept link.' },
+      { type: 'added', text: 'Strong password indicator and policy enforcement on role acceptance (/role-acceptance).' },
+      { type: 'improved', text: 'Auth split layout aligned across login and registration flows.' },
+      { type: 'improved', text: 'CyStaff waiting banner on profile while assignment is pending.' },
+      { type: 'security', text: 'PasswordPolicy enforced on invitation accept endpoint.' },
+    ],
+  },
   {
     version: '0.7.0',
     date: '2026-08-10',
@@ -203,11 +223,13 @@ export const RELEASE_CHANGE_COLORS: Record<
 };
 
 export const ROADMAP_STATUS_LABELS: Record<RoadmapItemStatus, string> = {
+  done: 'Done',
   in_progress: 'In progress',
   queued: 'Queued',
 };
 
-export const ROADMAP_STATUS_COLORS: Record<RoadmapItemStatus, 'warning' | 'default'> = {
+export const ROADMAP_STATUS_COLORS: Record<RoadmapItemStatus, 'success' | 'warning' | 'default'> = {
+  done: 'success',
   in_progress: 'warning',
   queued: 'default',
 };
